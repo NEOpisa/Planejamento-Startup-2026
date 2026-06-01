@@ -497,6 +497,56 @@
     border: 1px solid var(--border);
     color: var(--muted);
   }
+
+  /* Link para index(2).html */
+  .nav-link-tab {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    padding: 0.4rem 0.9rem;
+    border-radius: 100px;
+    border: 1px solid var(--phase2);
+    background: transparent;
+    color: var(--phase2);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .nav-link-tab:hover {
+    background: var(--phase2);
+    color: #0d1f1a;
+    font-weight: 600;
+  }
+
+  .nav-link-float {
+    position: fixed;
+    bottom: 2rem;
+    right: 1.5rem;
+    z-index: 100;
+    background: var(--phase2);
+    color: #0d1f1a;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    padding: 0.65rem 1.2rem;
+    border-radius: 100px;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 4px 24px rgba(66,245,200,0.25);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .nav-link-float:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 32px rgba(66,245,200,0.4);
+  }
 </style>
 </head>
 <body>
@@ -542,7 +592,11 @@
     <button class="tab" onclick="showPhase('p3',this)">Fase 3 · Escala</button>
     <button class="tab" onclick="showPhase('gestao',this)">Gestão</button>
     <button class="tab" onclick="showPhase('gov',this)">Governança</button>
+    <a class="nav-link-tab" href="index(2).html">→ Página 2</a>
   </div>
+
+  <!-- Botão flutuante para index(2).html -->
+  <a class="nav-link-float" href="index(2).html">→ir para produtos).html</a>
 
   <!-- Fase 1 -->
   <div class="phase p1 active" id="p1">
