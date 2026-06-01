@@ -942,7 +942,7 @@
         <button class="btn-save" onclick="addProduto()">Salvar projeto</button>
       </div>
     </div>
-
+    
   </div>
 
   <!-- ═══════════════════════════════════════════
@@ -1012,6 +1012,7 @@
 
   </div>
 
+  
 </div><!-- /container -->
 
 <!-- Botão flutuante voltar -->
@@ -1031,7 +1032,9 @@ let avaliacaoIdCounter = 1;
 /* ─────────────────────────────────────────
    TABS
 ───────────────────────────────────────── */
-function showPanel(id, btn) {
+<a class="nav-link-float" href="index(1).html">← Voltar ao Roadmap</a>
+  
+  function showPanel(id, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
