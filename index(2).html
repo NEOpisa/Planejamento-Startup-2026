@@ -1133,7 +1133,7 @@ function renderAvaliacoes() {
   if (!list) return;
   list.innerHTML = '';
 
-  const avaliados = produtos.filter(p => p['Media'] !== null && p['Media'] !== undefined);
+  const avaliados = avaliacoes.filter(p => p['Media'] !== null ...
 
   if (!avaliados.length) {
     list.innerHTML = '<p style="color:var(--muted);font-size:0.82rem;padding:1rem 0;">Nenhuma avaliação técnica cadastrada. Clique em "＋ Nova avaliação técnica" para adicionar.</p>';
