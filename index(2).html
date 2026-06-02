@@ -1118,7 +1118,7 @@ async function addAvaliacao() {
     "Obs.":      document.getElementById('aval-obs').value.trim() || null,
   };
 
-  const salvo = await sbInsert('Revisões Projetos/Produtos', dados);
+  const salvo = await sbInsert('Revision', dados);
   if (!salvo) { alert('Erro ao salvar. Verifique o console.'); return; }
 
   renderAvaliacoes();
@@ -1189,7 +1189,7 @@ async function init() {
   });
 
   clientes   = await sbGet('Clientes');
-  avaliacoes = await sbGet('Revisões Projetos/Produtos');
+  avaliacoes = await sbGet('Revision');
 
   renderClientes();
   renderAvaliacoes();
