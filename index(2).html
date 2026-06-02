@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   /* =============================================
-     CORES (mesmo padrão do index principal)
+     CORES
      ============================================= */
   :root {
     --bg:      #0d0d14;
@@ -128,7 +128,7 @@
     font-weight: 600;
   }
 
-  /* ── Painel (view) ── */
+  /* ── Painel ── */
   .panel {
     display: none;
     animation: fadeUp 0.35s ease forwards;
@@ -862,11 +862,6 @@
   </div>
 
   <!-- ═══════════════════════════════════════════
-       PAINEL: PRODUTOS / PROJETOS
-  ════════════════════════════════════════════ -->
-
-
-  <!-- ═══════════════════════════════════════════
        PAINEL: AVALIAÇÃO TÉCNICA
   ════════════════════════════════════════════ -->
   <div class="panel" id="avaliacao">
@@ -1090,7 +1085,7 @@ function renderClientes() {
 }
 
 /* ─────────────────────────────────────────
-   PRODUTOS / PROJETOS
+   REVISÃO
 ───────────────────────────────────────── */
 async function addAvaliacao() {
   const projeto = document.getElementById('aval-projeto').value.trim();
