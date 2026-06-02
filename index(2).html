@@ -1188,8 +1188,8 @@ async function init() {
     if (el) el.innerHTML = '<p style="color:var(--muted);font-size:0.82rem;padding:1rem 0;">Carregando...</p>';
   });
 
-  clientes = await sbGet('Clientes');
-  produtos = await sbGet('Projetos/produtos');
+  clientes   = await sbGet('Clientes');
+avaliacoes = await sbGet('Revisões Projetos/Produtos');
 
   renderClientes();
   renderAvaliacoes();
