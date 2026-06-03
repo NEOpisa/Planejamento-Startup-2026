@@ -1002,7 +1002,7 @@ function renderClientes() {
   }
 
   list.innerHTML = clientes.map(c => {
-    const status       = c['Status'] || 'pendente';
+    const status = (c['Status'] === 'null' || !c['Status']) ? 'pendente' : c['Status'];
     const isFinalizado = status === 'finalizado';
     const initial      = (c['Nome'] || '?').charAt(0).toUpperCase();
 
