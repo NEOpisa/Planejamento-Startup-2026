@@ -1216,14 +1216,80 @@
     el.classList.toggle('open');
   }
 
-  function toggleCheck(e, el) {
+  /* ── Supabase ── */
+  let SUPA_URL = null;
+  let SUPA_KEY = null;
+  let sbHeaders = null;
+
+  async function initSupabase() {
+    try {
+      const res = await fetch('/api/config');
+      if (!res.ok) throw new Error('Falha ao buscar config: ' + res.status);
+      const cfg = await res.json();
+      SUPA_URL = cfg.url;
+      SUPA_KEY = cfg.key;
+      sbHeaders = {
+        'apikey':        SUPA_KEY,
+        'Authorization': `Bearer ${SUPA_KEY}`,
+        'Content-Type':  'application/json',
+        'Prefer':        'return=representation'
+      };
+    } catch (e) {
+      console.error('initSupabase:', e);
+    }
+  }
+
+  async function sbGetTarefas() {
+    try {
+      const res = await fetch(`${SUPA_URL}/rest/v1/Tarefas?select=id,done`, { headers: sbHeaders });
+      if (!res.ok) return [];
+      return res.json();
+    } catch { return []; }
+  }
+
+  async function sbUpsertTarefa(id, done) {
+    try {
+      await fetch(`${SUPA_URL}/rest/v1/Tarefas`, {
+        method: 'POST',
+        headers: { ...sbHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ id, done })
+      });
+    } catch (e) { console.error('Erro ao salvar tarefa:', e); }
+  }
+
+  function taskId(el) {
+    const text = el.nextElementSibling?.textContent?.trim() || '';
+    return 'task_' + text.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\u00C0-\u024F]/g, '').slice(0, 60);
+  }
+
+  async function toggleCheck(e, el) {
     e.stopPropagation();
     el.classList.toggle('done');
     const text = el.nextElementSibling;
     text.classList.toggle('done');
     if (el.classList.contains('done')) el.textContent = '✓';
     else el.textContent = '';
+    await sbUpsertTarefa(taskId(el), el.classList.contains('done'));
   }
+
+  async function carregarTarefas() {
+    await initSupabase();
+    if (!SUPA_URL) return;
+    const tarefas = await sbGetTarefas();
+    if (!tarefas.length) return;
+    const mapa = {};
+    tarefas.forEach(t => mapa[t.id] = t.done);
+    document.querySelectorAll('.task-check').forEach(el => {
+      const id = taskId(el);
+      if (mapa[id]) {
+        el.classList.add('done');
+        el.textContent = '✓';
+        el.nextElementSibling?.classList.add('done');
+      }
+    });
+  }
+
+  carregarTarefas();
 </script>
 </body>
 </html>
