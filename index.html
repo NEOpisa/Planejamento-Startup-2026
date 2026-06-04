@@ -1197,12 +1197,12 @@
 <script>
   /* ── Tabs de fases ── */
   function showPhase(id, btn) {
-    document.querySelectorAll('#p1,#p2,#p3').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.section-block:first-of-type .tab').forEach(t => t.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-    btn.classList.add('active');
+  document.querySelectorAll('#p1,#p2,#p3').forEach(p => p.classList.remove('active'));
+  btn.closest('.tabs').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
   }
-
+  
   /* ── Tabs de gestão/gov ── */
   function showGov(id, btn) {
   document.querySelectorAll('#gestao,#gov').forEach(p => p.classList.remove('active'));
