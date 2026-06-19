@@ -14,6 +14,11 @@ const ACTION_LABEL: Partial<Record<ClienteStatus, string>> = {
   "em-andamento": "Finalizar",
 };
 
+const ORIGEM_LABEL: Record<string, string> = {
+  orcamento: "🧮 Orçamento",
+  pacote: "📦 Pacote",
+};
+
 export default function ClientesPanel() {
   const { clientes, addCliente, avancarStatus } = useClientes();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -21,6 +26,8 @@ export default function ClientesPanel() {
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
   const [status, setStatus] = useState<ClienteStatus>("pendente");
   const [obs, setObs] = useState("");
 
@@ -41,6 +48,8 @@ export default function ClientesPanel() {
       Tipo: tipo.trim() || null,
       Status: status,
       "Obs.": obs.trim() || null,
+      Email: email.trim() || null,
+      Telefone: telefone.trim() || null,
     });
     setSaving(false);
     if (!ok) {
@@ -49,6 +58,8 @@ export default function ClientesPanel() {
     }
     setNome("");
     setTipo("");
+    setEmail("");
+    setTelefone("");
     setStatus("pendente");
     setObs("");
     setFormOpen(false);
@@ -90,6 +101,7 @@ export default function ClientesPanel() {
           const isFinalizado = c.Status === "finalizado";
           const badge = STATUS_BADGE[c.Status];
           const actionLabel = ACTION_LABEL[c.Status];
+          const nomeExibido = c.Nome || c.Email || c.Telefone || "Sem nome";
           return (
             <div className={`entity-card ${isFinalizado ? "finalizado" : ""} ${isOpen ? "open" : ""}`} key={c.id}>
               <div
@@ -97,12 +109,14 @@ export default function ClientesPanel() {
                 onClick={() => setOpenId(isOpen ? null : String(c.id))}
               >
                 <div className={`entity-avatar ${isFinalizado ? "finalizado" : ""}`}>
-                  {(c.Nome || "?").charAt(0).toUpperCase()}
+                  {nomeExibido.charAt(0).toUpperCase()}
                 </div>
                 <div className="entity-meta">
-                  <div className="entity-name">{c.Nome}</div>
+                  <div className="entity-name">{nomeExibido}</div>
                   <div className="entity-info-row">
                     <span className="entity-tipo">{c.Tipo || "—"}</span>
+                    {c.Origem && <span className="status-badge status-pendente">{ORIGEM_LABEL[c.Origem] ?? c.Origem}</span>}
+                    {c.Valor != null && <span className="entity-tipo">R$ {c.Valor.toLocaleString("pt-BR")}</span>}
                     <span className={`status-badge ${badge.className}`}>{badge.label}</span>
                   </div>
                 </div>
@@ -125,11 +139,52 @@ export default function ClientesPanel() {
               </div>
               <div className="entity-body">
                 <div className="entity-body-inner">
+                  {(c.Email || c.Telefone) && (
+                    <div className="info-block">
+                      <div className="info-block-label">Contato</div>
+                      <div className="info-block-text">
+                        {c.Email && (
+                          <div>
+                            <a href={`mailto:${c.Email}`}>{c.Email}</a>
+                          </div>
+                        )}
+                        {c.Telefone && (
+                          <div>
+                            <a href={`https://wa.me/${c.Telefone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
+                              {c.Telefone}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {c.Itens && c.Itens.length > 0 && (
+                    <div className="info-block">
+                      <div className="info-block-label">Itens do orçamento</div>
+                      <div className="info-block-text">
+                        {c.Itens.map((item, i) => (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                            <span>{item.label}</span>
+                            {item.price != null && <span>R$ {item.price.toLocaleString("pt-BR")}</span>}
+                          </div>
+                        ))}
+                        {c.Valor != null && (
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 8, fontWeight: 600 }}>
+                            <span>Total estimado</span>
+                            <span>R$ {c.Valor.toLocaleString("pt-BR")}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {c["Obs."] && (
                     <div className="info-block">
                       <div className="info-block-label">Observações</div>
-                      <div className="info-block-text">{c["Obs."]}</div>
+                      <div className="info-block-text" style={{ whiteSpace: "pre-wrap" }}>{c["Obs."]}</div>
                     </div>
+                  )}
+                  {!c.Email && !c.Telefone && !c.Itens?.length && !c["Obs."] && (
+                    <p className="info-block-text">Sem detalhes adicionais.</p>
                   )}
                 </div>
               </div>
@@ -162,6 +217,28 @@ export default function ClientesPanel() {
                   placeholder="Ex: E-commerce, Institucional…"
                   value={tipo}
                   onChange={(e) => setTipo(e.target.value)}
+                />
+              </label>
+            </div>
+            <div className="form-row cols-2">
+              <label className="form-group">
+                <span className="form-label">E-mail</span>
+                <input
+                  className="form-input"
+                  type="email"
+                  placeholder="cliente@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </label>
+              <label className="form-group">
+                <span className="form-label">Telefone / WhatsApp</span>
+                <input
+                  className="form-input"
+                  type="tel"
+                  placeholder="(21) 99999-9999"
+                  value={telefone}
+                  onChange={(e) => setTelefone(e.target.value)}
                 />
               </label>
             </div>

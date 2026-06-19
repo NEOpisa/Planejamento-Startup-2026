@@ -5,12 +5,25 @@ import { sbGet, sbInsert, sbUpdate } from "@/lib/supabase";
 
 export type ClienteStatus = "pendente" | "em-andamento" | "finalizado";
 
+/** Item de orçamento gravado pelo site principal (coluna jsonb "Itens"). */
+export interface ItemOrcamento {
+  label: string;
+  price: number | null;
+}
+
 export interface Cliente {
   id: number | string;
   Nome: string;
   Tipo: string | null;
   Status: ClienteStatus;
   "Obs.": string | null;
+  Email: string | null;
+  Telefone: string | null;
+  /** Origem do lead: "orcamento", "pacote" ou null (cadastro manual). */
+  Origem: string | null;
+  Itens: ItemOrcamento[] | null;
+  Valor: number | null;
+  Criado_em: string | null;
 }
 
 export interface NovoCliente {
@@ -18,6 +31,8 @@ export interface NovoCliente {
   Tipo: string | null;
   Status: ClienteStatus;
   "Obs.": string | null;
+  Email?: string | null;
+  Telefone?: string | null;
 }
 
 const STATUS_VALIDOS: ClienteStatus[] = ["pendente", "em-andamento", "finalizado"];
@@ -26,14 +41,25 @@ const FLUXO: Partial<Record<ClienteStatus, ClienteStatus>> = {
   "em-andamento": "finalizado",
 };
 
+function texto(v: unknown): string | null {
+  return v && v !== "null" ? String(v) : null;
+}
+
 function normalizar(c: Partial<Cliente> & Record<string, unknown>): Cliente {
   const status = c.Status as string;
+  const valor = c.Valor as unknown;
   return {
     id: c.id as number | string,
     Nome: (c.Nome as string) ?? "",
     Status: STATUS_VALIDOS.includes(status as ClienteStatus) ? (status as ClienteStatus) : "pendente",
-    Tipo: c.Tipo && c.Tipo !== "null" ? (c.Tipo as string) : null,
-    "Obs.": c["Obs."] && c["Obs."] !== "null" ? (c["Obs."] as string) : null,
+    Tipo: texto(c.Tipo),
+    "Obs.": texto(c["Obs."]),
+    Email: texto(c.Email),
+    Telefone: texto(c.Telefone),
+    Origem: texto(c.Origem),
+    Itens: Array.isArray(c.Itens) ? (c.Itens as ItemOrcamento[]) : null,
+    Valor: valor != null && valor !== "" ? Number(valor) : null,
+    Criado_em: texto(c.Criado_em),
   };
 }
 
