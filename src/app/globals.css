@@ -577,6 +577,99 @@ html {
 }
 .info-block-text { font-size: 13px; color: var(--text-secondary); line-height: 1.65; }
 
+/* ── Card de cliente (lista) — linha clicável que abre detalhe em nova aba ── */
+.lead-card {
+  display: flex; align-items: stretch;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
+  transition: border-color 200ms, box-shadow 200ms, transform 120ms;
+}
+.lead-card:hover { border-color: var(--border-hover); box-shadow: 0 4px 18px rgba(0,0,0,0.25); }
+.lead-card.finalizado { opacity: 0.66; }
+.lead-card-head {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 18px; text-decoration: none; color: inherit;
+  transition: background 160ms;
+}
+.lead-card-head:hover { background: rgba(255,255,255,0.025); }
+.lead-card-head .entity-name { font-size: 16px; }
+.lead-card-head .entity-info-row { margin-top: 6px; }
+.entity-valor { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+.status-origem { background: var(--surface-raised); color: var(--text-secondary); border: 1px solid var(--border); }
+.lead-open-hint {
+  flex-shrink: 0; font-size: 15px; color: var(--text-muted);
+  opacity: 0; transition: opacity 160ms, color 160ms;
+}
+.lead-card-head:hover .lead-open-hint { opacity: 1; color: var(--accent-light); }
+.lead-card-actions {
+  display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0; padding: 0 14px 0 4px;
+}
+/* Excluir: discreto por padrão, fica vermelho só no hover */
+.lead-delete {
+  flex-shrink: 0; width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; line-height: 1; border-radius: var(--radius-sm);
+  background: transparent; border: 1px solid transparent;
+  color: var(--text-muted); opacity: 0.3; cursor: pointer;
+  transition: opacity 160ms, color 160ms, background 160ms, border-color 160ms;
+}
+.lead-delete:hover {
+  opacity: 1; color: #fca5a5;
+  background: rgba(239,68,68,0.10); border-color: rgba(239,68,68,0.4);
+}
+
+/* ── Página de detalhe do cliente ── */
+.detail-back {
+  display: inline-block; margin: 28px 0 24px;
+  font-size: 13px; color: var(--text-secondary); text-decoration: none;
+  transition: color 150ms;
+}
+.detail-back:hover { color: var(--accent-light); }
+.detail-head { display: flex; align-items: center; gap: 18px; margin-bottom: 28px; }
+.detail-avatar { width: 56px; height: 56px; font-size: 22px; }
+.detail-name {
+  font-family: var(--font-display); font-weight: 800;
+  font-size: clamp(22px, 4vw, 30px); color: var(--text-primary); margin: 0;
+}
+.detail-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.detail-date { font-size: 12.5px; color: var(--text-muted); margin-top: 8px; }
+.detail-grid { display: flex; flex-direction: column; gap: 14px; }
+.detail-block {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px 20px;
+}
+.detail-block .info-block-label { margin-bottom: 12px; }
+.detail-contact { display: flex; flex-wrap: wrap; gap: 10px; }
+.detail-contact-item {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--surface-raised); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px;
+  font-size: 14px; color: var(--text-primary); text-decoration: none;
+  transition: border-color 150ms, color 150ms;
+}
+.detail-contact-item:hover { border-color: var(--accent-border); color: var(--accent-light); }
+.detail-itens { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.detail-itens li {
+  display: flex; justify-content: space-between; gap: 14px;
+  font-size: 14px; color: var(--text-secondary);
+  padding-bottom: 9px; border-bottom: 1px solid var(--border);
+}
+.detail-itens li:last-child { border-bottom: none; padding-bottom: 0; }
+.detail-item-price { color: var(--text-primary); white-space: nowrap; }
+.detail-total {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-hover);
+  font-size: 14px; color: var(--text-secondary);
+}
+.detail-total strong { font-size: 20px; color: var(--text-primary); font-family: var(--font-display); }
+.detail-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 26px 0 60px; }
+.detail-delete {
+  width: auto; height: auto; padding: 8px 16px; font-size: 13px; font-weight: 600;
+  opacity: 0.55; gap: 6px;
+}
+
 /* Avaliação score grid */
 .score-grid {
   display: grid; grid-template-columns: repeat(2, 1fr);

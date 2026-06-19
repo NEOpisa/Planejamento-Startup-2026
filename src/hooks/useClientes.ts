@@ -99,5 +99,18 @@ export function useClientes() {
     [clientes]
   );
 
-  return { clientes, addCliente, avancarStatus };
+  // Exclusão passa por rota server-side (usa a secret key; não exige policy
+  // de DELETE para anon, mantendo a tabela protegida).
+  const removerCliente = useCallback(async (id: number | string) => {
+    const res = await fetch(`/api/clientes/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      alert("Não foi possível excluir. Verifique o console.");
+      console.error("removerCliente:", res.status, await res.text().catch(() => ""));
+      return false;
+    }
+    setClientes((prev) => prev.filter((c) => String(c.id) !== String(id)));
+    return true;
+  }, []);
+
+  return { clientes, addCliente, avancarStatus, removerCliente };
 }

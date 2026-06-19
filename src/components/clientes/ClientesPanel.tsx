@@ -20,8 +20,7 @@ const ORIGEM_LABEL: Record<string, string> = {
 };
 
 export default function ClientesPanel() {
-  const { clientes, addCliente, avancarStatus } = useClientes();
-  const [openId, setOpenId] = useState<string | null>(null);
+  const { clientes, addCliente, avancarStatus, removerCliente } = useClientes();
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
@@ -97,16 +96,18 @@ export default function ClientesPanel() {
           </p>
         )}
         {clientes.map((c) => {
-          const isOpen = openId === String(c.id);
           const isFinalizado = c.Status === "finalizado";
           const badge = STATUS_BADGE[c.Status];
           const actionLabel = ACTION_LABEL[c.Status];
           const nomeExibido = c.Nome || c.Email || c.Telefone || "Sem nome";
           return (
-            <div className={`entity-card ${isFinalizado ? "finalizado" : ""} ${isOpen ? "open" : ""}`} key={c.id}>
-              <div
-                className="entity-card-head"
-                onClick={() => setOpenId(isOpen ? null : String(c.id))}
+            <div className={`lead-card ${isFinalizado ? "finalizado" : ""}`} key={c.id}>
+              <a
+                className="lead-card-head"
+                href={`/clientes/${c.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir detalhes em nova aba"
               >
                 <div className={`entity-avatar ${isFinalizado ? "finalizado" : ""}`}>
                   {nomeExibido.charAt(0).toUpperCase()}
@@ -115,11 +116,15 @@ export default function ClientesPanel() {
                   <div className="entity-name">{nomeExibido}</div>
                   <div className="entity-info-row">
                     <span className="entity-tipo">{c.Tipo || "—"}</span>
-                    {c.Origem && <span className="status-badge status-pendente">{ORIGEM_LABEL[c.Origem] ?? c.Origem}</span>}
-                    {c.Valor != null && <span className="entity-tipo">R$ {c.Valor.toLocaleString("pt-BR")}</span>}
+                    {c.Origem && <span className="status-badge status-origem">{ORIGEM_LABEL[c.Origem] ?? c.Origem}</span>}
+                    {c.Valor != null && <span className="entity-valor">R$ {c.Valor.toLocaleString("pt-BR")}</span>}
                     <span className={`status-badge ${badge.className}`}>{badge.label}</span>
                   </div>
                 </div>
+                <span className="lead-open-hint" aria-hidden="true">↗</span>
+              </a>
+
+              <div className="lead-card-actions">
                 {isFinalizado ? (
                   <button className="entity-action-btn checked" disabled>
                     ✓ Finalizado
@@ -127,66 +132,23 @@ export default function ClientesPanel() {
                 ) : (
                   <button
                     className="entity-action-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void avancarStatus(c.id);
-                    }}
+                    onClick={() => void avancarStatus(c.id)}
                   >
                     {actionLabel}
                   </button>
                 )}
-                <span className="entity-chevron">▾</span>
-              </div>
-              <div className="entity-body">
-                <div className="entity-body-inner">
-                  {(c.Email || c.Telefone) && (
-                    <div className="info-block">
-                      <div className="info-block-label">Contato</div>
-                      <div className="info-block-text">
-                        {c.Email && (
-                          <div>
-                            <a href={`mailto:${c.Email}`}>{c.Email}</a>
-                          </div>
-                        )}
-                        {c.Telefone && (
-                          <div>
-                            <a href={`https://wa.me/${c.Telefone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
-                              {c.Telefone}
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {c.Itens && c.Itens.length > 0 && (
-                    <div className="info-block">
-                      <div className="info-block-label">Itens do orçamento</div>
-                      <div className="info-block-text">
-                        {c.Itens.map((item, i) => (
-                          <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                            <span>{item.label}</span>
-                            {item.price != null && <span>R$ {item.price.toLocaleString("pt-BR")}</span>}
-                          </div>
-                        ))}
-                        {c.Valor != null && (
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 8, fontWeight: 600 }}>
-                            <span>Total estimado</span>
-                            <span>R$ {c.Valor.toLocaleString("pt-BR")}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {c["Obs."] && (
-                    <div className="info-block">
-                      <div className="info-block-label">Observações</div>
-                      <div className="info-block-text" style={{ whiteSpace: "pre-wrap" }}>{c["Obs."]}</div>
-                    </div>
-                  )}
-                  {!c.Email && !c.Telefone && !c.Itens?.length && !c["Obs."] && (
-                    <p className="info-block-text">Sem detalhes adicionais.</p>
-                  )}
-                </div>
+                <button
+                  className="lead-delete"
+                  title="Excluir cliente"
+                  aria-label={`Excluir ${nomeExibido}`}
+                  onClick={() => {
+                    if (confirm(`Excluir "${nomeExibido}"? Esta ação não pode ser desfeita.`)) {
+                      void removerCliente(c.id);
+                    }
+                  }}
+                >
+                  ✕
+                </button>
               </div>
             </div>
           );
