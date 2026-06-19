@@ -14,13 +14,19 @@ const ACTION_LABEL: Partial<Record<ClienteStatus, string>> = {
   "em-andamento": "Finalizar",
 };
 
+const ORIGEM_LABEL: Record<string, string> = {
+  orcamento: "🧮 Orçamento",
+  pacote: "📦 Pacote",
+};
+
 export default function ClientesPanel() {
-  const { clientes, addCliente, avancarStatus } = useClientes();
-  const [openId, setOpenId] = useState<string | null>(null);
+  const { clientes, addCliente, avancarStatus, removerCliente } = useClientes();
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
   const [status, setStatus] = useState<ClienteStatus>("pendente");
   const [obs, setObs] = useState("");
 
@@ -41,6 +47,8 @@ export default function ClientesPanel() {
       Tipo: tipo.trim() || null,
       Status: status,
       "Obs.": obs.trim() || null,
+      Email: email.trim() || null,
+      Telefone: telefone.trim() || null,
     });
     setSaving(false);
     if (!ok) {
@@ -49,6 +57,8 @@ export default function ClientesPanel() {
     }
     setNome("");
     setTipo("");
+    setEmail("");
+    setTelefone("");
     setStatus("pendente");
     setObs("");
     setFormOpen(false);
@@ -86,26 +96,35 @@ export default function ClientesPanel() {
           </p>
         )}
         {clientes.map((c) => {
-          const isOpen = openId === String(c.id);
           const isFinalizado = c.Status === "finalizado";
           const badge = STATUS_BADGE[c.Status];
           const actionLabel = ACTION_LABEL[c.Status];
+          const nomeExibido = c.Nome || c.Email || c.Telefone || "Sem nome";
           return (
-            <div className={`entity-card ${isFinalizado ? "finalizado" : ""} ${isOpen ? "open" : ""}`} key={c.id}>
-              <div
-                className="entity-card-head"
-                onClick={() => setOpenId(isOpen ? null : String(c.id))}
+            <div className={`lead-card ${isFinalizado ? "finalizado" : ""}`} key={c.id}>
+              <a
+                className="lead-card-head"
+                href={`/clientes/${c.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir detalhes em nova aba"
               >
                 <div className={`entity-avatar ${isFinalizado ? "finalizado" : ""}`}>
-                  {(c.Nome || "?").charAt(0).toUpperCase()}
+                  {nomeExibido.charAt(0).toUpperCase()}
                 </div>
                 <div className="entity-meta">
-                  <div className="entity-name">{c.Nome}</div>
+                  <div className="entity-name">{nomeExibido}</div>
                   <div className="entity-info-row">
                     <span className="entity-tipo">{c.Tipo || "—"}</span>
+                    {c.Origem && <span className="status-badge status-origem">{ORIGEM_LABEL[c.Origem] ?? c.Origem}</span>}
+                    {c.Valor != null && <span className="entity-valor">R$ {c.Valor.toLocaleString("pt-BR")}</span>}
                     <span className={`status-badge ${badge.className}`}>{badge.label}</span>
                   </div>
                 </div>
+                <span className="lead-open-hint" aria-hidden="true">↗</span>
+              </a>
+
+              <div className="lead-card-actions">
                 {isFinalizado ? (
                   <button className="entity-action-btn checked" disabled>
                     ✓ Finalizado
@@ -113,25 +132,23 @@ export default function ClientesPanel() {
                 ) : (
                   <button
                     className="entity-action-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void avancarStatus(c.id);
-                    }}
+                    onClick={() => void avancarStatus(c.id)}
                   >
                     {actionLabel}
                   </button>
                 )}
-                <span className="entity-chevron">▾</span>
-              </div>
-              <div className="entity-body">
-                <div className="entity-body-inner">
-                  {c["Obs."] && (
-                    <div className="info-block">
-                      <div className="info-block-label">Observações</div>
-                      <div className="info-block-text">{c["Obs."]}</div>
-                    </div>
-                  )}
-                </div>
+                <button
+                  className="lead-delete"
+                  title="Excluir cliente"
+                  aria-label={`Excluir ${nomeExibido}`}
+                  onClick={() => {
+                    if (confirm(`Excluir "${nomeExibido}"? Esta ação não pode ser desfeita.`)) {
+                      void removerCliente(c.id);
+                    }
+                  }}
+                >
+                  ✕
+                </button>
               </div>
             </div>
           );
@@ -162,6 +179,28 @@ export default function ClientesPanel() {
                   placeholder="Ex: E-commerce, Institucional…"
                   value={tipo}
                   onChange={(e) => setTipo(e.target.value)}
+                />
+              </label>
+            </div>
+            <div className="form-row cols-2">
+              <label className="form-group">
+                <span className="form-label">E-mail</span>
+                <input
+                  className="form-input"
+                  type="email"
+                  placeholder="cliente@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </label>
+              <label className="form-group">
+                <span className="form-label">Telefone / WhatsApp</span>
+                <input
+                  className="form-input"
+                  type="tel"
+                  placeholder="(21) 99999-9999"
+                  value={telefone}
+                  onChange={(e) => setTelefone(e.target.value)}
                 />
               </label>
             </div>
