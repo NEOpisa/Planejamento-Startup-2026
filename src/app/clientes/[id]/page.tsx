@@ -1,0 +1,113 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import { sbGet } from "@/lib/supabase";
+import { normalizar, type Cliente, type ClienteStatus } from "@/hooks/useClientes";
+
+const STATUS_BADGE: Record<ClienteStatus, { className: string; label: string }> = {
+  pendente: { className: "status-pendente", label: "◌ Pendente" },
+  "em-andamento": { className: "status-em-andamento", label: "⏳ Em andamento" },
+  finalizado: { className: "status-finalizado", label: "✓ Finalizado" },
+};
+
+function waLink(tel: string): string {
+  const d = tel.replace(/\D/g, "");
+  const num = d.startsWith("55") ? d : `55${d}`;
+  return `https://wa.me/${num}`;
+}
+
+export default function ClienteDetailPage() {
+  const params = useParams();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const [cliente, setCliente] = useState<Cliente | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      const rows = await sbGet<Record<string, unknown>>("Clientes", `id=eq.${id}`);
+      if (cancelled) return;
+      setCliente(rows[0] ? normalizar(rows[0]) : null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const badge = cliente ? STATUS_BADGE[cliente.Status] : null;
+
+  return (
+    <main className="inner cliente-detail">
+      <Link href="/clientes" className="detail-back">
+        ← Voltar para clientes
+      </Link>
+
+      {cliente === undefined && <p className="empty-state">Carregando…</p>}
+      {cliente === null && <p className="empty-state">Cliente não encontrado.</p>}
+
+      {cliente && badge && (
+        <>
+          <div className="page-header">
+            <span className="section-eyebrow">
+              {cliente.Origem ? "Atendimento via site" : "Cliente"}
+            </span>
+            <h1 className="page-heading">{cliente.Nome || "—"}</h1>
+            <p className="page-sub">
+              <span>{cliente.Tipo || "—"}</span>
+              {"  "}
+              <span className={`status-badge ${badge.className}`}>{badge.label}</span>
+            </p>
+          </div>
+
+          <div className="detail-blocks">
+            {(cliente.Telefone || cliente.Email) && (
+              <div className="info-block">
+                <div className="info-block-label">Contato</div>
+                <div className="info-block-text lead-contato">
+                  {cliente.Telefone && (
+                    <a href={waLink(cliente.Telefone)} target="_blank" rel="noopener noreferrer">
+                      WhatsApp · {cliente.Telefone}
+                    </a>
+                  )}
+                  {cliente.Email && <a href={`mailto:${cliente.Email}`}>{cliente.Email}</a>}
+                </div>
+              </div>
+            )}
+
+            {cliente.Itens && cliente.Itens.length > 0 && (
+              <div className="info-block">
+                <div className="info-block-label">Diagnóstico</div>
+                <ul className="info-block-text lead-itens">
+                  {cliente.Itens.map((it, i) => (
+                    <li key={i}>
+                      {it.label}
+                      {it.price != null ? ` — R$ ${it.price.toLocaleString("pt-BR")}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {cliente.Valor != null && (
+              <div className="info-block">
+                <div className="info-block-label">Valor estimado</div>
+                <div className="info-block-text">R$ {cliente.Valor.toLocaleString("pt-BR")}</div>
+              </div>
+            )}
+
+            {cliente["Obs."] && (
+              <div className="info-block">
+                <div className="info-block-label">Observações</div>
+                <div className="info-block-text" style={{ whiteSpace: "pre-line" }}>
+                  {cliente["Obs."]}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </main>
+  );
+}

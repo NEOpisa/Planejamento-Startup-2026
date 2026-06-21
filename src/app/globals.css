@@ -594,6 +594,33 @@ html {
 .lead-itens { margin: 0; padding-left: 18px; }
 .lead-itens li { margin: 2px 0; }
 
+/* Card de cliente: clique abre o detalhe em aba própria */
+.entity-card-link {
+  display: flex; align-items: center; gap: 14px;
+  flex: 1; min-width: 0; text-decoration: none; color: inherit;
+}
+.entity-open-icon {
+  flex-shrink: 0; font-size: 14px; color: var(--text-muted);
+  transition: color 160ms, transform 160ms var(--ease-premium);
+}
+.entity-card:hover .entity-open-icon { color: var(--accent-light); transform: translate(2px, -2px); }
+
+/* Página de detalhe do cliente (/clientes/[id]) */
+.detail-back {
+  display: inline-block; margin: 28px 0 4px;
+  font-size: 13px; color: var(--text-muted); text-decoration: none;
+  transition: color 160ms;
+}
+.detail-back:hover { color: var(--accent-light); }
+.cliente-detail .page-header { padding-top: 16px; }
+.cliente-detail .page-sub { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.detail-blocks {
+  display: flex; flex-direction: column; gap: 22px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 28px;
+}
+.cliente-detail .info-block { padding: 0; }
+
 /* Avaliação score grid */
 .score-grid {
   display: grid; grid-template-columns: repeat(2, 1fr);

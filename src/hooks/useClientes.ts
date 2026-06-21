@@ -41,7 +41,7 @@ function limpar(v: unknown): string | null {
   return typeof v === "string" && v && v !== "null" ? v : null;
 }
 
-function normalizar(c: Partial<Cliente> & Record<string, unknown>): Cliente {
+export function normalizar(c: Partial<Cliente> & Record<string, unknown>): Cliente {
   const status = c.Status as string;
   const itens = Array.isArray(c.Itens)
     ? (c.Itens as unknown[])

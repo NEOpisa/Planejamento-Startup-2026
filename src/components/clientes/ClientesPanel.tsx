@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useClientes, type ClienteStatus } from "@/hooks/useClientes";
 
 const STATUS_BADGE: Record<ClienteStatus, { className: string; label: string }> = {
@@ -14,16 +15,8 @@ const ACTION_LABEL: Partial<Record<ClienteStatus, string>> = {
   "em-andamento": "Finalizar",
 };
 
-/** Monta link wa.me a partir do telefone (assume Brasil se sem DDI). */
-function waLink(tel: string): string {
-  const d = tel.replace(/\D/g, "");
-  const num = d.startsWith("55") ? d : `55${d}`;
-  return `https://wa.me/${num}`;
-}
-
 export default function ClientesPanel() {
   const { clientes, addCliente, avancarStatus } = useClientes();
-  const [openId, setOpenId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
@@ -93,27 +86,30 @@ export default function ClientesPanel() {
           </p>
         )}
         {clientes.map((c) => {
-          const isOpen = openId === String(c.id);
           const isFinalizado = c.Status === "finalizado";
           const badge = STATUS_BADGE[c.Status];
           const actionLabel = ACTION_LABEL[c.Status];
           return (
-            <div className={`entity-card ${isFinalizado ? "finalizado" : ""} ${isOpen ? "open" : ""}`} key={c.id}>
-              <div
-                className="entity-card-head"
-                onClick={() => setOpenId(isOpen ? null : String(c.id))}
-              >
-                <div className={`entity-avatar ${isFinalizado ? "finalizado" : ""}`}>
-                  {(c.Nome || "?").charAt(0).toUpperCase()}
-                </div>
-                <div className="entity-meta">
-                  <div className="entity-name">{c.Nome}</div>
-                  <div className="entity-info-row">
-                    <span className="entity-tipo">{c.Tipo || "—"}</span>
-                    {c.Origem && <span className="lead-tag">⚡ via site</span>}
-                    <span className={`status-badge ${badge.className}`}>{badge.label}</span>
+            <div className={`entity-card ${isFinalizado ? "finalizado" : ""}`} key={c.id}>
+              <div className="entity-card-head">
+                <Link
+                  href={`/clientes/${c.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="entity-card-link"
+                >
+                  <div className={`entity-avatar ${isFinalizado ? "finalizado" : ""}`}>
+                    {(c.Nome || "?").charAt(0).toUpperCase()}
                   </div>
-                </div>
+                  <div className="entity-meta">
+                    <div className="entity-name">{c.Nome}</div>
+                    <div className="entity-info-row">
+                      <span className="entity-tipo">{c.Tipo || "—"}</span>
+                      {c.Origem && <span className="lead-tag">⚡ via site</span>}
+                      <span className={`status-badge ${badge.className}`}>{badge.label}</span>
+                    </div>
+                  </div>
+                </Link>
                 {isFinalizado ? (
                   <button className="entity-action-btn checked" disabled>
                     ✓ Finalizado
@@ -121,51 +117,12 @@ export default function ClientesPanel() {
                 ) : (
                   <button
                     className="entity-action-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void avancarStatus(c.id);
-                    }}
+                    onClick={() => void avancarStatus(c.id)}
                   >
                     {actionLabel}
                   </button>
                 )}
-                <span className="entity-chevron">▾</span>
-              </div>
-              <div className="entity-body">
-                <div className="entity-body-inner">
-                  {(c.Telefone || c.Email) && (
-                    <div className="info-block">
-                      <div className="info-block-label">Contato</div>
-                      <div className="info-block-text lead-contato">
-                        {c.Telefone && (
-                          <a href={waLink(c.Telefone)} target="_blank" rel="noopener noreferrer">
-                            WhatsApp · {c.Telefone}
-                          </a>
-                        )}
-                        {c.Email && <a href={`mailto:${c.Email}`}>{c.Email}</a>}
-                      </div>
-                    </div>
-                  )}
-                  {c.Itens && c.Itens.length > 0 && (
-                    <div className="info-block">
-                      <div className="info-block-label">Diagnóstico</div>
-                      <ul className="info-block-text lead-itens">
-                        {c.Itens.map((it, i) => (
-                          <li key={i}>
-                            {it.label}
-                            {it.price != null ? ` — R$ ${it.price.toLocaleString("pt-BR")}` : ""}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {c["Obs."] && (
-                    <div className="info-block">
-                      <div className="info-block-label">Observações</div>
-                      <div className="info-block-text">{c["Obs."]}</div>
-                    </div>
-                  )}
-                </div>
+                <span className="entity-open-icon" aria-hidden="true">↗</span>
               </div>
             </div>
           );
