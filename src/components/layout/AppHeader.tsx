@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// "Clientes & Revisões" (/clientes) é área interna: acesso só por link
+// direto, fora da navegação pública.
 const NAV_LINKS = [
   { label: "Roadmap", href: "/" },
-  { label: "Clientes & Revisões", href: "/clientes" },
 ];
 
 export default function AppHeader() {

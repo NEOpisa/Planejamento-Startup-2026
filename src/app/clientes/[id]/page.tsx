@@ -18,6 +18,15 @@ function waLink(tel: string): string {
   return `https://wa.me/${num}`;
 }
 
+function formatarData(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("pt-BR", {
+    day: "2-digit", month: "long", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
 export default function ClienteDetailPage() {
   const params = useParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -97,12 +106,19 @@ export default function ClienteDetailPage() {
               </div>
             )}
 
-            {cliente["Obs."] && (
+            {cliente.Origem && (
               <div className="info-block">
-                <div className="info-block-label">Observações</div>
-                <div className="info-block-text" style={{ whiteSpace: "pre-line" }}>
-                  {cliente["Obs."]}
+                <div className="info-block-label">Origem</div>
+                <div className="info-block-text">
+                  {cliente.Origem === "atendimento" ? "Atendimento via site" : cliente.Origem}
                 </div>
+              </div>
+            )}
+
+            {cliente.Criado_em && (
+              <div className="info-block">
+                <div className="info-block-label">Recebido em</div>
+                <div className="info-block-text">{formatarData(cliente.Criado_em)}</div>
               </div>
             )}
           </div>

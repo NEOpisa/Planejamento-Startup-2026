@@ -22,7 +22,6 @@ export default function ClientesPanel() {
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState("");
   const [status, setStatus] = useState<ClienteStatus>("pendente");
-  const [obs, setObs] = useState("");
 
   const total = clientes.length;
   const finalizados = clientes.filter((c) => c.Status === "finalizado").length;
@@ -40,7 +39,6 @@ export default function ClientesPanel() {
       Nome: nomeTrim,
       Tipo: tipo.trim() || null,
       Status: status,
-      "Obs.": obs.trim() || null,
     });
     setSaving(false);
     if (!ok) {
@@ -50,7 +48,6 @@ export default function ClientesPanel() {
     setNome("");
     setTipo("");
     setStatus("pendente");
-    setObs("");
     setFormOpen(false);
   }
 
@@ -166,16 +163,6 @@ export default function ClientesPanel() {
                 <option value="pendente">◌ Pendente</option>
                 <option value="em-andamento">⏳ Em andamento</option>
               </select>
-            </label>
-            <label className="form-group">
-              <span className="form-label">Observações / Briefing</span>
-              <textarea
-                className="form-textarea"
-                rows={3}
-                placeholder="Descreva o que o cliente precisa ou o que foi feito…"
-                value={obs}
-                onChange={(e) => setObs(e.target.value)}
-              />
             </label>
             <div className="form-actions">
               <button className="btn-cancel" onClick={() => setFormOpen(false)}>

@@ -615,11 +615,18 @@ html {
 .cliente-detail .page-header { padding-top: 16px; }
 .cliente-detail .page-sub { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .detail-blocks {
-  display: flex; flex-direction: column; gap: 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 24px 32px;
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); padding: 28px;
+  border-radius: var(--radius-lg); padding: clamp(24px, 3vw, 36px);
 }
 .cliente-detail .info-block { padding: 0; }
+.cliente-detail .info-block-label {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;
+}
+.cliente-detail .info-block-text { font-size: 15px; color: var(--text-primary); }
 
 /* Avaliação score grid */
 .score-grid {
