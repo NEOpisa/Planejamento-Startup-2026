@@ -628,6 +628,17 @@ html {
 }
 .cliente-detail .info-block-text { font-size: 15px; color: var(--text-primary); }
 
+/* excluir cliente — discreto, sem destaque (vermelho só no hover) */
+.cliente-excluir-row { margin-top: 34px; display: flex; justify-content: flex-end; }
+.cliente-excluir {
+  background: none; border: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-muted);
+  opacity: 0.45; transition: color 200ms, opacity 200ms;
+}
+.cliente-excluir:hover { color: #f87171; opacity: 1; }
+.cliente-excluir:disabled { cursor: default; opacity: 0.4; }
+
 /* Avaliação score grid */
 .score-grid {
   display: grid; grid-template-columns: repeat(2, 1fr);

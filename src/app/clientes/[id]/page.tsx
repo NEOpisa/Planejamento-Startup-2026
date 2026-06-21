@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { sbGet } from "@/lib/supabase";
 import { normalizar, type Cliente, type ClienteStatus } from "@/hooks/useClientes";
@@ -29,8 +29,27 @@ function formatarData(iso: string): string {
 
 export default function ClienteDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const [cliente, setCliente] = useState<Cliente | null | undefined>(undefined);
+  const [excluindo, setExcluindo] = useState(false);
+
+  async function excluir() {
+    if (!id || excluindo) return;
+    if (!window.confirm("Excluir este cliente? Esta ação não pode ser desfeita.")) return;
+    setExcluindo(true);
+    try {
+      const res = await fetch(`/api/clientes/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        router.push("/clientes");
+        return;
+      }
+    } catch {
+      /* ignora — trata abaixo */
+    }
+    setExcluindo(false);
+    alert("Não foi possível excluir agora.");
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -121,6 +140,12 @@ export default function ClienteDetailPage() {
                 <div className="info-block-text">{formatarData(cliente.Criado_em)}</div>
               </div>
             )}
+          </div>
+
+          <div className="cliente-excluir-row">
+            <button type="button" className="cliente-excluir" onClick={excluir} disabled={excluindo}>
+              {excluindo ? "Excluindo…" : "Excluir cliente"}
+            </button>
           </div>
         </>
       )}
