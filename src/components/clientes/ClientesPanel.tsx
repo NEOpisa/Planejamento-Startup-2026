@@ -31,6 +31,7 @@ export default function ClientesPanel() {
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState("");
+  const [comprou, setComprou] = useState("");
 
   const total = clientes.length;
   const finalizados = clientes.filter((c) => c.Status === "finalizado").length;
@@ -63,6 +64,7 @@ export default function ClientesPanel() {
       Tipo: tipo.trim() || null,
       Status: "em-andamento",
       Atendente: vendedor ?? null,
+      "Obs.": comprou.trim() || null,
     });
     setSaving(false);
     if (!ok) {
@@ -71,6 +73,7 @@ export default function ClientesPanel() {
     }
     setNome("");
     setTipo("");
+    setComprou("");
     setFormOpen(false);
   }
 
@@ -207,6 +210,16 @@ export default function ClientesPanel() {
                 />
               </label>
             </div>
+            <label className="form-group">
+              <span className="form-label">O que o cliente comprou / contratou</span>
+              <textarea
+                className="form-textarea"
+                rows={3}
+                placeholder="Ex: Site Profissional + SEO local; pacote Sistema; etc."
+                value={comprou}
+                onChange={(e) => setComprou(e.target.value)}
+              />
+            </label>
             <p className="add-form-nota">O cliente entra em andamento no seu nome ({vendedor || "você"}).</p>
             <div className="form-actions">
               <button className="btn-cancel" onClick={() => setFormOpen(false)}>

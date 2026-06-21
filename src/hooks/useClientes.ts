@@ -31,6 +31,7 @@ export interface NovoCliente {
   Tipo: string | null;
   Status: ClienteStatus;
   Atendente?: string | null;
+  "Obs."?: string | null;
 }
 
 const STATUS_VALIDOS: ClienteStatus[] = ["pendente", "em-andamento", "finalizado"];
