@@ -5,12 +5,23 @@ import { sbGet, sbInsert, sbUpdate } from "@/lib/supabase";
 
 export type ClienteStatus = "pendente" | "em-andamento" | "finalizado";
 
+export interface ClienteItem {
+  label: string;
+  price: number | null;
+}
+
 export interface Cliente {
   id: number | string;
   Nome: string;
   Tipo: string | null;
   Status: ClienteStatus;
   "Obs.": string | null;
+  // Campos do lead inbound (site NVGHUB → /api/lead). Nulos em cadastro manual.
+  Email: string | null;
+  Telefone: string | null;
+  Origem: string | null;
+  Itens: ClienteItem[] | null;
+  Valor: number | null;
 }
 
 export interface NovoCliente {
@@ -26,14 +37,31 @@ const FLUXO: Partial<Record<ClienteStatus, ClienteStatus>> = {
   "em-andamento": "finalizado",
 };
 
+function limpar(v: unknown): string | null {
+  return typeof v === "string" && v && v !== "null" ? v : null;
+}
+
 function normalizar(c: Partial<Cliente> & Record<string, unknown>): Cliente {
   const status = c.Status as string;
+  const itens = Array.isArray(c.Itens)
+    ? (c.Itens as unknown[])
+        .filter((i): i is ClienteItem => !!i && typeof (i as ClienteItem).label === "string")
+        .map((i) => ({
+          label: String((i as ClienteItem).label),
+          price: typeof (i as ClienteItem).price === "number" ? (i as ClienteItem).price : null,
+        }))
+    : null;
   return {
     id: c.id as number | string,
     Nome: (c.Nome as string) ?? "",
     Status: STATUS_VALIDOS.includes(status as ClienteStatus) ? (status as ClienteStatus) : "pendente",
-    Tipo: c.Tipo && c.Tipo !== "null" ? (c.Tipo as string) : null,
-    "Obs.": c["Obs."] && c["Obs."] !== "null" ? (c["Obs."] as string) : null,
+    Tipo: limpar(c.Tipo),
+    "Obs.": limpar(c["Obs."]),
+    Email: limpar(c.Email),
+    Telefone: limpar(c.Telefone),
+    Origem: limpar(c.Origem),
+    Itens: itens && itens.length ? itens : null,
+    Valor: typeof c.Valor === "number" ? c.Valor : null,
   };
 }
 

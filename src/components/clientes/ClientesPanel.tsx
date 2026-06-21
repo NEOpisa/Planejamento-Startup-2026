@@ -14,6 +14,13 @@ const ACTION_LABEL: Partial<Record<ClienteStatus, string>> = {
   "em-andamento": "Finalizar",
 };
 
+/** Monta link wa.me a partir do telefone (assume Brasil se sem DDI). */
+function waLink(tel: string): string {
+  const d = tel.replace(/\D/g, "");
+  const num = d.startsWith("55") ? d : `55${d}`;
+  return `https://wa.me/${num}`;
+}
+
 export default function ClientesPanel() {
   const { clientes, addCliente, avancarStatus } = useClientes();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -103,6 +110,7 @@ export default function ClientesPanel() {
                   <div className="entity-name">{c.Nome}</div>
                   <div className="entity-info-row">
                     <span className="entity-tipo">{c.Tipo || "—"}</span>
+                    {c.Origem && <span className="lead-tag">⚡ via site</span>}
                     <span className={`status-badge ${badge.className}`}>{badge.label}</span>
                   </div>
                 </div>
@@ -125,6 +133,32 @@ export default function ClientesPanel() {
               </div>
               <div className="entity-body">
                 <div className="entity-body-inner">
+                  {(c.Telefone || c.Email) && (
+                    <div className="info-block">
+                      <div className="info-block-label">Contato</div>
+                      <div className="info-block-text lead-contato">
+                        {c.Telefone && (
+                          <a href={waLink(c.Telefone)} target="_blank" rel="noopener noreferrer">
+                            WhatsApp · {c.Telefone}
+                          </a>
+                        )}
+                        {c.Email && <a href={`mailto:${c.Email}`}>{c.Email}</a>}
+                      </div>
+                    </div>
+                  )}
+                  {c.Itens && c.Itens.length > 0 && (
+                    <div className="info-block">
+                      <div className="info-block-label">Diagnóstico</div>
+                      <ul className="info-block-text lead-itens">
+                        {c.Itens.map((it, i) => (
+                          <li key={i}>
+                            {it.label}
+                            {it.price != null ? ` — R$ ${it.price.toLocaleString("pt-BR")}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   {c["Obs."] && (
                     <div className="info-block">
                       <div className="info-block-label">Observações</div>

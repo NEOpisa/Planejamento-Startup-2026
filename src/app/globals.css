@@ -577,6 +577,23 @@ html {
 }
 .info-block-text { font-size: 13px; color: var(--text-secondary); line-height: 1.65; }
 
+/* Lead inbound (atendimento via site) */
+.lead-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; border-radius: 999px;
+  padding: 3px 10px; letter-spacing: 0.02em;
+  background: var(--accent-subtle); color: var(--accent-light);
+  border: 1px solid var(--accent-border);
+}
+.lead-contato { display: flex; flex-wrap: wrap; gap: 16px; }
+.lead-contato a {
+  color: var(--accent-light); text-decoration: none;
+  border-bottom: 1px solid transparent; transition: border-color 160ms;
+}
+.lead-contato a:hover { border-bottom-color: var(--accent-light); }
+.lead-itens { margin: 0; padding-left: 18px; }
+.lead-itens li { margin: 2px 0; }
+
 /* Avaliação score grid */
 .score-grid {
   display: grid; grid-template-columns: repeat(2, 1fr);
