@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabase } from "@/lib/supabaseClient";
 
 function nomeDe(u: User | null): string | null {
   if (!u) return null;
@@ -25,15 +25,31 @@ export function useAuth() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => sub.subscription.unsubscribe();
+    let unsub: (() => void) | undefined;
+    let active = true;
+    (async () => {
+      try {
+        const sb = await getSupabase();
+        const { data } = await sb.auth.getSession();
+        if (!active) return;
+        setUser(data.session?.user ?? null);
+        const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
+          setUser(session?.user ?? null);
+        });
+        unsub = () => sub.subscription.unsubscribe();
+      } catch {
+        if (active) setUser(null);
+      }
+    })();
+    return () => {
+      active = false;
+      unsub?.();
+    };
   }, []);
 
   const entrar = useCallback(async (email: string, senha: string): Promise<string | null> => {
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
+    const sb = await getSupabase();
+    const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: senha });
     return error ? traduzir(error.message) : null;
   }, []);
 
@@ -41,7 +57,8 @@ export function useAuth() {
     async (nome: string, email: string, senha: string): Promise<string | null> => {
       const n = nome.trim();
       if (!n) return "Informe o seu nome.";
-      const { error } = await supabase.auth.signUp({
+      const sb = await getSupabase();
+      const { error } = await sb.auth.signUp({
         email: email.trim(),
         password: senha,
         options: { data: { nome: n } },
@@ -52,7 +69,8 @@ export function useAuth() {
   );
 
   const sair = useCallback(async () => {
-    await supabase.auth.signOut();
+    const sb = await getSupabase();
+    await sb.auth.signOut();
   }, []);
 
   return {
