@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { sbGet } from "@/lib/supabase";
+import { sbGet, sbUpdate } from "@/lib/supabase";
 import { normalizar, type Cliente, type ClienteStatus } from "@/hooks/useClientes";
 import EquipeGate from "@/components/clientes/EquipeGate";
+import { useAuth } from "@/hooks/useAuth";
 
 const STATUS_BADGE: Record<ClienteStatus, { className: string; label: string }> = {
-  pendente: { className: "status-pendente", label: "◌ Pendente" },
-  "em-andamento": { className: "status-em-andamento", label: "⏳ Em andamento" },
-  finalizado: { className: "status-finalizado", label: "✓ Finalizado" },
+  pendente: { className: "status-pendente", label: "Pendente" },
+  "em-andamento": { className: "status-em-andamento", label: "Em andamento" },
+  finalizado: { className: "status-finalizado", label: "Finalizado" },
 };
 
 function waLink(tel: string): string {
@@ -42,6 +43,24 @@ function ClienteDetalhe() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const [cliente, setCliente] = useState<Cliente | null | undefined>(undefined);
   const [excluindo, setExcluindo] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const { vendedor } = useAuth();
+
+  async function iniciarAtendimento() {
+    if (!cliente || cliente.Atendente || !vendedor || salvando) return;
+    setSalvando(true);
+    await sbUpdate("Clientes", cliente.id, { Status: "em-andamento", Atendente: vendedor });
+    setCliente({ ...cliente, Status: "em-andamento", Atendente: vendedor });
+    setSalvando(false);
+  }
+
+  async function finalizarAtendimento() {
+    if (!cliente || cliente.Status === "finalizado" || salvando) return;
+    setSalvando(true);
+    await sbUpdate("Clientes", cliente.id, { Status: "finalizado" });
+    setCliente({ ...cliente, Status: "finalizado" });
+    setSalvando(false);
+  }
 
   async function excluir() {
     if (!id || excluindo) return;
@@ -98,11 +117,29 @@ function ClienteDetalhe() {
             </p>
           </div>
 
+          <div className="detail-actions">
+            {cliente.Status === "finalizado" ? (
+              <span className="detail-status-note">
+                Atendimento finalizado{cliente.Atendente ? ` por ${cliente.Atendente}` : ""}.
+              </span>
+            ) : cliente.Atendente && cliente.Atendente !== vendedor ? (
+              <span className="detail-status-note">Em atendimento por {cliente.Atendente}.</span>
+            ) : cliente.Status === "em-andamento" ? (
+              <button className="btn-save" onClick={() => void finalizarAtendimento()} disabled={salvando}>
+                {salvando ? "Salvando…" : "Finalizar atendimento"}
+              </button>
+            ) : (
+              <button className="btn-save" onClick={() => void iniciarAtendimento()} disabled={salvando}>
+                {salvando ? "Salvando…" : "Iniciar atendimento"}
+              </button>
+            )}
+          </div>
+
           <div className="detail-blocks">
             {cliente.Atendente && (
               <div className="info-block">
                 <div className="info-block-label">Em atendimento por</div>
-                <div className="info-block-text">👤 {cliente.Atendente}</div>
+                <div className="info-block-text">{cliente.Atendente}</div>
               </div>
             )}
 

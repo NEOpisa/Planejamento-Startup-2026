@@ -116,7 +116,7 @@ export default function AvaliacaoPanel() {
       </div>
 
       <button className="add-btn" onClick={() => setFormOpen((v) => !v)}>
-        ＋ Nova avaliação técnica
+        + Nova avaliação técnica
       </button>
 
       <div className={`add-form ${formOpen ? "open" : ""}`}>
