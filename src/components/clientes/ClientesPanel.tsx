@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useClientes, type ClienteStatus } from "@/hooks/useClientes";
-import { useVendedor } from "@/hooks/useVendedor";
+import { useAuth } from "@/hooks/useAuth";
 
 const STATUS_BADGE: Record<ClienteStatus, { className: string; label: string }> = {
   pendente: { className: "status-pendente", label: "◌ Pendente" },
@@ -13,7 +13,7 @@ const STATUS_BADGE: Record<ClienteStatus, { className: string; label: string }> 
 
 export default function ClientesPanel() {
   const { clientes, addCliente, atender, finalizar } = useClientes();
-  const { vendedor } = useVendedor();
+  const { vendedor } = useAuth();
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");

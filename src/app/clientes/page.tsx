@@ -4,7 +4,7 @@ import { useState } from "react";
 import ClientesPanel from "@/components/clientes/ClientesPanel";
 import AvaliacaoPanel from "@/components/clientes/AvaliacaoPanel";
 import EquipeGate from "@/components/clientes/EquipeGate";
-import { useVendedor } from "@/hooks/useVendedor";
+import { useAuth } from "@/hooks/useAuth";
 
 type View = "clientes" | "avaliacao";
 
@@ -18,7 +18,7 @@ export default function ClientesPage() {
 
 function ClientesInner() {
   const [view, setView] = useState<View>("clientes");
-  const { vendedor, sair } = useVendedor();
+  const { vendedor, sair } = useAuth();
 
   return (
     <main className="inner">
@@ -31,7 +31,7 @@ function ClientesInner() {
         {vendedor && (
           <p className="equipe-atual">
             Você: <strong>{vendedor}</strong>
-            <button type="button" className="equipe-sair" onClick={sair}>sair</button>
+            <button type="button" className="equipe-sair" onClick={() => void sair()}>sair</button>
           </p>
         )}
       </div>
