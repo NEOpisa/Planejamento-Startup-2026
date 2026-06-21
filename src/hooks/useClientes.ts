@@ -17,8 +17,8 @@ export interface Cliente {
   Status: ClienteStatus;
   Atendente: string | null;
   Criado_em: string | null;
+  "Obs.": string | null;
   // Campos do lead inbound (site NVGHUB → /api/lead). Nulos em cadastro manual.
-  // (a coluna "Obs." continua no Supabase, mas não é exibida nesta UI)
   Email: string | null;
   Telefone: string | null;
   Origem: string | null;
@@ -30,6 +30,7 @@ export interface NovoCliente {
   Nome: string;
   Tipo: string | null;
   Status: ClienteStatus;
+  Atendente?: string | null;
 }
 
 const STATUS_VALIDOS: ClienteStatus[] = ["pendente", "em-andamento", "finalizado"];
@@ -55,6 +56,7 @@ export function normalizar(c: Partial<Cliente> & Record<string, unknown>): Clien
     Tipo: limpar(c.Tipo),
     Atendente: limpar(c.Atendente),
     Criado_em: limpar(c.Criado_em),
+    "Obs.": limpar(c["Obs."]),
     Email: limpar(c.Email),
     Telefone: limpar(c.Telefone),
     Origem: limpar(c.Origem),

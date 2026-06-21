@@ -31,7 +31,6 @@ export default function ClientesPanel() {
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState("");
-  const [status, setStatus] = useState<ClienteStatus>("pendente");
 
   const total = clientes.length;
   const finalizados = clientes.filter((c) => c.Status === "finalizado").length;
@@ -58,7 +57,13 @@ export default function ClientesPanel() {
       return;
     }
     setSaving(true);
-    const ok = await addCliente({ Nome: nomeTrim, Tipo: tipo.trim() || null, Status: status });
+    // Quem cadastra já assume o cliente: vira "em andamento" no nome dele.
+    const ok = await addCliente({
+      Nome: nomeTrim,
+      Tipo: tipo.trim() || null,
+      Status: "em-andamento",
+      Atendente: vendedor ?? null,
+    });
     setSaving(false);
     if (!ok) {
       alert("Erro ao salvar. Verifique o console.");
@@ -66,7 +71,6 @@ export default function ClientesPanel() {
     }
     setNome("");
     setTipo("");
-    setStatus("pendente");
     setFormOpen(false);
   }
 
@@ -95,9 +99,11 @@ export default function ClientesPanel() {
         </div>
       </div>
 
-      {ranking.length > 0 && (
-        <section className="ranking">
-          <h3 className="ranking-title">Ranking de atendimento</h3>
+      <section className="ranking">
+        <h3 className="ranking-title">Ranking de atendimento</h3>
+        {ranking.length === 0 ? (
+          <p className="ranking-vazio">Ainda sem atendimentos registrados.</p>
+        ) : (
           <ol className="ranking-list">
             {ranking.map((r, i) => (
               <li key={r.nome} className="ranking-row">
@@ -111,8 +117,8 @@ export default function ClientesPanel() {
               </li>
             ))}
           </ol>
-        </section>
-      )}
+        )}
+      </section>
 
       <div className="entity-list">
         {clientes.length === 0 && (
@@ -201,17 +207,7 @@ export default function ClientesPanel() {
                 />
               </label>
             </div>
-            <label className="form-group">
-              <span className="form-label">Status inicial</span>
-              <select
-                className="form-select"
-                value={status}
-                onChange={(e) => setStatus(e.target.value as ClienteStatus)}
-              >
-                <option value="pendente">Pendente</option>
-                <option value="em-andamento">Em andamento</option>
-              </select>
-            </label>
+            <p className="add-form-nota">O cliente entra em andamento no seu nome ({vendedor || "você"}).</p>
             <div className="form-actions">
               <button className="btn-cancel" onClick={() => setFormOpen(false)}>
                 Cancelar

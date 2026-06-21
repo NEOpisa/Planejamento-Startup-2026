@@ -193,6 +193,15 @@ function ClienteDetalhe() {
                 <div className="info-block-text">{formatarData(cliente.Criado_em)}</div>
               </div>
             )}
+
+            {cliente["Obs."] && (
+              <div className="info-block info-block--full">
+                <div className="info-block-label">Observações</div>
+                <div className="info-block-text" style={{ whiteSpace: "pre-line" }}>
+                  {cliente["Obs."]}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="cliente-excluir-row">
