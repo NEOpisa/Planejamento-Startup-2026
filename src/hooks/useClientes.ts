@@ -15,6 +15,7 @@ export interface Cliente {
   Nome: string;
   Tipo: string | null;
   Status: ClienteStatus;
+  Atendente: string | null;
   Criado_em: string | null;
   // Campos do lead inbound (site NVGHUB → /api/lead). Nulos em cadastro manual.
   // (a coluna "Obs." continua no Supabase, mas não é exibida nesta UI)
@@ -32,10 +33,6 @@ export interface NovoCliente {
 }
 
 const STATUS_VALIDOS: ClienteStatus[] = ["pendente", "em-andamento", "finalizado"];
-const FLUXO: Partial<Record<ClienteStatus, ClienteStatus>> = {
-  pendente: "em-andamento",
-  "em-andamento": "finalizado",
-};
 
 function limpar(v: unknown): string | null {
   return typeof v === "string" && v && v !== "null" ? v : null;
@@ -56,6 +53,7 @@ export function normalizar(c: Partial<Cliente> & Record<string, unknown>): Clien
     Nome: (c.Nome as string) ?? "",
     Status: STATUS_VALIDOS.includes(status as ClienteStatus) ? (status as ClienteStatus) : "pendente",
     Tipo: limpar(c.Tipo),
+    Atendente: limpar(c.Atendente),
     Criado_em: limpar(c.Criado_em),
     Email: limpar(c.Email),
     Telefone: limpar(c.Telefone),
@@ -87,19 +85,34 @@ export function useClientes() {
     return true;
   }, []);
 
-  const avancarStatus = useCallback(
+  // Pegar o cliente pra si: vira "em-andamento" e registra o atendente.
+  // Trava no primeiro: só permite se ainda não houver atendente.
+  const atender = useCallback(
+    async (id: number | string, vendedor: string) => {
+      const cliente = clientes.find((c) => String(c.id) === String(id));
+      if (!cliente || cliente.Atendente) return false;
+      await sbUpdate("Clientes", cliente.id, { Status: "em-andamento", Atendente: vendedor });
+      setClientes((prev) =>
+        prev.map((c) =>
+          String(c.id) === String(id) ? { ...c, Status: "em-andamento", Atendente: vendedor } : c
+        )
+      );
+      return true;
+    },
+    [clientes]
+  );
+
+  const finalizar = useCallback(
     async (id: number | string) => {
       const cliente = clientes.find((c) => String(c.id) === String(id));
-      if (!cliente) return;
-      const novoStatus = FLUXO[cliente.Status];
-      if (!novoStatus) return;
-      await sbUpdate("Clientes", cliente.id, { Status: novoStatus });
+      if (!cliente || cliente.Status === "finalizado") return;
+      await sbUpdate("Clientes", cliente.id, { Status: "finalizado" });
       setClientes((prev) =>
-        prev.map((c) => (String(c.id) === String(id) ? { ...c, Status: novoStatus } : c))
+        prev.map((c) => (String(c.id) === String(id) ? { ...c, Status: "finalizado" } : c))
       );
     },
     [clientes]
   );
 
-  return { clientes, addCliente, avancarStatus };
+  return { clientes, addCliente, atender, finalizar };
 }

@@ -3,11 +3,22 @@
 import { useState } from "react";
 import ClientesPanel from "@/components/clientes/ClientesPanel";
 import AvaliacaoPanel from "@/components/clientes/AvaliacaoPanel";
+import EquipeGate from "@/components/clientes/EquipeGate";
+import { useVendedor } from "@/hooks/useVendedor";
 
 type View = "clientes" | "avaliacao";
 
 export default function ClientesPage() {
+  return (
+    <EquipeGate>
+      <ClientesInner />
+    </EquipeGate>
+  );
+}
+
+function ClientesInner() {
   const [view, setView] = useState<View>("clientes");
+  const { vendedor, sair } = useVendedor();
 
   return (
     <main className="inner">
@@ -17,6 +28,12 @@ export default function ClientesPage() {
           Clientes & <span className="text-gradient">Revisões</span>
         </h1>
         <p className="page-sub">Histórico de atendimentos · Avaliações técnicas</p>
+        {vendedor && (
+          <p className="equipe-atual">
+            Você: <strong>{vendedor}</strong>
+            <button type="button" className="equipe-sair" onClick={sair}>sair</button>
+          </p>
+        )}
       </div>
 
       <div className="block-label">{"// visualizar por"}</div>
@@ -37,8 +54,8 @@ export default function ClientesPage() {
           </div>
           <h2 className="phase-title">Clientes Atendidos</h2>
           <p className="phase-desc">
-            Marque os clientes que já foram atendidos e registre informações do atendimento. Clique em
-            &quot;+ Novo cliente&quot; para adicionar.
+            Clique em <strong>Atender</strong> para assumir um cliente — ele trava no seu nome.
+            Use &quot;+ Novo cliente&quot; para adicionar manualmente.
           </p>
           <ClientesPanel />
         </section>

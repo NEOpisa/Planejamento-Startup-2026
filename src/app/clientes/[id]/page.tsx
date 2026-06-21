@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { sbGet } from "@/lib/supabase";
 import { normalizar, type Cliente, type ClienteStatus } from "@/hooks/useClientes";
+import EquipeGate from "@/components/clientes/EquipeGate";
 
 const STATUS_BADGE: Record<ClienteStatus, { className: string; label: string }> = {
   pendente: { className: "status-pendente", label: "◌ Pendente" },
@@ -28,6 +29,14 @@ function formatarData(iso: string): string {
 }
 
 export default function ClienteDetailPage() {
+  return (
+    <EquipeGate>
+      <ClienteDetalhe />
+    </EquipeGate>
+  );
+}
+
+function ClienteDetalhe() {
   const params = useParams();
   const router = useRouter();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -90,6 +99,13 @@ export default function ClienteDetailPage() {
           </div>
 
           <div className="detail-blocks">
+            {cliente.Atendente && (
+              <div className="info-block">
+                <div className="info-block-label">Em atendimento por</div>
+                <div className="info-block-text">👤 {cliente.Atendente}</div>
+              </div>
+            )}
+
             {(cliente.Telefone || cliente.Email) && (
               <div className="info-block">
                 <div className="info-block-label">Contato</div>

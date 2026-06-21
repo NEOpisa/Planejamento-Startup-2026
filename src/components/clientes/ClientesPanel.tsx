@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useClientes, type ClienteStatus } from "@/hooks/useClientes";
+import { useVendedor } from "@/hooks/useVendedor";
 
 const STATUS_BADGE: Record<ClienteStatus, { className: string; label: string }> = {
   pendente: { className: "status-pendente", label: "◌ Pendente" },
@@ -10,13 +11,9 @@ const STATUS_BADGE: Record<ClienteStatus, { className: string; label: string }> 
   finalizado: { className: "status-finalizado", label: "✓ Finalizado" },
 };
 
-const ACTION_LABEL: Partial<Record<ClienteStatus, string>> = {
-  pendente: "Iniciar",
-  "em-andamento": "Finalizar",
-};
-
 export default function ClientesPanel() {
-  const { clientes, addCliente, avancarStatus } = useClientes();
+  const { clientes, addCliente, atender, finalizar } = useClientes();
+  const { vendedor } = useVendedor();
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
@@ -85,7 +82,8 @@ export default function ClientesPanel() {
         {clientes.map((c) => {
           const isFinalizado = c.Status === "finalizado";
           const badge = STATUS_BADGE[c.Status];
-          const actionLabel = ACTION_LABEL[c.Status];
+          const meuAtendimento = !!c.Atendente && c.Atendente === vendedor;
+          const travado = !!c.Atendente && !meuAtendimento && !isFinalizado;
           return (
             <div className={`entity-card ${isFinalizado ? "finalizado" : ""}`} key={c.id}>
               <div className="entity-card-head">
@@ -103,6 +101,9 @@ export default function ClientesPanel() {
                     <div className="entity-info-row">
                       <span className="entity-tipo">{c.Tipo || "—"}</span>
                       {c.Origem && <span className="lead-tag">⚡ via site</span>}
+                      {c.Atendente && (
+                        <span className="entity-atendente">👤 {c.Atendente}</span>
+                      )}
                       <span className={`status-badge ${badge.className}`}>{badge.label}</span>
                     </div>
                   </div>
@@ -111,12 +112,20 @@ export default function ClientesPanel() {
                   <button className="entity-action-btn checked" disabled>
                     ✓ Finalizado
                   </button>
+                ) : travado ? (
+                  <span className="entity-locked" title={`Em atendimento por ${c.Atendente}`}>
+                    🔒 {c.Atendente}
+                  </span>
+                ) : c.Status === "em-andamento" ? (
+                  <button className="entity-action-btn" onClick={() => void finalizar(c.id)}>
+                    Finalizar
+                  </button>
                 ) : (
                   <button
                     className="entity-action-btn"
-                    onClick={() => void avancarStatus(c.id)}
+                    onClick={() => vendedor && void atender(c.id, vendedor)}
                   >
-                    {actionLabel}
+                    Atender
                   </button>
                 )}
                 <span className="entity-open-icon" aria-hidden="true">↗</span>
