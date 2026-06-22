@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_LEN = { titulo: 160, descricao: 2000, responsavel: 120 };
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // POST /api/missoes — cria uma missão (exige login).
 export async function POST(req: Request) {
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
 
   let body: {
     Titulo?: unknown; Descricao?: unknown; Responsavel?: unknown;
-    Prioridade?: unknown; Prazo?: unknown;
+    Responsavel_id?: unknown; Prioridade?: unknown; Prazo?: unknown;
   };
   try {
     body = await req.json();
@@ -30,6 +31,10 @@ export async function POST(req: Request) {
   const titulo = typeof body.Titulo === "string" ? body.Titulo.trim() : "";
   const descricao = typeof body.Descricao === "string" ? body.Descricao.trim() : "";
   const responsavel = typeof body.Responsavel === "string" ? body.Responsavel.trim() : "";
+  const responsavelId =
+    typeof body.Responsavel_id === "string" && UUID_RE.test(body.Responsavel_id)
+      ? body.Responsavel_id
+      : null;
   const prioridade = isPrioridade(body.Prioridade) ? body.Prioridade : "media";
   const prazo = typeof body.Prazo === "string" && DATE_RE.test(body.Prazo) ? body.Prazo : null;
 
@@ -50,9 +55,11 @@ export async function POST(req: Request) {
     Titulo: titulo,
     Descricao: descricao || null,
     Responsavel: responsavel || null,
+    Responsavel_id: responsavelId,
     Prioridade: prioridade,
     Prazo: prazo,
     Status: "pendente",
+    Tipo: "empresa",
   };
 
   try {
