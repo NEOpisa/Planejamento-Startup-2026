@@ -679,3 +679,79 @@ footer {
   .form-actions { flex-direction: column-reverse; }
   .form-actions button { width: 100%; }
 }
+
+/* ── Área de missões ── */
+
+/* Botão dedicado na home */
+.home-missoes-cta {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin-top: 22px; padding: 13px 22px;
+  border-radius: 12px; text-decoration: none;
+  font-size: 15px; font-weight: 600; color: var(--accent-light);
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  transition: background 160ms, border-color 160ms, color 160ms, transform 160ms, box-shadow 200ms;
+}
+.home-missoes-cta:hover {
+  background: rgba(124, 58, 237, 0.18);
+  border-color: var(--accent);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 0 22px var(--accent-glow);
+}
+.home-missoes-cta-icon { font-size: 17px; }
+.home-missoes-cta-arrow { transition: transform 180ms ease; }
+.home-missoes-cta:hover .home-missoes-cta-arrow { transform: translateX(3px); }
+
+/* Badge de prioridade */
+.prio-badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  border: 1px solid var(--border);
+}
+.prio-badge.prio-alta { color: #fca5a5; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1); }
+.prio-badge.prio-media { color: var(--accent-light); border-color: var(--accent-border); background: var(--accent-subtle); }
+.prio-badge.prio-baixa { color: var(--text-secondary); }
+
+.missoes-prazo { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+/* Login */
+.missoes-login {
+  display: flex; flex-direction: column; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px 22px; margin-bottom: 20px;
+}
+.missoes-login-copy { display: flex; flex-direction: column; gap: 5px; }
+.missoes-login-copy strong { font-size: 15px; color: var(--text-primary); }
+.missoes-login-copy span { font-size: 13px; color: var(--text-secondary); }
+.missoes-login-row { display: flex; gap: 12px; align-items: stretch; max-width: 460px; }
+.missoes-login-row .form-input { flex: 1; }
+.missoes-login-row .btn-save { flex-shrink: 0; }
+.missoes-error { font-size: 13px; color: #fca5a5; margin: 0; }
+
+/* Barra "gerenciando" + sair */
+.missoes-manage-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 20px;
+}
+.missoes-manage-tag { font-size: 13px; color: var(--green); font-weight: 600; }
+.missoes-logout {
+  background: none; border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px 16px; font-size: 12px; color: var(--text-secondary);
+  cursor: pointer; transition: border-color 150ms, color 150ms;
+}
+.missoes-logout:hover { border-color: var(--border-hover); color: var(--text-primary); }
+
+/* Controles de gerenciamento dentro do card */
+.missoes-controls {
+  display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
+  margin-top: 14px;
+}
+.missoes-controls .form-group { min-width: 180px; }
+.missoes-remove { align-self: flex-end; }
+
+@media (max-width: 640px) {
+  .missoes-login-row { flex-direction: column; }
+  .missoes-controls { flex-direction: column; align-items: stretch; }
+}

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import TeamGrid from "@/components/roadmap/TeamGrid";
 import RoadmapPhases from "@/components/roadmap/RoadmapPhases";
 import GestaoGovernanca from "@/components/roadmap/GestaoGovernanca";
@@ -11,6 +12,11 @@ export default function RoadmapPage() {
           N<span className="text-accent-nvg">E</span>OVANGUAR<span className="text-accent-nvg">D</span>
         </h1>
         <p className="page-sub">Fase inicial · Soluções digitais · 4 cofundadores · 25% cada</p>
+        <Link href="/missoes" className="home-missoes-cta">
+          <span className="home-missoes-cta-icon" aria-hidden="true">◎</span>
+          Área de missões
+          <span className="home-missoes-cta-arrow" aria-hidden="true">→</span>
+        </Link>
       </div>
 
       <TeamGrid />
