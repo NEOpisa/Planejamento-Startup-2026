@@ -34,6 +34,7 @@
 
 import { PARA_CLIENTE, PARA_SERVIDOR, limparSessao } from "./protocolo.mjs";
 import { CAMINHO_SINAL } from "./base.mjs";
+import { configuracaoDoNavegador, criarSinalSupabase } from "./sinal-supabase";
 
 export type Participante = {
   id: string;
@@ -346,6 +347,8 @@ function idDaAba(): string {
 
 export class Malha {
   private ws: WebSocket | null = null;
+  /** o transporte quando a sala vive no Realtime do Supabase */
+  private supabase: ReturnType<typeof criarSinalSupabase> | null = null;
   private pares = new Map<string, Par>();
   private meuFluxo: MediaStream | null = null;
   private fluxoTela: MediaStream | null = null;
@@ -451,6 +454,21 @@ export class Malha {
   }
 
   /**
+   * Por onde as pessoas da sala são apresentadas.
+   *
+   * Com Supabase configurado, o navegador fala direto com o Realtime dele e
+   * não há servidor de sinalização nenhum — é o arranjo para quando as
+   * páginas moram numa hospedagem sem processo. Sem ele, vale o WebSocket do
+   * `server.mjs`, que é a casa natural desta ferramenta.
+   *
+   * A escolha é do ambiente, não do código: as duas pontas entregam à malha
+   * exatamente as mesmas mensagens.
+   */
+  private supabaseConfigurado() {
+    return configuracaoDoNavegador();
+  }
+
+  /**
    * Abre (ou reabre) a conexão com o servidor de sinalização.
    *
    * Separado do `entrar` porque a queda de rede é o caso comum, não a exceção:
@@ -482,6 +500,42 @@ export class Malha {
 
   private abrirSinalizacao() {
     if (this.fechando) return;
+
+    const config = this.supabaseConfigurado();
+    if (config) {
+      this.supabase?.fechar();
+      this.supabase = criarSinalSupabase(config, {
+        sala: this.sala,
+        nome: this.nome,
+        sessao: this.sessao,
+        recebeu: (msg) => void this.recebeu(msg),
+        ligou: () => {
+          this.jaAbriu = true;
+          this.tentativa = 0;
+          if (this.apurar) clearTimeout(this.apurar);
+        },
+        caiu: () => {
+          if (this.fechando) return;
+          this.estado.ligado = false;
+          this.avisar();
+        },
+      });
+      this.supabase.abrir();
+      // O cliente do Supabase religa sozinho; a apuração existe só para o
+      // caso de ele nunca chegar a conectar (credencial errada, projeto
+      // pausado), que é quando ficar em "reconectando…" não explica nada.
+      if (this.apurar) clearTimeout(this.apurar);
+      this.apurar = setTimeout(() => {
+        if (!this.jaAbriu) {
+          this.estado.erro =
+            "não consegui falar com o Supabase, que é quem apresenta as pessoas " +
+            "desta sala. Confira NEXT_PUBLIC_SUPABASE_URL e a chave publicável " +
+            "nas variáveis do projeto.";
+          this.avisar();
+        }
+      }, 8000);
+      return;
+    }
     const ws = new WebSocket(this.enderecoDaSinalizacao());
     this.ws = ws;
 
@@ -610,6 +664,10 @@ export class Malha {
   }
 
   private manda(tipo: string, corpo: Record<string, unknown> = {}) {
+    if (this.supabase) {
+      this.supabase.manda(tipo, corpo);
+      return;
+    }
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ tipo, ...corpo }));
     }
@@ -1191,6 +1249,7 @@ export class Malha {
     this.fluxoTela?.getTracks().forEach((f) => f.stop());
     try {
       this.ws?.close();
+      void this.supabase?.fechar();
     } catch {
       /* já fechado */
     }

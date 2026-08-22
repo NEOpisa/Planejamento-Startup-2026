@@ -142,26 +142,42 @@ quem volta volta como a mesma pessoa. Ninguém sai, ninguém entra, e a voz —
 que vai direto de um navegador ao outro — nem fica sabendo. É o que o
 `npm run test:instancias` confere, com duas instâncias de verdade.
 
-#### Com Supabase
+#### Com Supabase, sem servidor nenhum
 
-Uma vez, no projeto: *SQL Editor* → colar o `supabase/nvdisc.sql` → *Run*.
-Ele cria uma tabela e liga o RLS nela — sem política nenhuma, porque quem
-fala com essa tabela é a função, com a chave secreta, e nunca o navegador.
+É o arranjo desta central hoje, e o mais robusto quando as páginas moram numa
+hospedagem sem processo: **o navegador fala direto com o Realtime do
+Supabase**. Não há função de sinalização no caminho, e some junto a pergunta
+"onde roda o servidor da sala".
 
-Depois, em *Settings → Environment Variables* da Vercel:
+A presença do canal *é* a lista de quem está na sala; a transmissão leva a
+negociação do WebRTC e o chat. As mensagens que chegam à malha são exatamente
+as mesmas do `protocolo.mjs` — o resto da sala não sabe por onde as pessoas
+foram apresentadas, e não precisa saber.
+
+Em *Settings → Environment Variables* da Vercel:
 
 ```
-SUPABASE_URL=https://xxxxxxxx.supabase.co
-SUPABASE_SECRET_KEY=sb_secret_...
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
-A chave precisa ser a **secreta** (`sb_secret_…`, ou a antiga `service_role`).
-A publicável não serve — a tabela está fechada de propósito. E ela nunca vai
-para o navegador: não use `NEXT_PUBLIC_` nesses dois nomes.
+O `NEXT_PUBLIC_` é proposital aqui: quem precisa dessas duas é o navegador.
+A chave é a **publicável** (ou a `anon`), feita para viver no código da
+página. A secreta não entra nisto.
 
-A tabela guarda só **quem está em qual sala agora**. Nada de histórico, nada
-de conversa: o chat vive na memória de quem está na sala e some junto, e a voz
-nunca passa por ali.
+Uma coisa que essas variáveis têm de diferente: elas entram **no momento do
+build**. Definir e não publicar de novo não muda nada — o código já foi
+gerado sem elas.
+
+O que isso implica: quem tiver o código da sala e a chave publicável entra na
+sala, exatamente como quem tem o link entra numa reunião cujo endereço
+vazou. É a mesma promessa de sempre — sala pública para quem sabe o código —,
+e a razão de nada ser gravado.
+
+Por este caminho **a tabela e a chave secreta não são usadas**. Elas servem
+ao arranjo de baixo, com a sinalização em função.
+
+#### Com Supabase, pela função
 
 #### Com Redis
 
@@ -260,7 +276,8 @@ server.mjs                       Next + WebSocket da sinalização, num processo
 src/lib/sinalizacao.mjs          o protocolo da sala, sem saber onde roda
 src/lib/registro-memoria.mjs     as salas na memória (server.mjs)
 src/lib/registro-redis.mjs       as salas no Redis (Vercel)
-src/lib/registro-supabase.mjs    as salas no Supabase (Vercel)
+src/lib/registro-supabase.mjs    as salas no Supabase (sinalização em função)
+src/lib/sinal-supabase.ts        a sala pelo Realtime, direto do navegador
 supabase/nvdisc.sql              a tabela, para rodar uma vez no projeto
 src/app/api/sinal/route.ts       a sinalização como função da Vercel
 src/app/globals.css              o sistema visual (o do NVGHUB) + as peças daqui
