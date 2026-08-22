@@ -115,6 +115,22 @@ export type Qualidade = {
    * aberto vira realimentação em segundos.
    */
   audio: "voz" | "musica";
+  /**
+   * Quanto ruído de fundo abafar.
+   *
+   * `desligado` — nada é tirado. É o certo quando o som importa mais que o
+   * silêncio: instrumento, vídeo, uma voz cantando.
+   *
+   * `padrao` — o supressor do navegador, que tira ventilador, teclado e
+   * chiado sem tocar na voz. Serve para quase todo mundo.
+   *
+   * `forte` — o do navegador **mais** uma porta: abaixo de um certo volume o
+   * microfone é fechado, e o que passa é só quando você fala. Resolve obra na
+   * rua e cachorro no quintal, e cobra por isso: começo de palavra dita
+   * baixinho pode se perder, e respiração some. Numa conversa de duas pessoas
+   * é ótimo; numa roda em que gente ri junto, incomoda.
+   */
+  ruido: "desligado" | "padrao" | "forte";
   /** altura da tela transmitida; 0 = como está no monitor */
   resolucao: 0 | 720 | 1080 | 1440 | 2160;
   fps: 30 | 60;
@@ -132,6 +148,7 @@ export type Qualidade = {
 
 export const QUALIDADE_PADRAO: Qualidade = {
   audio: "voz",
+  ruido: "padrao",
   resolucao: 1080,
   fps: 30,
   perfil: "nitidez",
@@ -366,38 +383,105 @@ function idDaAba(): string {
  * som da tela — que é o que se quer quando alguém silencia o microfone no
  * meio de um vídeo.
  */
-type Mistura = {
-  destino: MediaStreamAudioDestinationNode;
-  origens: MediaStreamAudioSourceNode[];
-  parar: () => void;
+type Cadeia = {
+  /** a faixa que sai daqui para todo mundo */
+  faixa: MediaStreamTrack;
+  /** o portão do microfone, quando a supressão forte está ligada */
+  porta: GainNode | null;
+  desmontar: () => void;
 };
 
-function misturarAudio(fluxos: MediaStream[]): Mistura | null {
-  const comSom = fluxos.filter((f) => f.getAudioTracks().length > 0);
-  if (comSom.length === 0) return null;
+/**
+ * Monta o que sai deste navegador: microfone, porta de ruído e som da tela.
+ *
+ * Ela só é montada quando há motivo — supressão forte ligada, ou uma tela
+ * compartilhada com som. No caso comum, a faixa do microfone vai crua, sem
+ * nenhum nó de áudio no caminho, que é o que soa melhor e custa menos.
+ *
+ * A porta é um `GainNode` que o laço de volume abre e fecha: abaixo do
+ * limiar, o ganho vai a zero. Um `DynamicsCompressor` faria algo parecido com
+ * menos controle — e o que se quer aqui é justamente o controle, porque o
+ * ponto de corte é a diferença entre "sumiu o ventilador" e "sumiu o começo
+ * das minhas frases".
+ */
+function montarCadeia(
+  mic: MediaStream | null,
+  tela: MediaStream | null,
+  comPorta: boolean,
+): Cadeia | null {
+  const temSomDaTela = (tela?.getAudioTracks().length ?? 0) > 0;
+  if (!mic?.getAudioTracks().length && !temSomDaTela) return null;
+  if (!comPorta && !temSomDaTela) return null;
+
   const contexto = contextoDeAudio();
   const destino = contexto.createMediaStreamDestination();
-  const origens = comSom.map((f) => {
-    const o = contexto.createMediaStreamSource(f);
-    o.connect(destino);
-    return o;
-  });
+  const desfazer: (() => void)[] = [];
+  let porta: GainNode | null = null;
+
+  if (mic?.getAudioTracks().length) {
+    const origem = contexto.createMediaStreamSource(mic);
+    let ultimo: AudioNode = origem;
+    if (comPorta) {
+      // Corte grave: ronco de ar-condicionado e trepidação de mesa vivem
+      // abaixo da voz, e tirá-los antes da porta faz a porta errar menos.
+      const grave = contexto.createBiquadFilter();
+      grave.type = "highpass";
+      grave.frequency.value = 95;
+      ultimo.connect(grave);
+      ultimo = grave;
+
+      porta = contexto.createGain();
+      porta.gain.value = 0;
+      ultimo.connect(porta);
+      ultimo = porta;
+      desfazer.push(() => grave.disconnect());
+    }
+    ultimo.connect(destino);
+    desfazer.push(() => origem.disconnect());
+    if (porta) desfazer.push(() => porta?.disconnect());
+  }
+
+  if (temSomDaTela && tela) {
+    const origemTela = contexto.createMediaStreamSource(tela);
+    origemTela.connect(destino);
+    desfazer.push(() => origemTela.disconnect());
+  }
+
   return {
-    destino,
-    origens,
-    parar: () => {
-      for (const o of origens) {
+    faixa: destino.stream.getAudioTracks()[0],
+    porta,
+    desmontar: () => {
+      for (const f of desfazer) {
         try {
-          o.disconnect();
+          f();
         } catch {
-          /* já desconectada */
+          /* já desconectado */
         }
       }
-      // O contexto é da página; fechá-lo aqui derrubaria os indicadores de
-      // fala de todo mundo.
+      // O contexto é da página; fechá-lo derrubaria o indicador de fala de
+      // todo mundo.
       destino.disconnect();
     },
   };
+}
+
+/**
+ * O limiar da porta, no mesmo mundo do medidor.
+ *
+ * Escolhido acima do ruído de sala típico (ventilador, geladeira, rua fechada)
+ * e abaixo de fala normal, inclusive de quem fala baixo. Mais alto do que isto
+ * começa a cortar gente; mais baixo deixa o ventilador passar e a porta perde
+ * a razão de existir.
+ */
+const LIMIAR_DA_PORTA = 0.035;
+
+/** O nível medido sem o piso que o indicador de fala aplica. */
+function nivelBruto(m: Medidor | undefined): number {
+  if (!m) return 0;
+  m.analisador.getByteFrequencyData(m.dados);
+  let soma = 0;
+  for (const v of m.dados) soma += v;
+  return soma / m.dados.length / 255;
 }
 
 export class Malha {
@@ -408,7 +492,7 @@ export class Malha {
   private meuFluxo: MediaStream | null = null;
   private fluxoTela: MediaStream | null = null;
   private meuMedidor?: Medidor;
-  private mistura: Mistura | null = null;
+  private cadeia: Cadeia | null = null;
   private quadro = 0;
   private pingTimer?: ReturnType<typeof setInterval>;
   private ouvinte: Ouvinte;
@@ -473,11 +557,43 @@ export class Malha {
    * precisa saber em qual dos dois estados a sala está.
    */
   private vozParaEnviar(): MediaStreamTrack | null {
-    return (
-      this.mistura?.destino.stream.getAudioTracks()[0] ??
-      this.meuFluxo?.getAudioTracks()[0] ??
-      null
-    );
+    return this.cadeia?.faixa ?? this.meuFluxo?.getAudioTracks()[0] ?? null;
+  }
+
+  /**
+   * Refaz o caminho do som e entrega a faixa nova a quem já está na chamada.
+   *
+   * É chamada quando muda alguma coisa que altera esse caminho: a supressão,
+   * o compartilhamento de tela, o microfone. Trocar a faixa não renegocia
+   * nada — a conexão nem percebe.
+   */
+  /**
+   * Abre e fecha a porta de ruído conforme você fala.
+   *
+   * Rápido para abrir e devagar para fechar, e é isso que separa uma porta
+   * útil de uma que estraga a conversa: abrir devagar come o começo das
+   * palavras; fechar rápido corta o fim delas e faz a sala "engolir" o final
+   * das frases. Um limiar em cima do nível medido, e não em decibéis
+   * absolutos, porque o que importa é o quanto a voz se destaca do fundo
+   * daquele microfone.
+   */
+  private ajustarPorta() {
+    const porta = this.cadeia?.porta;
+    if (!porta) return;
+    const contexto = porta.context;
+    const falando = nivelBruto(this.meuMedidor) > LIMIAR_DA_PORTA;
+    const alvo = falando && !this.estado.mudo ? 1 : 0;
+    // `setTargetAtTime` faz a transição no próprio motor de áudio, sem
+    // depender do relógio do JavaScript — que é justamente o que costuma
+    // engasgar quando a página está ocupada.
+    porta.gain.setTargetAtTime(alvo, contexto.currentTime, alvo === 1 ? 0.008 : 0.18);
+  }
+
+  private async refazerCadeia() {
+    const comPorta = this.estado.qualidade.ruido === "forte";
+    this.cadeia?.desmontar();
+    this.cadeia = montarCadeia(this.meuFluxo, this.fluxoTela, comPorta);
+    await this.trocarVoz();
   }
 
   /** Troca a faixa de voz em todas as conexões abertas, sem renegociar nada. */
@@ -757,10 +873,14 @@ export class Malha {
    * ganho automático achata a dinâmica — os dois destroem música.
    */
   private restricoesDeAudio(): MediaTrackConstraints {
-    const musica = this.estado.qualidade.audio === "musica";
+    const q = this.estado.qualidade;
+    const musica = q.audio === "musica";
+    // O cancelamento de eco fica ligado mesmo com a supressão desligada: ele
+    // não existe para limpar ruído, e sim para impedir que o alto-falante de
+    // alguém volte para a sala como microfonia.
     return {
       echoCancellation: !musica,
-      noiseSuppression: !musica,
+      noiseSuppression: !musica && q.ruido !== "desligado",
       autoGainControl: !musica,
       sampleRate: 48000,
       sampleSize: 16,
@@ -1121,6 +1241,11 @@ export class Malha {
     // Desligar a faixa é o que garante que nada sai: mexer só no volume
     // deixaria o áudio trafegando, e "mudo" precisa querer dizer mudo.
     this.meuFluxo?.getAudioTracks().forEach((f) => (f.enabled = !valor));
+    // Com a cadeia montada, o que sai é a faixa dela — e uma faixa de saída
+    // não obedece ao `enabled` do microfone. A porta fecha junto; sem isto,
+    // "mudo" deixaria passar o som da tela **e** a voz que já estava no
+    // caminho.
+    this.ajustarPorta();
     this.manda(PARA_SERVIDOR.ESTADO, { mudo: valor, tela: this.estado.tela });
     this.avisar();
   }
@@ -1180,25 +1305,36 @@ export class Malha {
 
     // O microfone só é repedido quando o que muda é ele: reabrir a captura à
     // toa corta o som de todo mundo por um instante.
-    if (q.audio && q.audio !== antes.audio) {
+    const mudouCaptura =
+      (q.audio !== undefined && q.audio !== antes.audio) ||
+      (q.ruido !== undefined &&
+        // Só o `desligado` muda o que o navegador entrega; entre `padrao` e
+        // `forte` o microfone é o mesmo, e o que muda é a porta — reabrir a
+        // captura ali cortaria o som de todo mundo por nada.
+        (q.ruido === "desligado") !== (antes.ruido === "desligado"));
+
+    if (mudouCaptura) {
       try {
         const novo = await navigator.mediaDevices.getUserMedia({
           audio: this.restricoesDeAudio(),
           video: false,
         });
-        const faixa = novo.getAudioTracks()[0];
-        faixa.enabled = !this.estado.mudo;
-        for (const par of this.pares.values()) {
-          const s = par.pc.getSenders().find((x) => x.track?.kind === "audio");
-          await s?.replaceTrack(faixa);
-        }
+        novo.getAudioTracks().forEach((f) => (f.enabled = !this.estado.mudo));
         this.meuFluxo?.getTracks().forEach((f) => f.stop());
         this.meuFluxo = novo;
         this.meuMedidor?.parar();
         this.meuMedidor = criarMedidor(novo);
+        // Quem decide o que sai é a cadeia: pode ser esta faixa crua, ou ela
+        // passando pela porta e misturada ao som da tela.
+        await this.refazerCadeia();
       } catch {
         this.estado.erro = "não consegui reabrir o microfone com a nova qualidade.";
       }
+    }
+
+    // A porta liga e desliga sem tocar no microfone.
+    if (q.ruido !== undefined && q.ruido !== antes.ruido && !mudouCaptura) {
+      await this.refazerCadeia();
     }
 
     // Já compartilhando: reajusta a captura sem interromper a transmissão.
@@ -1255,13 +1391,16 @@ export class Malha {
       for (const par of this.pares.values()) {
         await par.videoSender?.replaceTrack(faixa);
       }
-      // O som da tela entra na mesma faixa da voz. Sem isto, o vídeo
-      // compartilhado chega mudo do outro lado — a captura trazia o áudio e
-      // ele era descartado.
-      if (fluxo.getAudioTracks().length > 0 && this.meuFluxo) {
-        this.mistura?.parar();
-        this.mistura = misturarAudio([this.meuFluxo, fluxo]);
-        await this.trocarVoz();
+      // O som da tela entra na mesma faixa da voz.
+      await this.refazerCadeia();
+      if (fluxo.getAudioTracks().length === 0) {
+        // Dizer isto na hora poupa a descoberta pelo pior caminho, que é o
+        // outro lado avisando que o vídeo está mudo depois de dez minutos.
+        this.sistema(
+          "esta captura veio sem som. No Chrome, o áudio só acompanha quando " +
+            "você compartilha **uma aba** e marca a caixa de compartilhar o " +
+            "áudio da aba — tela inteira e janela não levam som.",
+        );
       }
       this.estado.tela = true;
       this.manda(PARA_SERVIDOR.ESTADO, { mudo: this.estado.mudo, tela: true });
@@ -1278,13 +1417,9 @@ export class Malha {
     for (const par of this.pares.values()) {
       await par.videoSender?.replaceTrack(null);
     }
-    // A voz volta a ser só o microfone: a mistura existia por causa do som da
-    // tela, e uma mistura com uma fonte só custaria um nó de áudio à toa.
-    if (this.mistura) {
-      this.mistura.parar();
-      this.mistura = null;
-      await this.trocarVoz();
-    }
+    // Sem tela, o caminho do som encolhe de novo — e volta a ser a faixa crua
+    // do microfone, se a supressão forte não estiver ligada.
+    await this.refazerCadeia();
     this.estado.tela = false;
     this.manda(PARA_SERVIDOR.ESTADO, { mudo: this.estado.mudo, tela: false });
     this.avisar();
@@ -1318,6 +1453,12 @@ export class Malha {
     const INTERVALO = 80;
 
     const passo = (agora: number) => {
+      // A porta de ruído é decidida **a cada quadro**, e não a cada 80 ms
+      // como o indicador: ela mexe no som, e som que abre com atraso perde a
+      // primeira sílaba. É uma conta barata — nenhuma renderização depende
+      // dela.
+      this.ajustarPorta();
+
       if (agora - ultimo < INTERVALO) {
         this.quadro = requestAnimationFrame(passo);
         return;
@@ -1360,8 +1501,8 @@ export class Malha {
     if (this.pingTimer) clearInterval(this.pingTimer);
     if (this.religar) clearTimeout(this.religar);
     this.meuMedidor?.parar();
-    this.mistura?.parar();
-    this.mistura = null;
+    this.cadeia?.desmontar();
+    this.cadeia = null;
     for (const id of [...this.pares.keys()]) this.fecharPar(id);
     this.meuFluxo?.getTracks().forEach((f) => f.stop());
     this.fluxoTela?.getTracks().forEach((f) => f.stop());

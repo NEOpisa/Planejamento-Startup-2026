@@ -273,6 +273,41 @@ try {
     JSON.stringify(a.microfone),
   );
 
+  console.log("\nsupressão de ruído");
+  // Trocar o nível troca a faixa de áudio que sai daqui, no meio da chamada.
+  // É `replaceTrack`, então não deveria renegociar nada nem interromper o
+  // som — e "não deveria" é exatamente o tipo de frase que merece um teste.
+  await abas[0].aba.js(`(() => {
+    [...document.querySelectorAll("button")].find(b => /Qualidade/.test(b.textContent))?.click();
+    return true;
+  })()`);
+  await esperar(400);
+  const trocou = await abas[0].aba.js(`(() => {
+    const b = [...document.querySelectorAll(".nv-opcao")].find(x => x.textContent.trim() === "Forte");
+    if (!b) return false;
+    b.click();
+    return true;
+  })()`);
+  ok(trocou, "o painel oferece a supressão forte");
+  await esperar(2500);
+
+  let depois = null;
+  for (let i = 0; i < 10; i += 1) {
+    depois = await abas[1].aba.js(sonda);
+    if (depois?.recebendo >= 1) break;
+    await esperar(1000);
+  }
+  ok(
+    depois?.recebendo >= 1,
+    "com a supressão forte, a voz continua chegando do outro lado",
+    `recebendo ${depois?.recebendo}`,
+  );
+  ok(
+    depois?.audios >= 1 && depois?.faixas >= 1,
+    "e a faixa continua ligada ao elemento de áudio",
+    `audios ${depois?.audios}, faixas ${depois?.faixas}`,
+  );
+
   // ── a entrada pelo formulário, em modo de desenvolvimento ──────────
   //
   // Este bloco existe por causa de um defeito que só aparecia aqui: quem

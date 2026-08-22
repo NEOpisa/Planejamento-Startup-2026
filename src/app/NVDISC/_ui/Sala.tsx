@@ -649,6 +649,26 @@ function PainelQualidade({
 
       <div className="grupo">
         <Escolha
+          titulo="Ruído de fundo"
+          valor={q.ruido}
+          opcoes={[
+            { v: "desligado", r: "Não filtrar" },
+            { v: "padrao", r: "Padrão" },
+            { v: "forte", r: "Forte" },
+          ]}
+          onEscolher={(v) => onQualidade({ ruido: v as Qualidade["ruido"] })}
+        />
+        <p className="nv-nota" style={{ marginTop: 8 }}>
+          {q.ruido === "desligado"
+            ? "Nada é tirado do som. É o certo quando o que importa não é a fala: instrumento, vídeo, uma voz cantando."
+            : q.ruido === "padrao"
+              ? "O supressor do navegador tira ventilador, teclado e chiado sem encostar na voz. Serve para quase todo mundo."
+              : "Além do supressor, o microfone fica fechado enquanto você não fala. Resolve obra na rua e cachorro no quintal — e cobra: começo de palavra dita baixinho pode se perder, e respiração some."}
+        </p>
+      </div>
+
+      <div className="grupo">
+        <Escolha
           titulo="Resolução da tela"
           valor={String(q.resolucao)}
           opcoes={[

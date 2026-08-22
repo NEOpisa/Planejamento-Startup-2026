@@ -52,6 +52,14 @@ Dentro da sala: o microfone já entra ligado (**`M`** liga e desliga),
 `Compartilhar tela` transmite uma janela, uma aba ou o monitor inteiro, e o
 chat fica na lateral — no celular, atrás de um botão com contador de não lidas.
 
+**O som da tela compartilhada vai junto**, misturado à sua voz numa faixa só —
+mandá-lo separado obrigaria a renegociar a conexão com todo mundo bem no
+momento em que alguém aperta "compartilhar". Mas há uma regra do navegador que
+pega todo mundo de surpresa: **só a partilha de _aba_ leva áudio**. Tela
+inteira e janela chegam mudas do outro lado, e é o Chrome que decide isso, não
+esta ferramenta — quando acontece, a sala avisa no chat em vez de deixar você
+descobrir dez minutos depois.
+
 Sem ninguém compartilhando, **as pessoas ocupam o meio da tela**, com o contorno
 acendendo em quem fala. Quando alguém compartilha, elas recolhem para uma faixa
 embaixo e a tela toma o palco.
@@ -86,11 +94,18 @@ e nada disso melhora uma sala de amigos.
 
 ### Qualidade
 
-O botão **Qualidade** abre quatro escolhas, que valem na hora:
+O botão **Qualidade** abre cinco escolhas, que valem na hora:
 
 - **Som** — `Voz` mantém cancelamento de eco e supressão de ruído (é o que
   evita microfonia em quem usa alto-falante); `Música` desliga tudo isso, vai a
   estéreo e sobe a taxa. Nesse modo, **peça fone a todo mundo**.
+- **Ruído de fundo** — `Não filtrar` deixa o som passar inteiro; `Padrão` usa
+  o supressor do navegador, que tira ventilador, teclado e chiado sem encostar
+  na voz; `Forte` acrescenta uma porta: abaixo de um limiar o microfone fica
+  fechado, e o que passa é só quando você fala. O `Forte` resolve obra na rua
+  e cachorro no quintal, e cobra por isso — começo de palavra dita baixinho
+  pode se perder, e respiração some. A porta abre em 8 ms e fecha em 180: abrir
+  devagar comeria a primeira sílaba, fechar rápido engoliria o fim das frases.
 - **Resolução da tela** — 720p a 4K, ou "Original" (o tamanho nativo do
   monitor).
 - **Quadros** — 30 ou 60.
