@@ -239,9 +239,48 @@ export async function GET(requisicao: Request) {
 
   const sessaoDe = obter();
   return experimental_upgradeWebSocket((ws) => {
-    const sessao = sessaoDe.aoConectar(ws as unknown as { readyState: number; send: (d: string) => void });
-    ws.on("message", (dados) => void sessao.aoReceber(String(dados)));
+    const sessao = sessaoDe.aoConectar(
+      ws as unknown as { readyState: number; send: (d: string) => void },
+    );
+
+    // Um sinal de vida assim que a conexão sobe.
+    //
+    // O cliente ignora um `pong` que não pediu, e ele responde de graça a
+    // pergunta que mais custou tempo aqui: **o envio funciona neste
+    // embrulho?** Sem isto, "o servidor não respondeu" pode ser o envio, a
+    // leitura da mensagem ou a montagem da sala, e não há como separar de
+    // fora.
+    try {
+      (ws as unknown as { send: (d: string) => void }).send(
+        JSON.stringify({ tipo: "pong" }),
+      );
+    } catch {
+      /* se nem isto passa, o `on("error")` abaixo cuida */
+    }
+
+    ws.on("message", (dados) => void sessao.aoReceber(comoTexto(dados)));
     ws.on("close", () => void sessao.aoFechar());
     ws.on("error", () => void sessao.aoFechar());
   });
+}
+
+/**
+ * O que chegou pelo socket, como texto.
+ *
+ * `String(dados)` resolve para texto e para `Buffer`, e **estraga**
+ * silenciosamente um `ArrayBuffer` (vira "[object ArrayBuffer]") — que é
+ * como alguns embrulhos entregam a mesma mensagem. O JSON não abre, a
+ * mensagem é descartada como lixo, e o resultado é um servidor que recebe
+ * tudo e não responde nada.
+ */
+function comoTexto(dados: unknown): string {
+  if (typeof dados === "string") return dados;
+  if (Array.isArray(dados)) return Buffer.concat(dados as Uint8Array[]).toString("utf8");
+  if (Buffer.isBuffer(dados)) return dados.toString("utf8");
+  if (dados instanceof ArrayBuffer) return Buffer.from(dados).toString("utf8");
+  if (ArrayBuffer.isView(dados)) {
+    const v = dados as ArrayBufferView;
+    return Buffer.from(v.buffer, v.byteOffset, v.byteLength).toString("utf8");
+  }
+  return String(dados);
 }
