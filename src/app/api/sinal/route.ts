@@ -138,6 +138,51 @@ function obter() {
  * fora. Uma consulta de uma linha aqui responde a pergunta que se está
  * fazendo de verdade: **isto vai funcionar?**
  */
+/**
+ * A prova: uma sessão de mentira, ponta a ponta, dentro da própria função.
+ *
+ * O diagnóstico anterior dizia se o banco respondia. Não é a mesma pergunta
+ * que "entrar numa sala funciona": entre uma coisa e outra estão a varredura,
+ * o cadastro, a assinatura do canal e o envio da resposta — e foi exatamente
+ * aí que a sala travou uma vez, com o socket abrindo e o servidor nunca
+ * respondendo. De fora não havia como ver.
+ *
+ * Aqui um WebSocket de mentira entra numa sala descartável e conta o que
+ * recebeu de volta. É a mesma estrada da pessoa de verdade, percorrida por
+ * uma requisição HTTP comum.
+ */
+async function provar() {
+  const recebido: { tipo: string }[] = [];
+  const fingido = {
+    readyState: 1,
+    send: (dados: string) => recebido.push(JSON.parse(dados)),
+    close: () => {},
+  };
+  const sala = `prova-${Math.random().toString(36).slice(2, 8)}`;
+  const sessao = obter().aoConectar(fingido as never);
+
+  await sessao.aoReceber(
+    JSON.stringify({ tipo: "entrar", sala, nome: "prova", sessao: "prova-1" }),
+  );
+  const bemvindo = recebido.find((m) => m.tipo === "bemvindo");
+  const erro = recebido.find((m) => m.tipo === "erro") as
+    | { motivo?: string }
+    | undefined;
+
+  // não deixa lixo na sala de ninguém
+  await sessao.aoReceber(JSON.stringify({ tipo: "sair" })).catch(() => {});
+  await sessao.aoFechar().catch(() => {});
+
+  if (bemvindo) return { entrar: "funciona" };
+  if (erro) return { entrar: "recusado", motivo: erro.motivo };
+  return {
+    entrar: "sem resposta",
+    motivo:
+      "o servidor montou a sala e não devolveu nada. Se isto aparecer, o " +
+      "problema está entre a sinalização e o WebSocket desta hospedagem.",
+  };
+}
+
 async function diagnosticar() {
   const supabase = acharSupabase();
   const redis = acharRedis();
@@ -150,6 +195,7 @@ async function diagnosticar() {
       return {
         sinalizacao: "de pé",
         salas: "no supabase, compartilhadas entre as instâncias",
+        ...(await provar()),
       };
     } catch (erro) {
       const motivo = String((erro as Error)?.message ?? erro);
@@ -166,7 +212,11 @@ async function diagnosticar() {
   }
 
   if (redis) {
-    return { sinalizacao: "de pé", salas: "no redis, compartilhadas entre as instâncias" };
+    return {
+      sinalizacao: "de pé",
+      salas: "no redis, compartilhadas entre as instâncias",
+      ...(await provar()),
+    };
   }
 
   return {

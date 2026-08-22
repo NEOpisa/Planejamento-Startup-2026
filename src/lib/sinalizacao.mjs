@@ -41,9 +41,21 @@ function publico(p) {
   return { id: p.id, nome: p.nome, mudo: p.mudo, tela: p.tela };
 }
 
+/**
+ * Manda uma mensagem, a menos que o socket já esteja indo embora.
+ *
+ * A guarda é pelo que **impede** o envio (fechando, fechado), e não pelo que
+ * o permite (`readyState === 1`). Parece o mesmo e não é: cada hospedagem
+ * embrulha o WebSocket na sua própria classe, e uma que não exponha
+ * `readyState` faria a condição positiva falhar para sempre — o servidor
+ * processaria tudo certo e não responderia nada, que é o defeito mais
+ * difícil de enxergar que existe: sem erro, sem log, sem fechamento.
+ */
 function envia(ws, tipo, corpo = {}) {
   try {
-    if (ws.readyState === 1) ws.send(JSON.stringify({ tipo, ...corpo }));
+    const estado = ws.readyState;
+    if (estado === 2 || estado === 3) return;
+    ws.send(JSON.stringify({ tipo, ...corpo }));
   } catch {
     /* socket já foi */
   }
