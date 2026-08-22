@@ -123,8 +123,16 @@ poucos: enfileira e trava tudo de uma vez, inclusive a voz.
 Funciona, e não funcionava até junho de 2026 — WebSocket em função é recente
 lá. Duas coisas precisam estar de pé:
 
-1. **Um Redis no projeto** (Vercel → Storage → Redis). Ele define `REDIS_URL`
-   sozinho, e é só isso que a rota `/api/sinal` procura.
+1. **Um Redis no projeto.** No painel: *Storage* → *Create Database* →
+   *Marketplace* → qualquer provedor de Redis (o Vercel KV foi aposentado em
+   dezembro de 2024, então não procure por ele). Conecte ao projeto e
+   publique de novo. Não importa o nome que a variável de ambiente receber:
+   a rota procura pelo **formato** (`redis://` ou `rediss://`), e não por um
+   nome específico. Se preferir, crie o banco direto no provedor e cole o
+   endereço numa variável chamada `REDIS_URL`.
+
+   Para conferir se pegou, abra `/NVDISC/sinal` no navegador: ele responde um
+   diagnóstico dizendo se achou o Redis.
 2. **Fluid compute ligado**, que é o padrão em projetos criados de abril de
    2025 para cá.
 

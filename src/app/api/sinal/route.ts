@@ -42,17 +42,40 @@ export const runtime = "nodejs";
  */
 let sinalizacao: ReturnType<typeof criarSinalizacao> | null = null;
 
+/**
+ * Onde está o Redis.
+ *
+ * O nome da variável depende de quem provisionou: `REDIS_URL` no caso comum,
+ * `KV_URL` no que sobrou do Vercel KV, e cada provedor do Marketplace tem o
+ * seu (`UPSTASH_REDIS_URL`, `REDIS_URL_TLS`, e por aí vai). Procurar pelo
+ * **formato** em vez de pelo nome evita a tarde inteira de "adicionei o Redis
+ * e continua sem funcionar" por causa de um nome que ninguém tinha como
+ * adivinhar.
+ */
+function acharRedis() {
+  const preferidas = ["REDIS_URL", "KV_URL", "UPSTASH_REDIS_URL"];
+  for (const nome of preferidas) {
+    const v = process.env[nome];
+    if (v && /^rediss?:\/\//.test(v)) return v;
+  }
+  for (const [, v] of Object.entries(process.env)) {
+    if (v && /^rediss?:\/\//.test(v)) return v;
+  }
+  return null;
+}
+
 function obter() {
   if (sinalizacao) return sinalizacao;
-  const url = process.env.REDIS_URL ?? process.env.KV_URL;
+  const url = acharRedis();
   if (!url) {
     // Sem Redis a sala funciona **por acidente**: só enquanto todas as
     // conexões caírem na mesma instância. É melhor que nada em uma prévia,
     // e é preciso dizer alto que não serve para valer.
     console.warn(
-      "NVDISC: sem REDIS_URL. Duas pessoas em instâncias diferentes não vão " +
-        "se ver. Adicione um Redis ao projeto (Vercel → Storage) para a sala " +
-        "funcionar de verdade.",
+      "NVDISC: nenhuma variável de ambiente com um endereço redis:// foi " +
+        "encontrada. A sala vai funcionar só enquanto todo mundo cair na mesma " +
+        "instância da função — ou seja, às vezes. Adicione um Redis ao projeto " +
+        "(Vercel → Storage → Marketplace → Redis) ou defina REDIS_URL na mão.",
     );
     sinalizacao = criarSinalizacao(criarRegistroMemoria());
     return sinalizacao;
@@ -61,7 +84,25 @@ function obter() {
   return sinalizacao;
 }
 
-export async function GET() {
+export async function GET(requisicao: Request) {
+  // Aberto no navegador (sem `Upgrade`), este endereço vira um diagnóstico.
+  // Sem ele, a única forma de saber se o Redis foi encontrado seria caçar uma
+  // linha no log da função — e a pergunta "será que pegou?" aparece toda vez
+  // que alguém publica isto num lugar novo.
+  if ((requisicao.headers.get("upgrade") ?? "").toLowerCase() !== "websocket") {
+    const url = acharRedis();
+    return Response.json({
+      sinalizacao: "de pé",
+      redis: url ? "encontrado" : "ausente",
+      salas: url
+        ? "compartilhadas entre as instâncias"
+        : "cada instância com a sua — duas pessoas podem não se ver",
+      comoResolver: url
+        ? undefined
+        : "Vercel → Storage → Marketplace → um Redis; ou defina REDIS_URL nas variáveis de ambiente do projeto.",
+    });
+  }
+
   const sessaoDe = obter();
   return experimental_upgradeWebSocket((ws) => {
     const sessao = sessaoDe.aoConectar(ws as unknown as { readyState: number; send: (d: string) => void });
