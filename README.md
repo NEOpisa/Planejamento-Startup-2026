@@ -32,7 +32,7 @@ npm start       # produção
 
 npm test              # o servidor do NVDISC: salas, chat, limites
 npm run test:navegador  # a chamada de verdade, em dois Chrome
-npm run test:redis    # o arranjo da Vercel: duas instâncias, uma sala
+npm run test:instancias  # o arranjo da Vercel: duas instâncias, uma sala
 npm run cert          # certificado local, para chamar a turma pela rede
 ```
 
@@ -123,42 +123,61 @@ poucos: enfileira e trava tudo de uma vez, inclusive a voz.
 Funciona, e não funcionava até junho de 2026 — WebSocket em função é recente
 lá. Duas coisas precisam estar de pé:
 
-1. **Um Redis no projeto.** No painel: *Storage* → *Create Database* →
-   *Marketplace* → qualquer provedor de Redis (o Vercel KV foi aposentado em
-   dezembro de 2024, então não procure por ele). Conecte ao projeto e
-   publique de novo.
-
-   O Marketplace mostra só os planos que a Vercel fatura; **o plano gratuito
-   costuma estar na conta direta do provedor** (na Upstash são 500 mil
-   comandos por mês, sem cartão). Nesse caso, crie o banco lá e cole o
-   endereço numa variável do projeto.
-
-   O gasto foi feito para caber nisso: o batimento de cada pessoa é **um
-   comando**, e a manutenção da sala (varrer os mortos, renovar a validade)
-   acontece no máximo a cada 45 segundos, não a cada batida. Duas pessoas
-   conversando gastam por volta de 200 comandos por hora. Não importa o nome que a variável de ambiente receber:
-   a rota procura pelo **formato** (`redis://` ou `rediss://`), e não por um
-   nome específico. Se preferir, crie o banco direto no provedor e cole o
-   endereço numa variável chamada `REDIS_URL`.
-
-   Para conferir se pegou, abra `/NVDISC/sinal` no navegador: ele responde um
-   diagnóstico dizendo se achou o Redis.
+1. **Um lugar compartilhado para a lista das salas** — Supabase ou Redis, o
+   que você já tiver. Como configurar está logo abaixo.
 2. **Fluid compute ligado**, que é o padrão em projetos criados de abril de
    2025 para cá.
 
-O Redis não é enfeite. Na Vercel, duas pessoas da mesma sala podem cair em
+Isso não é enfeite. Na Vercel, duas pessoas da mesma sala podem cair em
 **instâncias diferentes** da função, e não há como escolher: uma lista de
 participantes em memória viraria duas listas, cada um sozinho na sua, sem erro
-em lugar nenhum. Com o Redis, a lista é uma só e as instâncias conversam por
-publicação. Sem ele a rota sobe assim mesmo e avisa no log — funciona por
-acidente, enquanto todo mundo cair na mesma instância.
+em lugar nenhum. Com o registro compartilhado, a lista é uma só e as
+instâncias conversam por publicação. Sem ele a rota sobe assim mesmo e avisa
+no log — funciona por acidente, enquanto todo mundo cair na mesma instância.
 
 A outra diferença é que **a conexão morre no teto de duração da função**
 (cinco minutos, no padrão). Isso é normal e não deveria aparecer para
 ninguém: o identificador de cada participante é a aba, não a conexão, então
 quem volta volta como a mesma pessoa. Ninguém sai, ninguém entra, e a voz —
 que vai direto de um navegador ao outro — nem fica sabendo. É o que o
-`npm run test:redis` confere, com duas instâncias de verdade.
+`npm run test:instancias` confere, com duas instâncias de verdade.
+
+#### Com Supabase
+
+Uma vez, no projeto: *SQL Editor* → colar o `supabase/nvdisc.sql` → *Run*.
+Ele cria uma tabela e liga o RLS nela — sem política nenhuma, porque quem
+fala com essa tabela é a função, com a chave secreta, e nunca o navegador.
+
+Depois, em *Settings → Environment Variables* da Vercel:
+
+```
+SUPABASE_URL=https://xxxxxxxx.supabase.co
+SUPABASE_SECRET_KEY=sb_secret_...
+```
+
+A chave precisa ser a **secreta** (`sb_secret_…`, ou a antiga `service_role`).
+A publicável não serve — a tabela está fechada de propósito. E ela nunca vai
+para o navegador: não use `NEXT_PUBLIC_` nesses dois nomes.
+
+A tabela guarda só **quem está em qual sala agora**. Nada de histórico, nada
+de conversa: o chat vive na memória de quem está na sala e some junto, e a voz
+nunca passa por ali.
+
+#### Com Redis
+
+Em vez das duas variáveis acima, um endereço `redis://` em qualquer variável
+do projeto — no painel: *Storage* → *Create Database* → *Marketplace* →
+qualquer provedor de Redis (o Vercel KV foi aposentado em dezembro de 2024,
+então não procure por ele).
+
+O Marketplace mostra só os planos que a Vercel fatura; **o plano gratuito
+costuma estar na conta direta do provedor** (na Upstash são 500 mil comandos
+por mês, sem cartão).
+
+#### Como saber se pegou
+
+Abra `/NVDISC/sinal` no navegador. Ele responde onde as salas estão vivendo, e
+o que fazer se ainda estiverem só na memória da instância.
 
 Se as páginas estiverem na Vercel e a sinalização não subir por lá, a sala
 diz isso na cara em vez de ficar em "reconectando…" para sempre.
@@ -241,6 +260,8 @@ server.mjs                       Next + WebSocket da sinalização, num processo
 src/lib/sinalizacao.mjs          o protocolo da sala, sem saber onde roda
 src/lib/registro-memoria.mjs     as salas na memória (server.mjs)
 src/lib/registro-redis.mjs       as salas no Redis (Vercel)
+src/lib/registro-supabase.mjs    as salas no Supabase (Vercel)
+supabase/nvdisc.sql              a tabela, para rodar uma vez no projeto
 src/app/api/sinal/route.ts       a sinalização como função da Vercel
 src/app/globals.css              o sistema visual (o do NVGHUB) + as peças daqui
 src/app/layout.tsx               só o documento: fontes e tokens

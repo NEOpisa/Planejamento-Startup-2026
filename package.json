@@ -9,9 +9,10 @@
     "test": "node scripts/teste.mjs",
     "test:navegador": "node scripts/teste-navegador.mjs",
     "cert": "node scripts/certificado.mjs",
-    "test:redis": "node scripts/teste-redis.mjs"
+    "test:instancias": "node scripts/teste-instancias.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
     "@vercel/functions": "^3.9.5",
     "ioredis": "^6.0.0",
     "next": "^15.3.3",

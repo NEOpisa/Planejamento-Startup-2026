@@ -1,7 +1,7 @@
 /**
  * Teste do arranjo da Vercel — duas instâncias, uma sala.
  *
- *     REDIS_URL=redis://localhost:6379 npm run test:redis
+ *     npm run test:instancias
  *
  * O `npm test` sobe **um** servidor e confere o protocolo. Isso não prova
  * nada sobre a Vercel, onde duas pessoas da mesma sala podem cair em
@@ -21,16 +21,32 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { WebSocket } from "ws";
 
+/**
+ * Contra qual banco rodar.
+ *
+ * O mesmo teste vale para os dois porque os dois expõem a mesma interface —
+ * é essa a razão de o registro ser uma peça trocável. Quem escolhe é o
+ * ambiente, igual à produção.
+ */
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY =
+  process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 const URL_REDIS = process.env.REDIS_URL;
-if (!URL_REDIS) {
+
+const banco = SUPABASE_URL && SUPABASE_KEY ? "supabase" : URL_REDIS ? "redis" : null;
+if (!banco) {
   console.log(
-    "\nEste teste precisa de um Redis. Um jeito rápido:\n\n" +
-      "  docker run --rm -p 6379:6379 redis:7-alpine\n\n" +
-      "e então:\n\n" +
-      "  REDIS_URL=redis://localhost:6379 npm run test:redis\n",
+    "\nEste teste precisa de um Supabase ou de um Redis.\n\n" +
+      "Supabase (rode antes o supabase/nvdisc.sql no projeto):\n\n" +
+      "  SUPABASE_URL=https://xxxx.supabase.co \\\n" +
+      "  SUPABASE_SECRET_KEY=sb_secret_... npm run test:instancias\n\n" +
+      "Redis:\n\n" +
+      "  docker run --rm -p 6379:6379 redis:7-alpine\n" +
+      "  REDIS_URL=redis://localhost:6379 npm run test:instancias\n",
   );
   process.exit(0);
 }
+console.log(`\nbanco: ${banco}`);
 
 let passou = 0;
 let falhou = 0;
@@ -47,11 +63,17 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Uma "instância da função": um processo com o mesmo protocolo e o mesmo Redis. */
 function instancia(porta) {
+  const registro =
+    banco === "supabase"
+      ? `import { criarRegistroSupabase } from "${new URL("../src/lib/registro-supabase.mjs", import.meta.url).pathname}";
+         const registro = criarRegistroSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);`
+      : `import { criarRegistroRedis } from "${new URL("../src/lib/registro-redis.mjs", import.meta.url).pathname}";
+         const registro = criarRegistroRedis(process.env.REDIS_URL);`;
   const codigo = `
     import { WebSocketServer } from "ws";
     import { criarSinalizacao } from "${new URL("../src/lib/sinalizacao.mjs", import.meta.url).pathname}";
-    import { criarRegistroRedis } from "${new URL("../src/lib/registro-redis.mjs", import.meta.url).pathname}";
-    const sinalizacao = criarSinalizacao(criarRegistroRedis(process.env.REDIS_URL));
+    ${registro}
+    const sinalizacao = criarSinalizacao(registro);
     const wss = new WebSocketServer({ port: ${porta} });
     wss.on("connection", (ws) => {
       const s = sinalizacao.aoConectar(ws);
@@ -65,7 +87,8 @@ function instancia(porta) {
     // setenta segundos de produção seria um minuto parado por rodada.
     env: {
       ...process.env,
-      REDIS_URL: URL_REDIS,
+      ...(URL_REDIS ? { REDIS_URL: URL_REDIS } : {}),
+      ...(SUPABASE_URL ? { SUPABASE_URL, SUPABASE_SECRET_KEY: SUPABASE_KEY } : {}),
       // Curtos o bastante para o teste ver a varredura, largos o bastante
       // para não varrer quem está vivo: a proporção entre eles é a mesma da
       // produção (batimento a cada 20 s, validade de 70 s).

@@ -26,6 +26,7 @@
 import { experimental_upgradeWebSocket } from "@vercel/functions";
 
 import { criarSinalizacao } from "@/lib/sinalizacao.mjs";
+import { criarRegistroSupabase } from "@/lib/registro-supabase.mjs";
 import { criarRegistroRedis } from "@/lib/registro-redis.mjs";
 import { criarRegistroMemoria } from "@/lib/registro-memoria.mjs";
 
@@ -64,23 +65,66 @@ function acharRedis() {
   return null;
 }
 
+/**
+ * Onde está o Supabase.
+ *
+ * Mesma ideia do Redis: os nomes variam conforme quem configurou (a
+ * integração oficial usa `SUPABASE_URL`, quem faz na mão às vezes chama de
+ * `NEXT_PUBLIC_SUPABASE_URL`), então o endereço é procurado pelo formato e a
+ * chave pelo prefixo.
+ *
+ * A chave tem de ser a **secreta** (`sb_secret_…` ou a `service_role`). A
+ * pública não serve: a tabela é fechada por RLS de propósito, e quem fala com
+ * ela é a função, nunca o navegador.
+ */
+function acharSupabase() {
+  const url =
+    process.env.SUPABASE_URL ??
+    process.env.NEXT_PUBLIC_SUPABASE_URL ??
+    Object.values(process.env).find((v) => v && /^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/.test(v));
+  const nomesDeChave = [
+    "SUPABASE_SECRET_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SERVICE_KEY",
+    "SUPABASE_KEY",
+  ];
+  let chave = nomesDeChave.map((n) => process.env[n]).find(Boolean);
+  if (!chave) {
+    chave = Object.entries(process.env).find(
+      ([nome, v]) => v?.startsWith("sb_secret_") && !nome.startsWith("NEXT_PUBLIC_"),
+    )?.[1];
+  }
+  return url && chave ? { url, chave } : null;
+}
+
 function obter() {
   if (sinalizacao) return sinalizacao;
-  const url = acharRedis();
-  if (!url) {
-    // Sem Redis a sala funciona **por acidente**: só enquanto todas as
-    // conexões caírem na mesma instância. É melhor que nada em uma prévia,
-    // e é preciso dizer alto que não serve para valer.
-    console.warn(
-      "NVDISC: nenhuma variável de ambiente com um endereço redis:// foi " +
-        "encontrada. A sala vai funcionar só enquanto todo mundo cair na mesma " +
-        "instância da função — ou seja, às vezes. Adicione um Redis ao projeto " +
-        "(Vercel → Storage → Marketplace → Redis) ou defina REDIS_URL na mão.",
-    );
-    sinalizacao = criarSinalizacao(criarRegistroMemoria());
+
+  // A ordem é a do trabalho que dá para quem hospeda: o que estiver
+  // configurado vale, e o Supabase vem primeiro por ser o que este projeto
+  // usa hoje. Trocar de um para o outro é mexer em variável de ambiente, não
+  // em código.
+  const supabase = acharSupabase();
+  if (supabase) {
+    sinalizacao = criarSinalizacao(criarRegistroSupabase(supabase.url, supabase.chave));
     return sinalizacao;
   }
-  sinalizacao = criarSinalizacao(criarRegistroRedis(url));
+
+  const redis = acharRedis();
+  if (redis) {
+    sinalizacao = criarSinalizacao(criarRegistroRedis(redis));
+    return sinalizacao;
+  }
+
+  // Sem nenhum dos dois a sala funciona **por acidente**: só enquanto todas
+  // as conexões caírem na mesma instância. É melhor que nada numa prévia, e é
+  // preciso dizer alto que não serve para valer.
+  console.warn(
+    "NVDISC: sem Supabase e sem Redis configurados. A sala vai funcionar só " +
+      "enquanto todo mundo cair na mesma instância da função — ou seja, às " +
+      "vezes. Veja 'Na Vercel' no README.",
+  );
+  sinalizacao = criarSinalizacao(criarRegistroMemoria());
   return sinalizacao;
 }
 
@@ -90,16 +134,18 @@ export async function GET(requisicao: Request) {
   // linha no log da função — e a pergunta "será que pegou?" aparece toda vez
   // que alguém publica isto num lugar novo.
   if ((requisicao.headers.get("upgrade") ?? "").toLowerCase() !== "websocket") {
-    const url = acharRedis();
+    const supabase = acharSupabase();
+    const redis = acharRedis();
+    const onde = supabase ? "supabase" : redis ? "redis" : null;
     return Response.json({
       sinalizacao: "de pé",
-      redis: url ? "encontrado" : "ausente",
-      salas: url
-        ? "compartilhadas entre as instâncias"
+      salas: onde
+        ? `no ${onde}, compartilhadas entre as instâncias`
         : "cada instância com a sua — duas pessoas podem não se ver",
-      comoResolver: url
+      comoResolver: onde
         ? undefined
-        : "Vercel → Storage → Marketplace → um Redis; ou defina REDIS_URL nas variáveis de ambiente do projeto.",
+        : "defina SUPABASE_URL e SUPABASE_SECRET_KEY (ou um REDIS_URL) nas " +
+          "variáveis de ambiente do projeto, e rode supabase/nvdisc.sql uma vez.",
     });
   }
 
