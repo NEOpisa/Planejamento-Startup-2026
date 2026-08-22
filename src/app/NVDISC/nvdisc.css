@@ -874,3 +874,22 @@
     display: none;
   }
 }
+
+/* "sem som" ao lado da sua própria tela: a informação que evita descobrir
+   pelo outro lado que o vídeo está mudo. */
+.nv-sem-som {
+  margin-left: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(244, 183, 74, 0.4);
+  background: rgba(244, 183, 74, 0.08);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--alerta);
+}
+.nv-barra-telas li {
+  display: inline-flex;
+  align-items: center;
+}

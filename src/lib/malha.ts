@@ -71,6 +71,14 @@ export type EstadoMalha = {
   tela: boolean;
   /** volume do próprio microfone, para o indicador de fala */
   meuVolume: number;
+  /**
+   * A minha captura de tela trouxe som?
+   *
+   * Vale a pena estar no estado, e não só num aviso no chat: é a diferença
+   * entre a pessoa descobrir agora, olhando para a barra de telas, e descobrir
+   * dez minutos depois pelo outro lado dizendo que o vídeo está mudo.
+   */
+  telaComSom: boolean;
   qualidade: Qualidade;
 };
 
@@ -516,6 +524,7 @@ export class Malha {
     mudo: false,
     tela: false,
     meuVolume: 0,
+    telaComSom: false,
     qualidade: { ...QUALIDADE_PADRAO },
   };
 
@@ -602,11 +611,38 @@ export class Malha {
     if (!voz) return;
     for (const par of this.pares.values()) {
       try {
-        await par.audioSender?.replaceTrack(voz);
+        await this.senderDeAudio(par)?.replaceTrack(voz);
       } catch {
         /* conexão indo embora */
       }
     }
+  }
+
+  /**
+   * Por onde a voz sai para esta pessoa.
+   *
+   * O caminho guardado no `par` é o comum, e ele nem sempre existe: quem
+   * atende só o registra se tiver pendurado o microfone naquele transceptor,
+   * e há ordens de negociação em que isso não acontece. Quando não existe, a
+   * conexão ainda sabe responder — o transceptor de áudio está lá, com ou sem
+   * faixa nele.
+   *
+   * A diferença aparecia no pior momento possível: quem compartilhava uma aba
+   * com som via a mistura ser feita direitinho e ficar parada, porque não
+   * havia a quem entregá-la. O vídeo ia, o som não, e nada no console dizia
+   * por quê.
+   */
+  private senderDeAudio(par: Par): RTCRtpSender | null {
+    if (par.audioSender) return par.audioSender;
+    for (const t of par.pc.getTransceivers()) {
+      const ehAudio =
+        t.sender.track?.kind === "audio" || t.receiver.track?.kind === "audio";
+      if (ehAudio) {
+        par.audioSender = t.sender;
+        return t.sender;
+      }
+    }
+    return null;
   }
 
   private acha(id: string) {
@@ -1392,6 +1428,7 @@ export class Malha {
         await par.videoSender?.replaceTrack(faixa);
       }
       // O som da tela entra na mesma faixa da voz.
+      this.estado.telaComSom = fluxo.getAudioTracks().length > 0;
       await this.refazerCadeia();
       if (fluxo.getAudioTracks().length === 0) {
         // Dizer isto na hora poupa a descoberta pelo pior caminho, que é o
@@ -1419,6 +1456,7 @@ export class Malha {
     }
     // Sem tela, o caminho do som encolhe de novo — e volta a ser a faixa crua
     // do microfone, se a supressão forte não estiver ligada.
+    this.estado.telaComSom = false;
     await this.refazerCadeia();
     this.estado.tela = false;
     this.manda(PARA_SERVIDOR.ESTADO, { mudo: this.estado.mudo, tela: false });

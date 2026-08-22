@@ -42,6 +42,7 @@ const VAZIO: EstadoMalha = {
   mudo: false,
   tela: false,
   meuVolume: 0,
+  telaComSom: false,
   qualidade: QUALIDADE_PADRAO,
 };
 
@@ -281,8 +282,15 @@ function Palco({
    * queria mostrar?"), e não porque seja a mais importante para quem assiste.
    */
   const telas = [
-    ...(minhaTela ? [{ id: "eu", quem: "você", fluxo: minhaTela }] : []),
-    ...compartilhando.map((p) => ({ id: p.id, quem: p.nome, fluxo: p.video! })),
+    ...(minhaTela
+      ? [{ id: "eu", quem: "você", fluxo: minhaTela, som: estado.telaComSom }]
+      : []),
+    ...compartilhando.map((p) => ({
+      id: p.id,
+      quem: p.nome,
+      fluxo: p.video!,
+      som: null,
+    })),
   ];
 
   // **Sem tela compartilhada, quem ocupa o palco são as pessoas.**
@@ -336,7 +344,7 @@ function BarraDeTelas({
   atual,
   onAbrir,
 }: {
-  telas: { id: string; quem: string }[];
+  telas: { id: string; quem: string; som: boolean | null }[];
   atual: string;
   onAbrir: (id: string) => void;
 }) {
@@ -355,6 +363,13 @@ function BarraDeTelas({
               <TelaIcon size={14} />
               {t.quem}
             </button>
+            {/* Só a própria captura sabe dizer se veio com som; a dos outros
+                chega pronta e não há como perguntar. */}
+            {t.som === false && (
+              <span className="nv-sem-som" title="o navegador não mandou o áudio desta captura">
+                sem som
+              </span>
+            )}
           </li>
         ))}
       </ul>

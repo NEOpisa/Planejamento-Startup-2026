@@ -193,6 +193,7 @@ try {
         // Conta os AudioContext criados. Mais de um por participante foi a
         // causa do áudio travando: o Chrome permite ~6 por aba.
         const AC = window.AudioContext;
+        window.__ACreal = AC;
         window.__acs = 0;
         window.AudioContext = function (...b) {
           window.__acs += 1;
@@ -272,6 +273,79 @@ try {
     "o microfone está em 48 kHz",
     JSON.stringify(a.microfone),
   );
+
+  console.log("\no som da tela compartilhada");
+  //
+  // O que se quer provar: o áudio que vem junto da captura de tela chega ao
+  // outro lado. Capturar tela de verdade num navegador sem tela não dá, e o
+  // áudio de aba menos ainda — então a captura é trocada por uma de mentira,
+  // com uma imagem de canvas e um tom contínuo no lugar do som.
+  //
+  // O microfone é silenciado antes de medir, e é isso que torna a medida
+  // honesta: o microfone falso do Chrome também emite um tom, e sem silenciá-lo
+  // não daria para saber qual dos dois sons chegou. Com ele mudo, qualquer
+  // energia que aparecer do outro lado só pode ter vindo da tela.
+  await abas[0].aba.js(`(() => {
+    navigator.mediaDevices.getDisplayMedia = async () => {
+      const tela = document.createElement("canvas");
+      tela.width = 320; tela.height = 180;
+      const pincel = tela.getContext("2d");
+      setInterval(() => {
+        pincel.fillStyle = "#0a0"; pincel.fillRect(0, 0, 320, 180);
+      }, 100);
+      const video = tela.captureStream(10);
+      const ac = new (window.__ACreal || window.AudioContext)();
+      const tom = ac.createOscillator();
+      const destino = ac.createMediaStreamDestination();
+      tom.frequency.value = 440;
+      tom.connect(destino);
+      tom.start();
+      return new MediaStream([...video.getVideoTracks(), ...destino.stream.getAudioTracks()]);
+    };
+    return true;
+  })()`);
+
+  await abas[0].aba.js(`[...document.querySelectorAll("button")].find(b => /Compartilhar tela/.test(b.textContent))?.click(), true`);
+  await esperar(2500);
+  ok(
+    await abas[1].aba.js(`document.querySelectorAll(".nv-tela").length === 1`),
+    "a tela compartilhada aparece do outro lado",
+  );
+
+  // microfone mudo: a partir daqui, som que chegar é o da tela
+  await abas[0].aba.js(`[...document.querySelectorAll("button")].find(b => /Microfone/.test(b.textContent))?.click(), true`);
+  await esperar(2000);
+
+  const energia = await abas[1].aba.js(`(async () => {
+    const el = document.querySelector("audio");
+    if (!el?.srcObject) return -1;
+    const ac = new (window.__ACreal || window.AudioContext)();
+    const origem = ac.createMediaStreamSource(el.srcObject);
+    const analisador = ac.createAnalyser();
+    analisador.fftSize = 512;
+    origem.connect(analisador);
+    const dados = new Uint8Array(analisador.frequencyBinCount);
+    let maior = 0;
+    for (let i = 0; i < 40; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+      analisador.getByteFrequencyData(dados);
+      const soma = dados.reduce((a, b) => a + b, 0) / dados.length;
+      if (soma > maior) maior = soma;
+    }
+    origem.disconnect();
+    await ac.close();
+    return maior;
+  })()`);
+  ok(
+    typeof energia === "number" && energia > 3,
+    "e o som dela chega mesmo com o microfone mudo",
+    `energia medida: ${energia}`,
+  );
+
+  // volta o microfone e para a tela, para não atrapalhar o resto
+  await abas[0].aba.js(`[...document.querySelectorAll("button")].find(b => /Microfone/.test(b.textContent))?.click(), true`);
+  await abas[0].aba.js(`[...document.querySelectorAll("button")].find(b => /Parar de compartilhar/.test(b.textContent))?.click(), true`);
+  await esperar(1500);
 
   console.log("\nsupressão de ruído");
   // Trocar o nível troca a faixa de áudio que sai daqui, no meio da chamada.
