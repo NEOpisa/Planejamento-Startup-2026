@@ -178,7 +178,22 @@ export function criarSinalizacao(registro) {
 
       // Antes de entrar, a única mensagem aceita é a de entrar.
       if (!eu) {
-        if (msg.tipo === PARA_SERVIDOR.ENTRAR) eu = await entrar(msg);
+        if (msg.tipo !== PARA_SERVIDOR.ENTRAR) return;
+        try {
+          eu = await entrar(msg);
+        } catch (erro) {
+          // Sem isto, uma falha no registro (tabela que não existe, banco
+          // fora do ar, credencial errada) derruba a conexão calada: o
+          // cliente tenta de novo, cai de novo, e a pessoa fica olhando um
+          // "reconectando…" que nunca termina, sem nada que a ajude a saber
+          // o que houve. Dizer o motivo custa uma linha.
+          envia(ws, PARA_CLIENTE.ERRO, {
+            motivo:
+              `o servidor não conseguiu montar a sala: ${erro?.message ?? erro}. ` +
+              `Se este site acabou de subir, é quase sempre o banco das salas ` +
+              `faltando — veja "Na Vercel" no README.`,
+          });
+        }
         return;
       }
 
@@ -266,7 +281,15 @@ export function criarSinalizacao(registro) {
       setTimeout(() => void retirar(sala, id, conexao), CARENCIA);
     }
 
-    return { aoReceber, aoFechar };
+    // Nenhuma mensagem pode derrubar a conexão de quem já está na sala: uma
+    // falha momentânea do banco viraria uma saída em falso para todo mundo.
+    return {
+      aoReceber: (bruto) =>
+        aoReceber(bruto).catch((erro) => {
+          console.error("NVDISC: falha ao tratar mensagem:", erro?.message ?? erro);
+        }),
+      aoFechar,
+    };
   }
 
   return { aoConectar };

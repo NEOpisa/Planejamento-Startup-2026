@@ -128,25 +128,63 @@ function obter() {
   return sinalizacao;
 }
 
+/**
+ * O diagnóstico — e por que ele **fala com o banco**.
+ *
+ * Conferir só se a variável de ambiente existe responde a pergunta errada. A
+ * credencial pode estar lá e a tabela não existir; o endereço pode estar
+ * certo e a chave ser de outro projeto. Em todos esses casos a sala abre, o
+ * nome aparece e ninguém nunca chega — e é impossível descobrir por quê de
+ * fora. Uma consulta de uma linha aqui responde a pergunta que se está
+ * fazendo de verdade: **isto vai funcionar?**
+ */
+async function diagnosticar() {
+  const supabase = acharSupabase();
+  const redis = acharRedis();
+
+  if (supabase) {
+    try {
+      const { criarRegistroSupabase } = await import("@/lib/registro-supabase.mjs");
+      const registro = criarRegistroSupabase(supabase.url, supabase.chave);
+      await registro.listar("diagnostico");
+      return {
+        sinalizacao: "de pé",
+        salas: "no supabase, compartilhadas entre as instâncias",
+      };
+    } catch (erro) {
+      const motivo = String((erro as Error)?.message ?? erro);
+      const semTabela = /nvdisc_participantes|schema cache|does not exist|42P01/i.test(motivo);
+      return {
+        sinalizacao: "de pé",
+        salas: "o supabase respondeu, mas a sala não pôde ser lida",
+        erro: motivo,
+        comoResolver: semTabela
+          ? "rode o supabase/nvdisc.sql uma vez no SQL Editor do projeto: a tabela ainda não existe."
+          : "confira SUPABASE_URL e SUPABASE_SECRET_KEY — a chave precisa ser a secreta deste projeto.",
+      };
+    }
+  }
+
+  if (redis) {
+    return { sinalizacao: "de pé", salas: "no redis, compartilhadas entre as instâncias" };
+  }
+
+  return {
+    sinalizacao: "de pé",
+    salas: "cada instância com a sua — duas pessoas podem não se ver",
+    comoResolver:
+      "defina SUPABASE_URL e SUPABASE_SECRET_KEY (ou um REDIS_URL) nas " +
+      "variáveis de ambiente do projeto, e rode supabase/nvdisc.sql uma vez.",
+  };
+}
+
 export async function GET(requisicao: Request) {
   // Aberto no navegador (sem `Upgrade`), este endereço vira um diagnóstico.
   // Sem ele, a única forma de saber se o Redis foi encontrado seria caçar uma
   // linha no log da função — e a pergunta "será que pegou?" aparece toda vez
   // que alguém publica isto num lugar novo.
   if ((requisicao.headers.get("upgrade") ?? "").toLowerCase() !== "websocket") {
-    const supabase = acharSupabase();
-    const redis = acharRedis();
-    const onde = supabase ? "supabase" : redis ? "redis" : null;
-    return Response.json({
-      sinalizacao: "de pé",
-      salas: onde
-        ? `no ${onde}, compartilhadas entre as instâncias`
-        : "cada instância com a sua — duas pessoas podem não se ver",
-      comoResolver: onde
-        ? undefined
-        : "defina SUPABASE_URL e SUPABASE_SECRET_KEY (ou um REDIS_URL) nas " +
-          "variáveis de ambiente do projeto, e rode supabase/nvdisc.sql uma vez.",
-    });
+    return Response.json(await diagnosticar());
   }
 
   const sessaoDe = obter();
