@@ -33,6 +33,14 @@ import { criarRegistroMemoria } from "@/lib/registro-memoria.mjs";
 export const dynamic = "force-dynamic";
 /** Sem Node não há `ws` nem conexão TCP com o Redis. */
 export const runtime = "nodejs";
+/**
+ * Quanto a conexão pode durar.
+ *
+ * O teto real é o do plano; pedir o máximo aqui só evita que ela caia antes
+ * disso à toa. Cair não é problema: o cliente volta sozinho e, como o
+ * participante é identificado pela aba, ninguém do outro lado percebe.
+ */
+export const maxDuration = 300;
 
 /**
  * Um registro por instância, reaproveitado entre conexões.
@@ -238,7 +246,7 @@ export async function GET(requisicao: Request) {
   }
 
   const sessaoDe = obter();
-  return experimental_upgradeWebSocket((ws) => {
+  return experimental_upgradeWebSocket(async (ws) => {
     const sessao = sessaoDe.aoConectar(
       ws as unknown as { readyState: number; send: (d: string) => void },
     );
@@ -284,6 +292,23 @@ export async function GET(requisicao: Request) {
     });
     ws.on("close", () => void sessao.aoFechar());
     ws.on("error", () => void sessao.aoFechar());
+
+    // **A função só pode voltar quando a conversa acabar.**
+    //
+    // O `experimental_upgradeWebSocket` devolve a resposta HTTP assim que
+    // este tratador retorna, e a invocação termina com ela. O que acontece
+    // dentro do tratador funciona — foi por isso que o `pong` de boas-vindas
+    // chegava —, e tudo o que dependia de um evento **posterior** morria sem
+    // rastro: o `entrar` do navegador chegava a um ninguém, e a pessoa ficava
+    // olhando "reconectando…" para sempre.
+    //
+    // Ficar pendurado aqui é o que mantém a instância viva ouvindo o socket.
+    // O fim vem do fechamento, ou do teto de duração da função — e nesse caso
+    // o navegador reconecta sozinho, como a mesma pessoa, sem ninguém notar.
+    await new Promise<void>((acabou) => {
+      ws.on("close", () => acabou());
+      ws.on("error", () => acabou());
+    });
   });
 }
 
