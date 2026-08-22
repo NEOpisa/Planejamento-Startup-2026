@@ -258,7 +258,30 @@ export async function GET(requisicao: Request) {
       /* se nem isto passa, o `on("error")` abaixo cuida */
     }
 
-    ws.on("message", (dados) => void sessao.aoReceber(comoTexto(dados)));
+    ws.on("message", (dados) => {
+      const texto = comoTexto(dados);
+      // Uma mensagem que não abre como JSON é descartada em silêncio pelo
+      // protocolo, e é o certo para lixo de verdade. Mas quando o **embrulho
+      // da hospedagem** entrega a mensagem numa forma inesperada, o silêncio
+      // vira um servidor que recebe tudo e não responde nada — e não há como
+      // descobrir de fora. Então esta, e só esta, volta descrita.
+      if (!texto.trimStart().startsWith("{")) {
+        try {
+          (ws as unknown as { send: (d: string) => void }).send(
+            JSON.stringify({
+              tipo: "erro",
+              motivo:
+                `a sinalização recebeu algo que não é uma mensagem: ` +
+                `${descrever(dados)} → ${texto.slice(0, 60)}`,
+            }),
+          );
+        } catch {
+          /* nada a fazer */
+        }
+        return;
+      }
+      void sessao.aoReceber(texto);
+    });
     ws.on("close", () => void sessao.aoFechar());
     ws.on("error", () => void sessao.aoFechar());
   });
@@ -275,6 +298,10 @@ export async function GET(requisicao: Request) {
  */
 function comoTexto(dados: unknown): string {
   if (typeof dados === "string") return dados;
+  // Embrulho no estilo do navegador: o que interessa vem dentro de `.data`.
+  if (dados && typeof dados === "object" && "data" in (dados as object)) {
+    return comoTexto((dados as { data: unknown }).data);
+  }
   if (Array.isArray(dados)) return Buffer.concat(dados as Uint8Array[]).toString("utf8");
   if (Buffer.isBuffer(dados)) return dados.toString("utf8");
   if (dados instanceof ArrayBuffer) return Buffer.from(dados).toString("utf8");
@@ -283,4 +310,14 @@ function comoTexto(dados: unknown): string {
     return Buffer.from(v.buffer, v.byteOffset, v.byteLength).toString("utf8");
   }
   return String(dados);
+}
+
+/** Como descrever o que chegou, para a mensagem de erro fazer sentido. */
+function descrever(dados: unknown): string {
+  if (dados === null || dados === undefined) return String(dados);
+  const tipo = typeof dados;
+  if (tipo !== "object") return tipo;
+  const nome = (dados as object).constructor?.name ?? "objeto";
+  const chaves = Object.keys(dados as object).slice(0, 5).join(",");
+  return chaves ? `${nome}{${chaves}}` : nome;
 }
