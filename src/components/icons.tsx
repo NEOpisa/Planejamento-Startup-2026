@@ -7,9 +7,10 @@
  * como o resto da interface — e envelhece junto com ela.
  */
 
-export function ArrowUpRight() {
+export function ArrowUpRight({ size }: { size?: number } = {}) {
   return (
     <svg
+      {...(size ? { width: size, height: size } : {})}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -23,13 +24,24 @@ export function ArrowUpRight() {
   );
 }
 
-export function MicIcon() {
+/**
+ * O microfone.
+ *
+ * Tinha nascido sem `width`/`height`, contando com o CSS de quem o usasse
+ * para dar tamanho — e num botão que não dizia nada ele cresceu até 200 px e
+ * estourou a barra de controles inteira. Ícone que depende de alguém lembrar
+ * de dimensioná-lo é uma armadilha esperando o próximo uso: aqui todos têm
+ * tamanho próprio, com o padrão que serve à maioria dos casos.
+ */
+export function MicIcon({ size = 16 }: { size?: number }) {
   return (
     <svg
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.7"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

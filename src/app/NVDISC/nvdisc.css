@@ -743,9 +743,12 @@
   margin: 0 auto;
 }
 
-/* O botão de ampliar mora na quina da tela compartilhada, e só aparece de
-   verdade quando o ponteiro está por perto: uma tela cheia de código não
-   precisa de um botão por cima o tempo todo. */
+/* O botão de ampliar mora na quina da tela compartilhada.
+ *
+ * Ele fica discreto e **sempre visível**, e não só ao passar o ponteiro: num
+ * celular não existe ponteiro, e um botão que só aparece no hover é um botão
+ * que metade das pessoas nunca encontra. Discreto resolve o incômodo visual;
+ * escondido resolve o problema errado. */
 .nv-ampliar {
   position: absolute;
   top: 10px;
@@ -759,7 +762,7 @@
   background: rgba(6, 7, 11, 0.72);
   color: var(--txt-2);
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.55;
   transition: opacity 0.18s, color 0.18s, border-color 0.18s;
   backdrop-filter: blur(6px);
 }
@@ -798,4 +801,17 @@
 }
 .nv-icones span {
   display: inline-flex;
+}
+
+/* Cinto e suspensório: mesmo que um ícone chegue sem tamanho, ele não
+   estoura a barra. O defeito custou uma tela inteira desalinhada. */
+.nv-btn svg,
+.nv-mini svg,
+.nv-icones svg {
+  width: 16px;
+  height: 16px;
+}
+.nv-icones svg {
+  width: 14px;
+  height: 14px;
 }

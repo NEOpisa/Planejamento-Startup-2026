@@ -217,6 +217,8 @@ type Par = {
   ignorandoOferta: boolean;
   /** o transceptor de vídeo, criado antes de existir tela para mandar */
   videoSender: RTCRtpSender | null;
+  /** por onde a sua voz sai para esta pessoa (microfone, ou a mistura) */
+  audioSender: RTCRtpSender | null;
   medidor?: Medidor;
 };
 
@@ -345,6 +347,59 @@ function idDaAba(): string {
   }
 }
 
+/**
+ * A voz e o som da tela, numa faixa só.
+ *
+ * Compartilhar um vídeo sem som é a reclamação mais óbvia que a sala pode
+ * receber, e a captura de tela **já traz** o áudio quando o navegador deixa —
+ * ele só estava sendo jogado fora.
+ *
+ * Mandar como uma segunda faixa parece o caminho natural e é o caro: obriga a
+ * renegociar a conexão com todo mundo no momento em que a pessoa aperta
+ * "compartilhar", que é exatamente onde a malha costuma quebrar. Misturar os
+ * dois num único fluxo mantém a promessa que sustenta esta arquitetura — uma
+ * seção de áudio e uma de vídeo, criadas uma vez, trocadas com `replaceTrack`
+ * e nunca renegociadas.
+ *
+ * O microfone continua entrando pela faixa dele, então **mudo continua sendo
+ * mudo**: a faixa desligada não produz som, e o que sobra na mistura é só o
+ * som da tela — que é o que se quer quando alguém silencia o microfone no
+ * meio de um vídeo.
+ */
+type Mistura = {
+  destino: MediaStreamAudioDestinationNode;
+  origens: MediaStreamAudioSourceNode[];
+  parar: () => void;
+};
+
+function misturarAudio(fluxos: MediaStream[]): Mistura | null {
+  const comSom = fluxos.filter((f) => f.getAudioTracks().length > 0);
+  if (comSom.length === 0) return null;
+  const contexto = contextoDeAudio();
+  const destino = contexto.createMediaStreamDestination();
+  const origens = comSom.map((f) => {
+    const o = contexto.createMediaStreamSource(f);
+    o.connect(destino);
+    return o;
+  });
+  return {
+    destino,
+    origens,
+    parar: () => {
+      for (const o of origens) {
+        try {
+          o.disconnect();
+        } catch {
+          /* já desconectada */
+        }
+      }
+      // O contexto é da página; fechá-lo aqui derrubaria os indicadores de
+      // fala de todo mundo.
+      destino.disconnect();
+    },
+  };
+}
+
 export class Malha {
   private ws: WebSocket | null = null;
   /** o transporte quando a sala vive no Realtime do Supabase */
@@ -353,6 +408,7 @@ export class Malha {
   private meuFluxo: MediaStream | null = null;
   private fluxoTela: MediaStream | null = null;
   private meuMedidor?: Medidor;
+  private mistura: Mistura | null = null;
   private quadro = 0;
   private pingTimer?: ReturnType<typeof setInterval>;
   private ouvinte: Ouvinte;
@@ -407,6 +463,34 @@ export class Malha {
    */
   private euLigoPara(outroId: string) {
     return (this.estado.voceId ?? "") > outroId;
+  }
+
+  /**
+   * A faixa de áudio que sai desta pessoa **agora**.
+   *
+   * É o microfone no caso comum, e a mistura de microfone com o som da tela
+   * enquanto alguém compartilha algo que faz barulho. Quem pergunta não
+   * precisa saber em qual dos dois estados a sala está.
+   */
+  private vozParaEnviar(): MediaStreamTrack | null {
+    return (
+      this.mistura?.destino.stream.getAudioTracks()[0] ??
+      this.meuFluxo?.getAudioTracks()[0] ??
+      null
+    );
+  }
+
+  /** Troca a faixa de voz em todas as conexões abertas, sem renegociar nada. */
+  private async trocarVoz() {
+    const voz = this.vozParaEnviar();
+    if (!voz) return;
+    for (const par of this.pares.values()) {
+      try {
+        await par.audioSender?.replaceTrack(voz);
+      } catch {
+        /* conexão indo embora */
+      }
+    }
   }
 
   private acha(id: string) {
@@ -810,6 +894,7 @@ export class Malha {
       fazendoOferta: false,
       ignorandoOferta: false,
       videoSender: null,
+      audioSender: null,
     };
     this.pares.set(outroId, par);
 
@@ -827,11 +912,8 @@ export class Malha {
      * seções só, na ordem de quem ofereceu, e ela casa dos dois lados.
      */
     if (euLigo) {
-      if (this.meuFluxo) {
-        for (const faixa of this.meuFluxo.getAudioTracks()) {
-          pc.addTrack(faixa, this.meuFluxo);
-        }
-      }
+      const voz = this.vozParaEnviar();
+      if (voz) par.audioSender = pc.addTrack(voz, this.meuFluxo ?? new MediaStream([voz]));
       // O transceptor de vídeo nasce vazio e fica pronto. Ver a nota no topo:
       // é isto que faz ligar a tela não renegociar nada.
       const tv = pc.addTransceiver("video", { direction: "sendrecv" });
@@ -1002,12 +1084,13 @@ export class Malha {
    * ouve esta pessoa, mesmo com tudo mais funcionando.
    */
   private async prepararResposta(par: Par) {
-    const mic = this.meuFluxo?.getAudioTracks()[0] ?? null;
+    const mic = this.vozParaEnviar();
     const tela = this.fluxoTela?.getVideoTracks()[0] ?? null;
 
     for (const t of par.pc.getTransceivers()) {
       const tipo = t.receiver.track?.kind;
       if (tipo === "audio" && !t.sender.track && mic) {
+        par.audioSender = t.sender;
         await t.sender.replaceTrack(mic);
         t.direction = "sendrecv";
       }
@@ -1172,6 +1255,14 @@ export class Malha {
       for (const par of this.pares.values()) {
         await par.videoSender?.replaceTrack(faixa);
       }
+      // O som da tela entra na mesma faixa da voz. Sem isto, o vídeo
+      // compartilhado chega mudo do outro lado — a captura trazia o áudio e
+      // ele era descartado.
+      if (fluxo.getAudioTracks().length > 0 && this.meuFluxo) {
+        this.mistura?.parar();
+        this.mistura = misturarAudio([this.meuFluxo, fluxo]);
+        await this.trocarVoz();
+      }
       this.estado.tela = true;
       this.manda(PARA_SERVIDOR.ESTADO, { mudo: this.estado.mudo, tela: true });
       await this.aplicarQualidade();
@@ -1186,6 +1277,13 @@ export class Malha {
     this.fluxoTela = null;
     for (const par of this.pares.values()) {
       await par.videoSender?.replaceTrack(null);
+    }
+    // A voz volta a ser só o microfone: a mistura existia por causa do som da
+    // tela, e uma mistura com uma fonte só custaria um nó de áudio à toa.
+    if (this.mistura) {
+      this.mistura.parar();
+      this.mistura = null;
+      await this.trocarVoz();
     }
     this.estado.tela = false;
     this.manda(PARA_SERVIDOR.ESTADO, { mudo: this.estado.mudo, tela: false });
@@ -1262,6 +1360,8 @@ export class Malha {
     if (this.pingTimer) clearInterval(this.pingTimer);
     if (this.religar) clearTimeout(this.religar);
     this.meuMedidor?.parar();
+    this.mistura?.parar();
+    this.mistura = null;
     for (const id of [...this.pares.keys()]) this.fecharPar(id);
     this.meuFluxo?.getTracks().forEach((f) => f.stop());
     this.fluxoTela?.getTracks().forEach((f) => f.stop());
