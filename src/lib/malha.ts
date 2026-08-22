@@ -79,6 +79,16 @@ export type EstadoMalha = {
    * dez minutos depois pelo outro lado dizendo que o vídeo está mudo.
    */
   telaComSom: boolean;
+  /**
+   * Os microfones que este computador tem.
+   *
+   * Vazio até a permissão ser dada: antes dela `enumerateDevices` devolve a
+   * lista com os rótulos em branco, e "Microfone 1, Microfone 2, Microfone 3"
+   * não ajuda ninguém a escolher.
+   */
+  microfones: { id: string; nome: string }[];
+  /** o escolhido; `null` é "o padrão do sistema" */
+  microfoneId: string | null;
   qualidade: Qualidade;
 };
 
@@ -244,6 +254,25 @@ type Par = {
   videoSender: RTCRtpSender | null;
   /** por onde a sua voz sai para esta pessoa (microfone, ou a mistura) */
   audioSender: RTCRtpSender | null;
+  /**
+   * Candidatos que chegaram antes da descrição remota.
+   *
+   * `addIceCandidate` antes do `setRemoteDescription` é erro em Chrome e em
+   * Safari, e o `catch` silencioso de antes fazia o candidato **sumir**.
+   * Perder um candidato é perder um caminho possível pelo NAT: sobra outro e a
+   * chamada fecha, ou não sobra e ela fica muda. Depende de qual pacote chegou
+   * primeiro — é a definição de defeito intermitente.
+   */
+  candidatosPendentes: RTCIceCandidateInit[];
+  /**
+   * Serializa a negociação deste par: uma operação de cada vez.
+   *
+   * Os sinais chegam de um `broadcast` que não espera o tratador anterior
+   * terminar. Dois `setRemoteDescription` interpostos deixam a máquina de
+   * estados num lugar que nenhum dos dois esperava, e a negociação morre em
+   * silêncio.
+   */
+  fila: Promise<void>;
   medidor?: Medidor;
 };
 
@@ -492,6 +521,35 @@ function nivelBruto(m: Medidor | undefined): number {
   return soma / m.dados.length / 255;
 }
 
+/**
+ * A escolha de microfone mora no `localStorage`, e não no `sessionStorage`.
+ *
+ * O identificador do dispositivo é estável para a mesma origem enquanto a
+ * permissão continuar dada, então guardar entre visitas funciona — e é o que
+ * evita a pessoa reescolher o fone toda vez que entra numa sala. Quando o
+ * identificador não vale mais, `abrirMicrofone` percebe e volta ao padrão.
+ */
+const CHAVE_MICROFONE = "nvdisc:microfone";
+
+function microfoneGuardado(): string | null {
+  try {
+    return localStorage.getItem(CHAVE_MICROFONE) || null;
+  } catch {
+    // Navegação privativa e cookies bloqueados fazem o acesso **lançar**, não
+    // devolver nulo. Sem este `catch` a sala inteira deixava de abrir.
+    return null;
+  }
+}
+
+function guardarMicrofone(id: string | null) {
+  try {
+    if (id) localStorage.setItem(CHAVE_MICROFONE, id);
+    else localStorage.removeItem(CHAVE_MICROFONE);
+  } catch {
+    /* sem onde guardar: a escolha vale por esta sessão */
+  }
+}
+
 export class Malha {
   private ws: WebSocket | null = null;
   /** o transporte quando a sala vive no Realtime do Supabase */
@@ -523,6 +581,8 @@ export class Malha {
     mensagens: [],
     mudo: false,
     tela: false,
+    microfones: [],
+    microfoneId: null,
     meuVolume: 0,
     telaComSom: false,
     qualidade: { ...QUALIDADE_PADRAO },
@@ -555,7 +615,24 @@ export class Malha {
    * dar certo.
    */
   private euLigoPara(outroId: string) {
-    return (this.estado.voceId ?? "") > outroId;
+    return this.idLocal() > outroId;
+  }
+
+  /**
+   * O identificador desta aba, disponível desde `entrar()`.
+   *
+   * O `voceId` só existe depois do `BEMVINDO`, e usá-lo na conta de quem liga
+   * abria uma janela em que o lado que deveria oferecer ainda calculava
+   * `"" > outro` — falso. Como o outro lado calculava a mesma coisa e também
+   * dava falso, **os dois se achavam quem atende**: nenhuma oferta era feita,
+   * nenhuma seção de áudio existia, e a sala ficava muda com o chat impecável.
+   *
+   * Os dois transportes derivam o `voceId` justamente deste valor
+   * (`sinalizacao.mjs`, `sinal-supabase.ts`), então usá-lo antes da resposta do
+   * servidor não é um palpite: é o mesmo número, mais cedo.
+   */
+  private idLocal(): string {
+    return this.estado.voceId ?? this.sessao ?? "";
   }
 
   /**
@@ -674,11 +751,12 @@ export class Malha {
       // é melhor descobrir agora do que depois de estar na sala mudo sem saber
       // por quê. `echoCancellation` e companhia importam mais aqui do que em
       // qualquer outro lugar: sem elas, dois na mesma casa viram microfonia.
-      this.meuFluxo = await navigator.mediaDevices.getUserMedia({
-        audio: this.restricoesDeAudio(),
-        video: false,
-      });
+      this.estado.microfoneId = microfoneGuardado();
+      this.meuFluxo = await this.abrirMicrofone();
       this.meuMedidor = criarMedidor(this.meuFluxo);
+      // Só agora, com a permissão dada, os dispositivos têm nome.
+      await this.listarMicrofones();
+      navigator.mediaDevices?.addEventListener?.("devicechange", this.aoTrocarDispositivos);
     } catch {
       // Duas causas, e confundi-las custa uma noite: sem HTTPS o navegador
       // nem oferece o microfone — não adianta procurar permissão para dar,
@@ -915,6 +993,11 @@ export class Malha {
     // não existe para limpar ruído, e sim para impedir que o alto-falante de
     // alguém volte para a sala como microfonia.
     return {
+      // `exact`, e não `ideal`: com `ideal` o navegador é livre para ignorar a
+      // escolha em silêncio, que é exatamente o defeito que este seletor
+      // existe para resolver. O preço — um microfone desconectado vira
+      // `OverconstrainedError` — é pago em `abrirMicrofone`.
+      ...(this.estado.microfoneId ? { deviceId: { exact: this.estado.microfoneId } } : {}),
       echoCancellation: !musica,
       noiseSuppression: !musica && q.ruido !== "desligado",
       autoGainControl: !musica,
@@ -922,6 +1005,84 @@ export class Malha {
       sampleSize: 16,
       channelCount: musica ? 2 : 1,
     };
+  }
+
+  /**
+   * Pede o microfone escolhido, e cai no padrão do sistema se ele sumiu.
+   *
+   * Um fone que foi desconectado desde a última visita deixaria a pessoa sem
+   * áudio nenhum e com um erro que não explica nada. Melhor abrir no padrão e
+   * seguir: a lista continua ali para ela escolher de novo.
+   */
+  private async abrirMicrofone(): Promise<MediaStream> {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: this.restricoesDeAudio(),
+        video: false,
+      });
+    } catch (e) {
+      if (!this.estado.microfoneId) throw e;
+      this.estado.microfoneId = null;
+      guardarMicrofone(null);
+      return navigator.mediaDevices.getUserMedia({
+        audio: this.restricoesDeAudio(),
+        video: false,
+      });
+    }
+  }
+
+  /** Relê a lista de microfones do sistema. */
+  private async listarMicrofones() {
+    try {
+      const todos = await navigator.mediaDevices.enumerateDevices();
+      this.estado.microfones = todos
+        .filter((d) => d.kind === "audioinput")
+        .map((d, i) => ({ id: d.deviceId, nome: d.label || `Microfone ${i + 1}` }));
+      this.avisar();
+    } catch {
+      /* sem lista: o seletor some e o padrão do sistema continua valendo */
+    }
+  }
+
+  /** Um fone que entra ou sai muda a lista — e às vezes o padrão do sistema. */
+  private aoTrocarDispositivos = () => {
+    void this.listarMicrofones();
+  };
+
+  /**
+   * Troca o microfone com a chamada em andamento.
+   *
+   * Ninguém na sala percebe: a faixa nova entra por `replaceTrack` dentro de
+   * `refazerCadeia`, e trocar a faixa de um remetente que já existe não
+   * renegocia nada.
+   */
+  async definirMicrofone(id: string | null) {
+    if (id === this.estado.microfoneId) return;
+    const antes = this.estado.microfoneId;
+    this.estado.microfoneId = id;
+    try {
+      const novo = await navigator.mediaDevices.getUserMedia({
+        audio: this.restricoesDeAudio(),
+        video: false,
+      });
+      novo.getAudioTracks().forEach((f) => (f.enabled = !this.estado.mudo));
+      // A captura velha só é fechada depois de a nova existir: ao contrário,
+      // um microfone que se recusa a abrir deixaria a pessoa muda.
+      this.meuFluxo?.getTracks().forEach((f) => f.stop());
+      this.meuFluxo = novo;
+      this.meuMedidor?.parar();
+      this.meuMedidor = criarMedidor(novo);
+      this.estado.erro = null;
+      guardarMicrofone(id);
+      await this.refazerCadeia();
+    } catch {
+      this.estado.microfoneId = antes;
+      this.estado.erro =
+        "não consegui abrir esse microfone — ele pode estar em uso por outro " +
+        "programa. O anterior continua valendo.";
+    }
+    await this.listarMicrofones();
+    this.avisar();
   }
 
   private manda(tipo: string, corpo: Record<string, unknown> = {}) {
@@ -1037,7 +1198,22 @@ export class Malha {
 
   private async abrirPar(outroId: string, euLigo: boolean): Promise<Par> {
     const existente = this.pares.get(outroId);
-    if (existente) return existente;
+    if (existente) {
+      /**
+       * **Devolver o par que existe não basta.**
+       *
+       * Um sinal do outro lado pode ter criado este par como *quem atende*
+       * antes de a lista de participantes chegar. Saindo aqui, o bloco de quem
+       * liga nunca rodava e a conexão nascia sem seção de áudio nenhuma:
+       * `connected`, chat perfeito, silêncio dos dois lados. Como tudo depende
+       * de qual mensagem chegou primeiro, funcionava num dia e não no outro.
+       *
+       * `garantirEnvio` é idempotente — se os transceptores já estão lá, não
+       * faz nada.
+       */
+      if (euLigo) await this.garantirEnvio(existente);
+      return existente;
+    }
 
     const pc = new RTCPeerConnection({ iceServers: servidores() });
     const par: Par = {
@@ -1046,11 +1222,17 @@ export class Malha {
       // navegadores fazem a mesma conta e chegam a papéis opostos, sem
       // precisar combinar. É o que resolve o empate quando os dois propõem
       // mudança ao mesmo tempo.
-      educado: (this.estado.voceId ?? "") > outroId,
+      // Quem liga é o mal-educado, e quem atende cede. É o oposto do que
+      // estava aqui, e importa: numa colisão o lado educado descarta a
+      // **própria** oferta. Sendo ele quem atende, a oferta preservada é
+      // sempre a de quem liga — a única que carrega os transceptores.
+      educado: !euLigo,
       fazendoOferta: false,
       ignorandoOferta: false,
       videoSender: null,
       audioSender: null,
+      candidatosPendentes: [],
+      fila: Promise.resolve(),
     };
     this.pares.set(outroId, par);
 
@@ -1067,19 +1249,6 @@ export class Malha {
      * pendura o microfone neles em `prepararResposta`. Assim há uma lista de
      * seções só, na ordem de quem ofereceu, e ela casa dos dois lados.
      */
-    if (euLigo) {
-      const voz = this.vozParaEnviar();
-      if (voz) par.audioSender = pc.addTrack(voz, this.meuFluxo ?? new MediaStream([voz]));
-      // O transceptor de vídeo nasce vazio e fica pronto. Ver a nota no topo:
-      // é isto que faz ligar a tela não renegociar nada.
-      const tv = pc.addTransceiver("video", { direction: "sendrecv" });
-      par.videoSender = tv.sender;
-      if (this.fluxoTela) {
-        const faixa = this.fluxoTela.getVideoTracks()[0];
-        if (faixa) await tv.sender.replaceTrack(faixa);
-      }
-    }
-
     /**
      * O que chega do outro lado.
      *
@@ -1156,38 +1325,108 @@ export class Malha {
       if (pc.connectionState === "failed") pc.restartIce();
     };
 
-    pc.onnegotiationneeded = async () => {
-      try {
-        par.fazendoOferta = true;
-        // A oferta é criada explicitamente para poder ajustar o Opus antes de
-        // aplicá-la. O `setLocalDescription()` sem argumento, que a negociação
-        // perfeita recomenda, não deixa mexer no SDP — e sem mexer a voz sai
-        // em ~32 kbps mono, que é o som de telefone.
-        const oferta = await pc.createOffer();
-        oferta.sdp = ajustarOpus(oferta.sdp ?? "", this.estado.qualidade);
-        await pc.setLocalDescription(oferta);
-        this.manda(PARA_SERVIDOR.SINAL, {
-          para: outroId,
-          dados: { descricao: pc.localDescription },
-        });
-      } catch {
-        /* a próxima negociação corrige */
-      } finally {
-        par.fazendoOferta = false;
-      }
+    // A oferta entra na **mesma fila** dos sinais que chegam. Solta, ela caía
+    // no meio de um `setRemoteDescription` em andamento: o estado de
+    // sinalização mudava sob os pés da operação, ela falhava, e o `catch`
+    // engolia. Uma negociação perdida aqui é uma pessoa muda até alguém mexer
+    // na qualidade — que por acaso refaz a cadeia e conserta. Daí o defeito
+    // parecer aleatório.
+    pc.onnegotiationneeded = () => {
+      par.fila = par.fila.then(() => this.oferecer(par, outroId)).catch(() => {});
     };
 
-    // Nada é disparado à mão: criar o transceptor já provocou o
-    // `onnegotiationneeded` acima. Quem não liga simplesmente atende.
+    // Os transceptores são montados **agora**, depois de os tratadores
+    // estarem no lugar: criá-los antes de existir `onnegotiationneeded`
+    // dependia de o evento ser assíncrono para não se perder. Funcionava, mas
+    // por sorte. Quem não liga simplesmente atende.
+    if (euLigo) await this.garantirEnvio(par);
     return par;
   }
 
-  /** Negociação perfeita, do jeito que o padrão descreve. */
+  /**
+   * Assegura que este par tem por onde mandar voz e tela.
+   *
+   * Chamada só por quem liga, e mais de uma vez sem problema: cada seção é
+   * criada uma vez só. É aqui que mora a garantia de que **sempre existe uma
+   * seção de áudio**, com ou sem microfone pronto.
+   */
+  private async garantirEnvio(par: Par) {
+    const { pc } = par;
+    // `RTCRtpTransceiver` não tem `kind` no padrão — a faixa do receptor é o
+    // caminho portátil, e ela existe assim que o transceptor existe.
+    const jaTem = (tipo: "audio" | "video") =>
+      pc.getTransceivers().some((t) => t.receiver.track?.kind === tipo);
+
+    if (!jaTem("audio")) {
+      /**
+       * O transceptor de áudio nasce **sempre**, mesmo sem microfone.
+       *
+       * A versão anterior fazia `if (voz) addTrack(...)`: quem abrisse a sala
+       * com o navegador ainda decidindo sobre o microfone ficava sem seção de
+       * áudio, e sem volta — `replaceTrack` precisa de um remetente, e o
+       * remetente nunca tinha nascido. Criando a seção vazia, o microfone que
+       * chega atrasado entra por `trocarVoz()` sem renegociar nada.
+       */
+      const ta = pc.addTransceiver("audio", { direction: "sendrecv" });
+      par.audioSender = ta.sender;
+      const voz = this.vozParaEnviar();
+      if (voz) await ta.sender.replaceTrack(voz);
+    }
+
+    if (!jaTem("video")) {
+      // O transceptor de vídeo nasce vazio e fica pronto. Ver a nota no topo:
+      // é isto que faz ligar a tela não renegociar nada.
+      const tv = pc.addTransceiver("video", { direction: "sendrecv" });
+      par.videoSender = tv.sender;
+      const faixa = this.fluxoTela?.getVideoTracks()[0];
+      if (faixa) await tv.sender.replaceTrack(faixa);
+    }
+  }
+
+  /** Faz e manda uma oferta. Roda sempre dentro da fila do par. */
+  private async oferecer(par: Par, outroId: string) {
+    const { pc } = par;
+    try {
+      par.fazendoOferta = true;
+      // A oferta é criada explicitamente para poder ajustar o Opus antes de
+      // aplicá-la. O `setLocalDescription()` sem argumento, que a negociação
+      // perfeita recomenda, não deixa mexer no SDP — e sem mexer a voz sai
+      // em ~32 kbps mono, que é o som de telefone.
+      const oferta = await pc.createOffer();
+      oferta.sdp = ajustarOpus(oferta.sdp ?? "", this.estado.qualidade);
+      await pc.setLocalDescription(oferta);
+      this.manda(PARA_SERVIDOR.SINAL, {
+        para: outroId,
+        dados: { descricao: pc.localDescription },
+      });
+    } catch {
+      /* a próxima negociação corrige */
+    } finally {
+      par.fazendoOferta = false;
+    }
+  }
+
+  /**
+   * Negociação perfeita, do jeito que o padrão descreve.
+   *
+   * O trabalho de verdade vai para a fila do par: as mensagens chegam de um
+   * `broadcast` que não espera ninguém, e duas descrições aplicadas ao mesmo
+   * tempo se atrapalham.
+   */
   private async sinalRecebido(
     de: string,
     dados: { descricao?: RTCSessionDescriptionInit; candidato?: RTCIceCandidateInit },
   ) {
     const par = this.pares.get(de) ?? (await this.abrirPar(de, false));
+    par.fila = par.fila.then(() => this.aplicarSinal(par, de, dados)).catch(() => {});
+    await par.fila;
+  }
+
+  private async aplicarSinal(
+    par: Par,
+    de: string,
+    dados: { descricao?: RTCSessionDescriptionInit; candidato?: RTCIceCandidateInit },
+  ) {
     const { pc } = par;
 
     try {
@@ -1202,7 +1441,28 @@ export class Malha {
         par.ignorandoOferta = !par.educado && ofertaConflitante;
         if (par.ignorandoOferta) return;
 
+        /**
+         * Desfazer a própria oferta, à mão.
+         *
+         * Chrome e Firefox desfazem sozinhos quando chega uma oferta e já
+         * existe uma local — o padrão manda. Safari só passou a fazer isso
+         * tarde, e versões que ainda circulam simplesmente lançam
+         * `InvalidStateError` aqui. Pedir o `rollback` explicitamente funciona
+         * nos três, e nos que já desfariam sozinhos não custa nada.
+         */
+        if (ofertaConflitante && pc.signalingState === "have-local-offer") {
+          try {
+            await pc.setLocalDescription({ type: "rollback" });
+          } catch {
+            /* navegador que desfaz sozinho: o próximo passo cuida */
+          }
+        }
+
         await pc.setRemoteDescription(dados.descricao);
+        // A descrição remota existe: os candidatos que estavam esperando já
+        // têm onde encaixar.
+        await this.escoarCandidatos(par);
+
         if (dados.descricao.type === "offer") {
           // Antes de responder: pendurar o microfone e a tela nos transceptores
           // que a oferta acabou de criar. Feito **agora**, a resposta já sai
@@ -1217,6 +1477,13 @@ export class Malha {
           });
         }
       } else if (dados.candidato) {
+        // Guardar em vez de perder. Ver a nota em `candidatosPendentes`: um
+        // candidato descartado é um caminho de rede a menos, e às vezes era o
+        // único que atravessava.
+        if (!pc.remoteDescription) {
+          par.candidatosPendentes.push(dados.candidato);
+          return;
+        }
         try {
           await pc.addIceCandidate(dados.candidato);
         } catch (e) {
@@ -1227,6 +1494,18 @@ export class Malha {
       }
     } catch {
       /* uma negociação perdida se refaz na próxima */
+    }
+  }
+
+  /** Entrega os candidatos que chegaram cedo demais. */
+  private async escoarCandidatos(par: Par) {
+    const guardados = par.candidatosPendentes.splice(0);
+    for (const c of guardados) {
+      try {
+        await par.pc.addIceCandidate(c);
+      } catch {
+        /* candidato velho de uma negociação que já passou */
+      }
     }
   }
 
@@ -1351,10 +1630,7 @@ export class Malha {
 
     if (mudouCaptura) {
       try {
-        const novo = await navigator.mediaDevices.getUserMedia({
-          audio: this.restricoesDeAudio(),
-          video: false,
-        });
+        const novo = await this.abrirMicrofone();
         novo.getAudioTracks().forEach((f) => (f.enabled = !this.estado.mudo));
         this.meuFluxo?.getTracks().forEach((f) => f.stop());
         this.meuFluxo = novo;
@@ -1544,6 +1820,7 @@ export class Malha {
     for (const id of [...this.pares.keys()]) this.fecharPar(id);
     this.meuFluxo?.getTracks().forEach((f) => f.stop());
     this.fluxoTela?.getTracks().forEach((f) => f.stop());
+    navigator.mediaDevices?.removeEventListener?.("devicechange", this.aoTrocarDispositivos);
     try {
       this.ws?.close();
       void this.supabase?.fechar();

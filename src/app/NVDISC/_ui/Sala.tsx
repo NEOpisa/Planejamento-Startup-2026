@@ -43,6 +43,8 @@ const VAZIO: EstadoMalha = {
   tela: false,
   meuVolume: 0,
   telaComSom: false,
+  microfones: [],
+  microfoneId: null,
   qualidade: QUALIDADE_PADRAO,
 };
 
@@ -158,6 +160,7 @@ export default function Sala({ sala }: { sala: string }) {
         onMudo={() => malha.current?.mudo(!estado.mudo)}
         onTela={() => void malha.current?.alternarTela()}
         onQualidade={(q) => void malha.current?.definirQualidade(q)}
+        onMicrofone={(id) => void malha.current?.definirMicrofone(id)}
       />
     </div>
   );
@@ -646,11 +649,13 @@ function Controles({
   onMudo,
   onTela,
   onQualidade,
+  onMicrofone,
 }: {
   estado: EstadoMalha;
   onMudo: () => void;
   onTela: () => void;
   onQualidade: (q: Partial<Qualidade>) => void;
+  onMicrofone: (id: string | null) => void;
 }) {
   const [aberto, setAberto] = useState(false);
 
@@ -659,7 +664,10 @@ function Controles({
       {aberto && (
         <PainelQualidade
           q={estado.qualidade}
+          microfones={estado.microfones}
+          microfoneId={estado.microfoneId}
           onQualidade={onQualidade}
+          onMicrofone={onMicrofone}
           onFechar={() => setAberto(false)}
         />
       )}
@@ -693,11 +701,17 @@ function Controles({
 
 function PainelQualidade({
   q,
+  microfones,
+  microfoneId,
   onQualidade,
+  onMicrofone,
   onFechar,
 }: {
   q: Qualidade;
+  microfones: { id: string; nome: string }[];
+  microfoneId: string | null;
   onQualidade: (q: Partial<Qualidade>) => void;
+  onMicrofone: (id: string | null) => void;
   onFechar: () => void;
 }) {
   return (
@@ -708,6 +722,38 @@ function PainelQualidade({
           ×
         </button>
       </header>
+
+      {/* Primeiro grupo de propósito: quando não se ouve alguém, o
+          microfone é a primeira coisa a conferir, não a última. */}
+      <div className="grupo">
+        <span className="nv-rotulo">Microfone</span>
+        {microfones.length === 0 ? (
+          <p className="nv-nota" style={{ marginTop: 8 }}>
+            A lista aparece depois que você dá a permissão do microfone.
+          </p>
+        ) : (
+          <>
+            <select
+              className="nv-select"
+              value={microfoneId ?? ""}
+              onChange={(e) => onMicrofone(e.target.value || null)}
+            >
+              <option value="">Padrão do sistema</option>
+              {microfones.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.nome}
+                </option>
+              ))}
+            </select>
+            <p className="nv-nota" style={{ marginTop: 8 }}>
+              Um PC costuma ter mais de uma entrada, e a padrão do sistema nem
+              sempre é a que tem alguém falando na frente. Se ninguém te ouve e
+              o seu anel não acende quando você fala, é aqui. A troca é na hora
+              — ninguém na sala percebe.
+            </p>
+          </>
+        )}
+      </div>
 
       <div className="grupo">
         <Escolha

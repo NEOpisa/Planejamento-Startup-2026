@@ -893,3 +893,32 @@
   display: inline-flex;
   align-items: center;
 }
+
+/**
+ * O seletor de microfone.
+ *
+ * `<select>` nativo de propósito: no celular ele vira a roda do sistema, e
+ * uma lista de dispositivos é exatamente o caso em que o controle nativo
+ * ganha de qualquer coisa feita à mão. O que se estiliza é a moldura;
+ * `text-overflow` porque nome de dispositivo é longo ("Microfone (2- USB
+ * Audio Device)") e estourar a largura do painel é feio.
+ */
+.nv-select {
+  font: inherit;
+  font-size: 12px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  color: var(--txt-1);
+  cursor: pointer;
+  text-overflow: ellipsis;
+  transition: border-color 0.18s;
+}
+.nv-select:hover,
+.nv-select:focus-visible {
+  border-color: var(--hairline-hi);
+  outline: none;
+}
