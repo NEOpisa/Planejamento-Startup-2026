@@ -20,6 +20,16 @@ import {
   type Qualidade,
 } from "@/lib/malha";
 import { limparNome } from "@/lib/protocolo.mjs";
+import {
+  MicIcon,
+  MicOffIcon,
+  TelaIcon,
+  PararIcon,
+  AjustesIcon,
+  SairIcon,
+  AlertaIcon,
+  ExpandirIcon,
+} from "@/components/icons";
 import { comBase } from "@/lib/base.mjs";
 import "../nvdisc.css";
 
@@ -265,7 +275,20 @@ function Palco({
   // espremem numa faixa de 60 px embaixo é desperdiçar a tela inteira para
   // dizer que não há nada nela.
   if (total === 0) {
-    return <Pessoas estado={estado} nome={nome} variante="grade" />;
+    return (
+      <>
+        <Pessoas estado={estado} nome={nome} variante="grade" />
+        {/* Alguém marcou que está compartilhando e a imagem ainda não chegou.
+            Sem esta linha, a tela fica vazia e parece defeito — quando é só a
+            negociação do vídeo levando alguns segundos. */}
+        {estado.participantes.some((p) => p.tela && !p.video) && (
+          <p className="nv-nota nv-vazio">
+            {estado.participantes.find((p) => p.tela && !p.video)?.nome} começou a
+            compartilhar a tela; a imagem aparece aqui em instantes.
+          </p>
+        )}
+      </>
+    );
   }
 
   return (
@@ -280,18 +303,51 @@ function Palco({
 
 function Tela({ fluxo, legenda }: { fluxo: MediaStream; legenda: string }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const moldura = useRef<HTMLElement>(null);
   useEffect(() => {
     if (ref.current) ref.current.srcObject = fluxo;
   }, [fluxo]);
 
+  /**
+   * Abrir a tela em tela cheia.
+   *
+   * O palco divide o espaço com as pessoas e com o chat, e uma janela de
+   * código compartilhada num monitor grande chega aqui pequena demais para se
+   * ler. Sem um jeito de ampliar, quem está do outro lado pede "aumenta a
+   * letra" — e o problema não era a letra.
+   */
+  function ampliar() {
+    const alvo = moldura.current;
+    if (!alvo) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+      return;
+    }
+    void alvo.requestFullscreen?.().catch(() => {
+      // Navegador que recusa tela cheia (iOS, sobretudo): o vídeo tem o seu
+      // próprio modo, e é melhor que nada.
+      void (ref.current as unknown as { webkitEnterFullscreen?: () => void })
+        ?.webkitEnterFullscreen?.();
+    });
+  }
+
   return (
-    <figure className="nv-tela">
+    <figure className="nv-tela" ref={moldura}>
       {/* **Sempre** sem som. O áudio de cada pessoa — microfone e som da tela
           compartilhada — sai pelo `<Som>` dela na lista de participantes. Se
           saísse também por aqui, quem compartilhasse seria ouvido em dobro,
           com um eco de alguns milissegundos entre as duas cópias. */}
-      <video ref={ref} autoPlay playsInline muted />
+      <video ref={ref} autoPlay playsInline muted onDoubleClick={ampliar} />
       <figcaption>{legenda}</figcaption>
+      <button
+        type="button"
+        className="nv-ampliar"
+        onClick={ampliar}
+        title="abrir em tela cheia (ou dê dois cliques na tela)"
+        aria-label="abrir em tela cheia"
+      >
+        <ExpandirIcon size={15} />
+      </button>
     </figure>
   );
 }
@@ -399,11 +455,19 @@ function Pessoa({
       </span>
 
       <span className="nv-icones">
-        {mudo && <span title="microfone desligado">🔇</span>}
-        {tela && <span title="mostrando a tela">🖥️</span>}
+        {mudo && (
+          <span title="microfone desligado" aria-label="microfone desligado">
+            <MicOffIcon size={14} />
+          </span>
+        )}
+        {tela && (
+          <span title="mostrando a tela" aria-label="mostrando a tela">
+            <TelaIcon size={14} />
+          </span>
+        )}
         {problema && (
           <span style={{ color: "var(--alerta)" }} title={`conexão: ${problema}`}>
-            ⚠
+            <AlertaIcon size={14} />
           </span>
         )}
       </span>
@@ -522,22 +586,26 @@ function Controles({
       )}
 
       <button className={`nv-btn${estado.mudo ? " perigo" : ""}`} onClick={onMudo}>
-        {estado.mudo ? "🔇 Ligar microfone" : "🎙 Microfone ligado"}
+        {estado.mudo ? <MicOffIcon /> : <MicIcon />}
+        {estado.mudo ? "Ligar microfone" : "Microfone ligado"}
         <kbd>M</kbd>
       </button>
 
       <button className={`nv-btn${estado.tela ? " ligado" : ""}`} onClick={onTela}>
-        {estado.tela ? "⏹ Parar de compartilhar" : "🖥 Compartilhar tela"}
+        {estado.tela ? <PararIcon /> : <TelaIcon />}
+        {estado.tela ? "Parar de compartilhar" : "Compartilhar tela"}
       </button>
 
       <button
         className={`nv-btn${aberto ? " ligado" : ""}`}
         onClick={() => setAberto((v) => !v)}
       >
-        ⚙ Qualidade
+        <AjustesIcon />
+        Qualidade
       </button>
 
       <Link href={comBase("/")} className="nv-btn perigo">
+        <SairIcon />
         Sair
       </Link>
     </footer>

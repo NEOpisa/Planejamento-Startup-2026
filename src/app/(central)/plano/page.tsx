@@ -41,7 +41,7 @@ const SCRIPTS: { title: string; body: string }[] = [
   },
   {
     title: "2 · Entrega o SCAN e puxa a call",
-    body: "Te mandei aqui 👆. No vídeo eu mostro 3 pontos rápidos. Se fizer sentido, tenho 20 min essa semana pra te mostrar o blueprint completo — quinta 15h ou sexta 10h?",
+    body: "Te mandei o vídeo aqui. Nele eu mostro 3 pontos rápidos. Se fizer sentido, tenho 20 min essa semana pra te mostrar o blueprint completo — quinta 15h ou sexta 10h?",
   },
   {
     title: "3 · Oferta de fundador (na call)",

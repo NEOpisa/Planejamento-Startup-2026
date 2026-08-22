@@ -186,7 +186,7 @@
       </svg>
       <div><h1>neovanguard<b>.</b> · Calculadora de Precificação</h1><div class="eyebrow">// ferramenta interna · equipe de vendas</div></div>
     </div>
-    <span class="badge">⚠ uso interno — não mostrar piso/custo ao cliente</span>
+    <span class="badge">uso interno — não mostrar piso/custo ao cliente</span>
   </header>
 
   <div class="grid">
@@ -479,7 +479,7 @@ function renderBases(){ $("#bases").innerHTML=BASES.map(b=>`<div class="base ${S
 function renderCatFilter(){
   const chips=[`<div class="chip ${activeCat==='all'?'on':''}" data-catf="all">Todos</div>`]
     .concat(CATS.map(c=>`<div class="chip ${activeCat===c?'on':''}" data-catf="${c}">${c.split(" ")[0]}</div>`))
-    .concat([`<div class="chip ${selectedOnly?'on':''}" data-selonly>★ Selecionados</div>`]);
+    .concat([`<div class="chip ${selectedOnly?'on':''}" data-selonly>Selecionados</div>`]);
   $("#catfilter").innerHTML=chips.join("");
 }
 function renderItems(){
@@ -530,7 +530,7 @@ function renderChips(){
 function renderRecur(){ $("#recurring").innerHTML=RECUR.map(r=>`<div class="item ${S.recur[r.id]?'sel':''}"><input type="checkbox" data-recur="${r.id}" ${S.recur[r.id]?'checked':''}><div class="lbl"><div class="t">${r.t}</div>${r.s?`<div class="s">${r.s}</div>`:''}</div><div class="price">${BRL(r.p)}/mês</div></div>`).join(""); }
 function renderSaved(){
   const a=loadSaved();
-  $("#savedList").innerHTML=a.length?a.map(s=>`<div class="saved"><div class="lbl"><div class="t">${esc(s.name)||"(sem nome)"}</div><div class="s">${s.date} · ${BRL(s.setup)}${s.mrr?` + ${BRL(s.mrr)}/mês`:""}</div></div><button class="mini" data-load="${s.id}">abrir</button><button class="mini del" data-del="${s.id}" title="Excluir">✕</button></div>`).join(""):`<div class="empty">Nenhum orçamento salvo ainda.</div>`;
+  $("#savedList").innerHTML=a.length?a.map(s=>`<div class="saved"><div class="lbl"><div class="t">${esc(s.name)||"(sem nome)"}</div><div class="s">${s.date} · ${BRL(s.setup)}${s.mrr?` + ${BRL(s.mrr)}/mês`:""}</div></div><button class="mini" data-load="${s.id}">abrir</button><button class="mini del" data-del="${s.id}" title="Excluir">×</button></div>`).join(""):`<div class="empty">Nenhum orçamento salvo ainda.</div>`;
 }
 function saveCurrent(){
   const r=calc();
@@ -538,7 +538,7 @@ function saveCurrent(){
   if(!name){ const p=prompt("Nome do cliente / orçamento:",""); if(p===null)return; name=p.trim(); }
   const a=loadSaved();
   a.unshift({id:"q"+Date.now(),name,date:new Date().toLocaleDateString("pt-BR"),setup:r.setup,mrr:r.mrr,state:JSON.parse(JSON.stringify(S))});
-  saveSaved(a.slice(0,50)); renderSaved(); toast("Orçamento salvo ✓");
+  saveSaved(a.slice(0,50)); renderSaved(); toast("Orçamento salvo");
 }
 function openSaved(id){
   const s=loadSaved().find(x=>x.id===id); if(!s)return;
@@ -572,7 +572,7 @@ function renderSummary(){
   $("#rSetup").textContent=BRL(r.setup); $("#rMrr").textContent=BRL(r.mrr)+"/mês"; $("#rYear").textContent=BRL(r.year);
   $("#rEntrada").textContent=BRL(r.entrada)+" + "+BRL(r.setup-r.entrada); $("#rFloor").textContent=BRL(r.floor);
   const under=r.setup<r.floor; $("#floorBox").className="floor"+(under?" under":"");
-  $("#floorMsg").textContent=under?"⚠ abaixo do piso — desconto além de ~30%, margem apertada.":"margem saudável.";
+  $("#floorMsg").textContent=under?"abaixo do piso — desconto além de ~30%, margem apertada.":"margem saudável.";
 }
 
 /* ==================== ORÇAMENTOS ==================== */
@@ -643,7 +643,7 @@ $("#btnCopyWA").addEventListener("click",()=>copy(quoteFull()));
 $("#btnReset").addEventListener("click",()=>{ if(!confirm("Limpar tudo e recomeçar?"))return; S=DEF(); ["discManual","adjust","cliente","search"].forEach(id=>$("#"+id).value=id==="discManual"||id==="adjust"?0:""); searchTerm="";activeCat="all";selectedOnly=false; renderAll(); update(); });
 
 function show(txt){ $("#quote").value=txt; $("#quote").style.display="block"; $("#quoteBtns").style.display="flex"; $("#quote").scrollIntoView({behavior:"smooth",block:"nearest"}); }
-function copy(txt){ navigator.clipboard.writeText(txt).then(()=>toast("Copiado ✓")).catch(()=>{const q=$("#quote");q.style.display="block";q.value=txt;q.select();document.execCommand("copy");toast("Copiado ✓");}); }
+function copy(txt){ navigator.clipboard.writeText(txt).then(()=>toast("Copiado")).catch(()=>{const q=$("#quote");q.style.display="block";q.value=txt;q.select();document.execCommand("copy");toast("Copiado");}); }
 function toast(m){ const el=$("#toast"); el.textContent=m; el.classList.add("show"); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove("show"),1600); }
 function update(){ save(); renderSummary(); refresh(); }
 function renderAll(){ renderPresets();renderBases();renderCatFilter();renderItems();renderChips();renderRecur();renderSaved(); $("#discManual").value=S.discManual;$("#adjust").value=S.adjust;$("#cliente").value=S.cliente||""; }

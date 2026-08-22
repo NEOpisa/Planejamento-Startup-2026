@@ -388,6 +388,27 @@ export class Malha {
     this.ouvinte({ ...this.estado, participantes: [...this.estado.participantes] });
   }
 
+  /**
+   * Quem liga para quem.
+   *
+   * Exatamente um dos dois lados precisa propor a conexão; se os dois
+   * propuserem, a negociação vira uma briga, e se nenhum propuser, a chamada
+   * nunca começa. A regra antiga era a ordem de chegada — quem chega liga
+   * para quem já estava —, e ela depende de alguém saber a ordem. O servidor
+   * sabia. A **presença** de um canal não sabe: cada lado pode descobrir o
+   * outro depois de já ter se apresentado, e aí os dois se acham veteranos e
+   * ficam esperando um pelo outro para sempre. Foi exatamente o que
+   * aconteceu: duas conexões criadas, nenhuma faixa, nenhum som.
+   *
+   * A comparação dos identificadores não depende de ordem nem de quem viu o
+   * quê primeiro: é a mesma conta nos dois navegadores e dá sempre respostas
+   * opostas. Vale para qualquer transporte, e é uma coisa a menos que precisa
+   * dar certo.
+   */
+  private euLigoPara(outroId: string) {
+    return (this.estado.voceId ?? "") > outroId;
+  }
+
   private acha(id: string) {
     return this.estado.participantes.find((p) => p.id === id);
   }
@@ -708,9 +729,7 @@ export class Malha {
         for (const id of [...this.pares.keys()]) {
           if (!gente.some((p) => p.id === id)) this.fecharPar(id);
         }
-        // Quem chega liga para quem já estava. O contrário faria os dois lados
-        // ligarem ao mesmo tempo para cada novo participante.
-        for (const p of gente) await this.abrirPar(p.id, true);
+        for (const p of gente) await this.abrirPar(p.id, this.euLigoPara(p.id));
         this.avisar();
         break;
       }
@@ -721,8 +740,7 @@ export class Malha {
           this.estado.participantes.push({ ...p, volume: 0, conexao: "aguardando" });
         }
         this.sistema(`${p.nome} entrou`);
-        // Não liga: quem chegou é que liga. Aqui só se prepara para atender.
-        await this.abrirPar(p.id, false);
+        await this.abrirPar(p.id, this.euLigoPara(p.id));
         this.avisar();
         break;
       }
