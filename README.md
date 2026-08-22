@@ -52,13 +52,31 @@ Dentro da sala: o microfone já entra ligado (**`M`** liga e desliga),
 `Compartilhar tela` transmite uma janela, uma aba ou o monitor inteiro, e o
 chat fica na lateral — no celular, atrás de um botão com contador de não lidas.
 
-**O som da tela compartilhada vai junto**, misturado à sua voz numa faixa só —
-mandá-lo separado obrigaria a renegociar a conexão com todo mundo bem no
-momento em que alguém aperta "compartilhar". Mas há uma regra do navegador que
-pega todo mundo de surpresa: **só a partilha de _aba_ leva áudio**. Tela
-inteira e janela chegam mudas do outro lado, e é o Chrome que decide isso, não
-esta ferramenta — quando acontece, a sala avisa no chat em vez de deixar você
-descobrir dez minutos depois.
+Quando alguém compartilha, uma barra **Telas compartilhadas** aparece no alto
+do palco: uma aba por pessoa que está mostrando algo, e um clique entra na
+tela dela. Com duas ou três pessoas compartilhando ao mesmo tempo, é ali que se
+escolhe o que assistir — e o botão na quina da imagem abre em tela cheia (dois
+cliques na tela também).
+
+### O som da tela
+
+**O navegador quase nunca entrega o áudio da captura de tela.** O Firefox
+ignora o pedido em qualquer situação — o `getDisplayMedia({audio:true})` nunca
+foi implementado lá. O Chrome entrega, e só quando se compartilha **uma aba**
+com a caixa de áudio marcada: tela inteira e janela vêm mudas.
+
+Por isso existe **Qualidade → Som do computador**. A placa de som expõe a
+própria saída como se fosse uma entrada — "Monitor of…" no Linux, "Stereo Mix"
+ou "What U Hear" no Windows —, e capturar essa entrada é ouvir o que a máquina
+está tocando. Funciona em qualquer navegador, com a tela inteira, e é o
+caminho para quem usa Firefox.
+
+Ele vai **misturado à sua voz, numa faixa só**: mandar o som separado
+obrigaria a renegociar a conexão com todo mundo bem no momento em que alguém
+aperta "compartilhar", que é onde uma malha costuma quebrar.
+
+**Use fone quando ligar isso.** Sem fone, o som que sai pelo alto-falante volta
+pelo microfone e vira eco para a sala inteira.
 
 Sem ninguém compartilhando, **as pessoas ocupam o meio da tela**, com o contorno
 acendendo em quem fala. Quando alguém compartilha, elas recolhem para uma faixa

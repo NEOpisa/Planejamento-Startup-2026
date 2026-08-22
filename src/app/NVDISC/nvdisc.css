@@ -815,3 +815,62 @@
   width: 14px;
   height: 14px;
 }
+
+/* ------------------------------------------------- telas compartilhadas -- */
+/*
+ * A barra que diz o que está sendo mostrado e deixa entrar em cada tela.
+ *
+ * Ela aparece mesmo com uma tela só: é ela que responde "onde eu vejo o que
+ * fulano está compartilhando?". A grade anterior empilhava tudo e não deixava
+ * claro que havia o que fazer ali.
+ */
+.nv-barra-telas {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface);
+}
+.nv-barra-telas ul {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nv-aba-tela {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--txt-2);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.nv-aba-tela:hover {
+  border-color: var(--hairline-hi);
+  color: var(--txt);
+}
+.nv-aba-tela.ativa {
+  background: var(--nv-corn);
+  border-color: var(--nv-corn);
+  color: #06070b;
+  font-weight: 600;
+}
+.nv-barra-telas .nv-nota {
+  margin-left: auto;
+}
+@media (max-width: 600px) {
+  .nv-barra-telas .nv-nota {
+    display: none;
+  }
+}

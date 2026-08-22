@@ -49,6 +49,8 @@ export default function Sala({ sala }: { sala: string }) {
   const [estado, setEstado] = useState<EstadoMalha>(VAZIO);
   const [nome, setNome] = useState<string | null>(null);
   const [chatAberto, setChatAberto] = useState(false);
+  /** de quem é a tela que está ocupando o palco */
+  const [telaAberta, setTelaAberta] = useState<string | null>(null);
   const [naoLidas, setNaoLidas] = useState(0);
   const malha = useRef<Malha | null>(null);
 
@@ -101,6 +103,25 @@ export default function Sala({ sala }: { sala: string }) {
     return () => window.removeEventListener("keydown", tecla);
   }, [estado.mudo]);
 
+  /**
+   * As entradas de som da máquina.
+   *
+   * Buscadas **depois** de a malha ter pedido o microfone: antes disso o
+   * navegador devolve a lista com os rótulos em branco, e uma lista de
+   * "entrada sem nome" não ajuda ninguém a achar o monitor da saída.
+   */
+  const [fontes, setFontes] = useState<{ id: string; nome: string; monitor: boolean }[]>([]);
+  useEffect(() => {
+    if (!estado.voceId) return;
+    let vivo = true;
+    void malha.current?.fontesDeSom().then((lista) => {
+      if (vivo) setFontes(lista);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [estado.voceId]);
+
   // No celular o chat vive escondido; o contador existe para a pessoa saber que
   // perdeu alguma coisa sem precisar abrir para conferir.
   const ultimaVista = useRef(0);
@@ -134,6 +155,8 @@ export default function Sala({ sala }: { sala: string }) {
             minhaTela={estado.tela ? malha.current?.minhaTela ?? null : null}
             estado={estado}
             nome={nome}
+            aberta={telaAberta}
+            onAbrir={setTelaAberta}
           />
           {/* A tirinha embaixo só existe quando o palco está ocupado por uma
               tela; sem ela, as pessoas **são** o palco. */}
@@ -149,6 +172,7 @@ export default function Sala({ sala }: { sala: string }) {
       </div>
 
       <Controles
+        fontes={fontes}
         estado={estado}
         onMudo={() => malha.current?.mudo(!estado.mudo)}
         onTela={() => void malha.current?.alternarTela()}
@@ -260,13 +284,26 @@ function Palco({
   minhaTela,
   estado,
   nome,
+  aberta,
+  onAbrir,
 }: {
   compartilhando: Participante[];
   minhaTela: MediaStream | null;
   estado: EstadoMalha;
   nome: string;
+  aberta: string | null;
+  onAbrir: (id: string | null) => void;
 }) {
-  const total = compartilhando.length + (minhaTela ? 1 : 0);
+  /**
+   * As telas que existem agora, em ordem estável.
+   *
+   * A sua vem primeiro porque é a que você confere ("estou mostrando o que
+   * queria mostrar?"), e não porque seja a mais importante para quem assiste.
+   */
+  const telas = [
+    ...(minhaTela ? [{ id: "eu", quem: "você", fluxo: minhaTela }] : []),
+    ...compartilhando.map((p) => ({ id: p.id, quem: p.nome, fluxo: p.video! })),
+  ];
 
   // **Sem tela compartilhada, quem ocupa o palco são as pessoas.**
   //
@@ -274,7 +311,7 @@ function Palco({
   // deixar o meio da tela vazio com um aviso enquanto os participantes se
   // espremem numa faixa de 60 px embaixo é desperdiçar a tela inteira para
   // dizer que não há nada nela.
-  if (total === 0) {
+  if (telas.length === 0) {
     return (
       <>
         <Pessoas estado={estado} nome={nome} variante="grade" />
@@ -291,13 +328,60 @@ function Palco({
     );
   }
 
+  // A escolhida, ou a primeira — e a primeira também quando quem estava sendo
+  // assistido parou de compartilhar, para o palco nunca ficar preto por causa
+  // de uma escolha que não existe mais.
+  const atual = telas.find((t) => t.id === aberta) ?? telas[0];
+
   return (
-    <div className={`nv-telas ${total === 1 ? "uma" : "varias"}`}>
-      {minhaTela && <Tela fluxo={minhaTela} legenda="você" />}
-      {compartilhando.map((p) => (
-        <Tela key={p.id} fluxo={p.video!} legenda={p.nome} />
-      ))}
-    </div>
+    <>
+      <BarraDeTelas telas={telas} atual={atual.id} onAbrir={onAbrir} />
+      <div className="nv-telas uma">
+        <Tela fluxo={atual.fluxo} legenda={atual.quem} />
+      </div>
+    </>
+  );
+}
+
+/**
+ * A barra das telas compartilhadas.
+ *
+ * Ela existe mesmo quando há uma tela só, e isso é de propósito: é ela que
+ * responde "onde eu entro na tela que fulano está mostrando?" — pergunta que
+ * a grade anterior não respondia, porque simplesmente empilhava tudo e
+ * ninguém sabia que dava para agir ali.
+ */
+function BarraDeTelas({
+  telas,
+  atual,
+  onAbrir,
+}: {
+  telas: { id: string; quem: string }[];
+  atual: string;
+  onAbrir: (id: string) => void;
+}) {
+  return (
+    <section className="nv-barra-telas" aria-label="Telas compartilhadas">
+      <span className="nv-rotulo">Telas compartilhadas</span>
+      <ul>
+        {telas.map((t) => (
+          <li key={t.id}>
+            <button
+              type="button"
+              className={`nv-aba-tela${t.id === atual ? " ativa" : ""}`}
+              onClick={() => onAbrir(t.id)}
+              aria-current={t.id === atual ? "true" : undefined}
+            >
+              <TelaIcon size={14} />
+              {t.quem}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {telas.length > 1 && (
+        <span className="nv-nota">clique para trocar de tela</span>
+      )}
+    </section>
   );
 }
 
@@ -567,11 +651,13 @@ function Controles({
   onMudo,
   onTela,
   onQualidade,
+  fontes,
 }: {
   estado: EstadoMalha;
   onMudo: () => void;
   onTela: () => void;
   onQualidade: (q: Partial<Qualidade>) => void;
+  fontes: { id: string; nome: string; monitor: boolean }[];
 }) {
   const [aberto, setAberto] = useState(false);
 
@@ -582,6 +668,7 @@ function Controles({
           q={estado.qualidade}
           onQualidade={onQualidade}
           onFechar={() => setAberto(false)}
+          fontes={fontes}
         />
       )}
 
@@ -616,11 +703,14 @@ function PainelQualidade({
   q,
   onQualidade,
   onFechar,
+  fontes,
 }: {
   q: Qualidade;
   onQualidade: (q: Partial<Qualidade>) => void;
   onFechar: () => void;
+  fontes: { id: string; nome: string; monitor: boolean }[];
 }) {
+  const sugerida = fontes.find((f) => f.monitor);
   return (
     <div className="nv-painel nv-cantos">
       <header>
@@ -664,6 +754,37 @@ function PainelQualidade({
             : q.ruido === "padrao"
               ? "O supressor do navegador tira ventilador, teclado e chiado sem encostar na voz. Serve para quase todo mundo."
               : "Além do supressor, o microfone fica fechado enquanto você não fala. Resolve obra na rua e cachorro no quintal — e cobra: começo de palavra dita baixinho pode se perder, e respiração some."}
+        </p>
+      </div>
+
+      <div className="grupo">
+        <span className="nv-rotulo">Som do computador</span>
+        <div className="nv-opcoes">
+          <button
+            className={`nv-opcao${q.somDoComputador === null ? " ativa" : ""}`}
+            onClick={() => onQualidade({ somDoComputador: null })}
+          >
+            Não enviar
+          </button>
+          {fontes
+            .filter((f) => f.monitor || f.id === q.somDoComputador)
+            .map((f) => (
+              <button
+                key={f.id}
+                className={`nv-opcao${q.somDoComputador === f.id ? " ativa" : ""}`}
+                onClick={() => onQualidade({ somDoComputador: f.id })}
+                title={f.nome}
+              >
+                {f.nome.replace(/^Monitor of /i, "").slice(0, 28)}
+              </button>
+            ))}
+        </div>
+        <p className="nv-nota" style={{ marginTop: 8 }}>
+          {q.somDoComputador
+            ? "O que o computador estiver tocando vai junto com a sua voz. Use fone: sem ele, o som volta pelo microfone e vira eco para todo mundo."
+            : sugerida
+              ? "Para o vídeo que você compartilha ter som, mande a saída do computador junto. O Firefox nunca envia o áudio da captura de tela, e o Chrome só na partilha de aba — este caminho funciona nos dois, e com a tela inteira."
+              : "Nenhuma entrada de monitor foi encontrada. No Linux ela costuma aparecer como \"Monitor of…\" depois que o navegador tem permissão de microfone; no Windows, como \"Stereo Mix\" (às vezes é preciso habilitá-la nas opções de som)."}
         </p>
       </div>
 
