@@ -61,7 +61,17 @@ function instancia(porta) {
     wss.on("listening", () => console.log("pronta"));
   `;
   const p = spawn("node", ["--input-type=module", "-e", codigo], {
-    env: { ...process.env, REDIS_URL: URL_REDIS },
+    // Prazos curtos: o teste precisa ver a varredura acontecer, e esperar os
+    // setenta segundos de produção seria um minuto parado por rodada.
+    env: {
+      ...process.env,
+      REDIS_URL: URL_REDIS,
+      // Curtos o bastante para o teste ver a varredura, largos o bastante
+      // para não varrer quem está vivo: a proporção entre eles é a mesma da
+      // produção (batimento a cada 20 s, validade de 70 s).
+      NVDISC_VALIDADE_MS: "9000",
+      NVDISC_MANUTENCAO_MS: "700",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let saida = "";
@@ -153,15 +163,44 @@ try {
     "e quem volta reencontra a sala como ela estava",
   );
 
+  console.log("\na instância que morre sem avisar");
+  // O caso que só existe em hospedagem serverless: a instância que atendia
+  // alguém é encerrada sem executar o fechamento das conexões. Ninguém tira
+  // aquela pessoa da lista, e os outros ficam falando com um fantasma. É o
+  // batimento que resolve — quem para de bater é varrido por quem continua.
+  const fantasma = await cliente(4402, sala, "Fantasma", "aba-fantasma");
+  await esperar(600);
+  ok(
+    de(ana, "entrou").some((m) => m.nome === "Fantasma"),
+    "o fantasma entrou na sala",
+  );
+  const saiuAntes = de(ana, "saiu").length;
+  // `terminate` corta o TCP sem fechar nada: é o mais perto de "a instância
+  // morreu" que dá para simular de fora.
+  fantasma.terminate();
+  // Os vivos continuam batendo — é o batimento deles que dispara a varredura,
+  // e é o que o cliente de verdade faz de vinte em vinte segundos.
+  for (let i = 0; i < 22; i += 1) {
+    ana.send(JSON.stringify({ tipo: "ping" }));
+    bia2.send(JSON.stringify({ tipo: "ping" }));
+    await esperar(600);
+  }
+  ok(
+    de(ana, "saiu").length > saiuAntes,
+    "quem para de dar sinal de vida é varrido da sala",
+    `${de(ana, "saiu").length - saiuAntes} saída(s) anunciada(s)`,
+  );
+
   console.log("\nsaída de verdade");
   // O cliente avisa antes de fechar; é esse aviso que separa "fechei a aba"
   // de "a função me cortou e eu já volto".
+  const saiuAntesDaDespedida = de(ana, "saiu").length;
   bia2.send(JSON.stringify({ tipo: "sair" }));
   await esperar(800);
   ok(
-    de(ana, "saiu").length === antesSaiu + 1,
+    de(ana, "saiu").length === saiuAntesDaDespedida + 1,
     "quem avisa que está saindo é anunciado uma vez só, do outro processo",
-    `${de(ana, "saiu").length - antesSaiu} anúncio(s)`,
+    `${de(ana, "saiu").length - saiuAntesDaDespedida} anúncio(s)`,
   );
 
   ana.close();

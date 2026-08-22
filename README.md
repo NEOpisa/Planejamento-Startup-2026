@@ -126,7 +126,17 @@ lá. Duas coisas precisam estar de pé:
 1. **Um Redis no projeto.** No painel: *Storage* → *Create Database* →
    *Marketplace* → qualquer provedor de Redis (o Vercel KV foi aposentado em
    dezembro de 2024, então não procure por ele). Conecte ao projeto e
-   publique de novo. Não importa o nome que a variável de ambiente receber:
+   publique de novo.
+
+   O Marketplace mostra só os planos que a Vercel fatura; **o plano gratuito
+   costuma estar na conta direta do provedor** (na Upstash são 500 mil
+   comandos por mês, sem cartão). Nesse caso, crie o banco lá e cole o
+   endereço numa variável do projeto.
+
+   O gasto foi feito para caber nisso: o batimento de cada pessoa é **um
+   comando**, e a manutenção da sala (varrer os mortos, renovar a validade)
+   acontece no máximo a cada 45 segundos, não a cada batida. Duas pessoas
+   conversando gastam por volta de 200 comandos por hora. Não importa o nome que a variável de ambiente receber:
    a rota procura pelo **formato** (`redis://` ou `rediss://`), e não por um
    nome específico. Se preferir, crie o banco direto no provedor e cole o
    endereço numa variável chamada `REDIS_URL`.

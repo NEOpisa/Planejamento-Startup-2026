@@ -27,10 +27,28 @@ import Redis from "ioredis";
 
 import { LIMITES } from "./protocolo.mjs";
 
-/** Quanto tempo sem batimento até alguém ser considerado morto. */
-const VALIDADE = 70_000;
+/**
+ * Quanto tempo sem batimento até alguém ser considerado morto.
+ *
+ * O cliente bate de vinte em vinte segundos, então setenta dá margem para
+ * duas batidas perdidas antes de alguém sumir da sala por engano. As duas
+ * variáveis de ambiente existem para o teste poder trabalhar em segundos em
+ * vez de esperar um minuto — em produção ninguém as define.
+ */
+const VALIDADE = Number(process.env.NVDISC_VALIDADE_MS ?? 70_000);
 /** Uma sala inteira sem ninguém tocar some do Redis. */
 const VALIDADE_SALA = 3600;
+/**
+ * De quanto em quanto tempo vale renovar a validade da sala e varrer os
+ * mortos.
+ *
+ * O batimento de cada pessoa chega de vinte em vinte segundos, e fazer as
+ * três operações em todos eles gastaria o plano gratuito de um provedor
+ * pequeno à toa: são comandos cobrados, e ninguém morre por ser varrido meio
+ * minuto depois. O que **não** pode atrasar é a marca de vida em si — essa
+ * vai sempre, e é um comando só.
+ */
+const INTERVALO_MANUTENCAO = Number(process.env.NVDISC_MANUTENCAO_MS ?? 45_000);
 
 const chave = (sala) => `nvdisc:sala:${sala}`;
 const chaveVivos = (sala) => `nvdisc:sala:${sala}:vivos`;
@@ -42,6 +60,21 @@ export function criarRegistroRedis(url) {
   // assina só assina. Daí a segunda conexão.
   const escuta = escrita.duplicate();
   const entregadores = new Map();
+  /**
+   * Dois relógios, e não um: a varredura e a renovação de validade são
+   * chamadas em sequência no mesmo batimento, e um relógio só faria a
+   * primeira consumir a vez da segunda — a varredura simplesmente nunca
+   * aconteceria, e os fantasmas ficariam.
+   */
+  const relogios = { varredura: new Map(), validade: new Map() };
+
+  function passouDaHora(qual, sala) {
+    const agora = Date.now();
+    const mapa = relogios[qual];
+    if (agora - (mapa.get(sala) ?? 0) < INTERVALO_MANUTENCAO) return false;
+    mapa.set(sala, agora);
+    return true;
+  }
 
   escuta.on("message", (nome, bruto) => {
     const entregar = entregadores.get(nome);
@@ -60,16 +93,26 @@ export function criarRegistroRedis(url) {
    * ninguém executa o `close`, e sem isto aquelas pessoas ficariam na lista
    * para sempre, com os outros tentando falar com fantasmas.
    */
-  async function varrer(sala) {
+  async function varrer(sala, sempre = false) {
+    if (!sempre && !passouDaHora("varredura", sala)) return [];
     const corte = Date.now() - VALIDADE;
-    const mortos = await escrita.zrangebyscore(chaveVivos(sala), "-inf", corte);
-    if (mortos.length === 0) return [];
-    await escrita
-      .multi()
-      .zrem(chaveVivos(sala), ...mortos)
-      .hdel(chave(sala), ...mortos)
-      .exec();
-    return mortos;
+    const candidatos = await escrita.zrangebyscore(chaveVivos(sala), "-inf", corte);
+    if (candidatos.length === 0) return [];
+
+    // Um de cada vez, e o `ZREM` decide quem anuncia.
+    //
+    // Todas as instâncias varrem, e todas veem os mesmos mortos: removendo em
+    // bloco, cada uma acharia que tirou aquela pessoa da sala e a saída seria
+    // anunciada várias vezes. O `ZREM` devolve quantos membros removeu de
+    // fato — quem receber 1 foi quem chegou primeiro, e só esse conta.
+    const removidos = [];
+    for (const id of candidatos) {
+      const tirou = await escrita.zrem(chaveVivos(sala), id);
+      if (tirou !== 1) continue;
+      await escrita.hdel(chave(sala), id);
+      removidos.push(id);
+    }
+    return removidos;
   }
 
   async function lista(sala) {
@@ -81,7 +124,9 @@ export function criarRegistroRedis(url) {
     nome: "redis",
 
     async entrar(sala, p) {
-      await varrer(sala);
+      // Na entrada a varredura vale sempre: é o momento em que a lista é lida
+      // por inteiro, e uma lista com fantasma é o que o recém-chegado veria.
+      await varrer(sala, true);
       const atual = await lista(sala);
       const antigo = atual.find((o) => o.id === p.id);
 
@@ -149,12 +194,18 @@ export function criarRegistroRedis(url) {
     varrer,
 
     async tocar(sala, id) {
-      await escrita
-        .multi()
-        .zadd(chaveVivos(sala), Date.now(), id)
-        .expire(chave(sala), VALIDADE_SALA)
-        .expire(chaveVivos(sala), VALIDADE_SALA)
-        .exec();
+      // O comum é um comando só. A renovação da validade da sala anda junto
+      // com a varredura, de tempos em tempos.
+      if (passouDaHora("validade", sala)) {
+        await escrita
+          .multi()
+          .zadd(chaveVivos(sala), Date.now(), id)
+          .expire(chave(sala), VALIDADE_SALA)
+          .expire(chaveVivos(sala), VALIDADE_SALA)
+          .exec();
+        return;
+      }
+      await escrita.zadd(chaveVivos(sala), Date.now(), id);
     },
 
     async encerrar() {
