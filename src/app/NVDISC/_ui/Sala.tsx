@@ -45,6 +45,8 @@ const VAZIO: EstadoMalha = {
   telaComSom: false,
   microfones: [],
   microfoneId: null,
+  capturaAviso: null,
+  audioTravado: false,
   qualidade: QUALIDADE_PADRAO,
 };
 
@@ -131,6 +133,23 @@ export default function Sala({ sala }: { sala: string }) {
       />
 
       {estado.erro && <div className="nv-erro">{estado.erro}</div>}
+
+      {/* O motor de áudio preso é o defeito mais cruel que esta sala tem: o
+          microfone está aberto, a faixa está viva, e não sai nada. Ele se
+          solta em qualquer clique — mas quem não sabe disso fica falando
+          sozinho. Um botão explícito custa pouco e fecha o assunto. */}
+      {estado.audioTravado && (
+        <button
+          className="nv-aviso"
+          onClick={() => void malha.current?.destravarSom()}
+        >
+          O navegador está segurando o áudio. Clique aqui para liberar.
+        </button>
+      )}
+
+      {estado.capturaAviso && !estado.audioTravado && (
+        <div className="nv-aviso">{estado.capturaAviso}</div>
+      )}
 
       <div className="nv-corpo">
         <main className="nv-palco">

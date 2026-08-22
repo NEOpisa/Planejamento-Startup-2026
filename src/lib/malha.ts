@@ -89,6 +89,16 @@ export type EstadoMalha = {
   microfones: { id: string; nome: string }[];
   /** o escolhido; `null` é "o padrão do sistema" */
   microfoneId: string | null;
+  /**
+   * O que há de errado com a captura **agora**.
+   *
+   * Separado de `erro`: aquele é sobre entrar na sala, este é sobre o
+   * microfone parar de funcionar no meio. Um defeito de áudio que não aparece
+   * na tela é um defeito que a pessoa atribui a si mesma.
+   */
+  capturaAviso: string | null;
+  /** o motor de áudio está preso pela política de autoplay do navegador */
+  audioTravado: boolean;
   qualidade: Qualidade;
 };
 
@@ -641,6 +651,12 @@ export class Malha {
   private jaAbriu = false;
   private apurar?: ReturnType<typeof setTimeout>;
   private religar?: ReturnType<typeof setTimeout>;
+  /** evita duas recuperações de captura ao mesmo tempo */
+  private recuperando = false;
+  /** desde quando a captura está em silêncio absoluto; 0 = não está */
+  private mudaDesde = 0;
+  /** já tentei reabrir por causa deste silêncio? */
+  private tenteiRecuperar = false;
 
   private estado: EstadoMalha = {
     voceId: null,
@@ -652,6 +668,8 @@ export class Malha {
     tela: false,
     microfones: [],
     microfoneId: null,
+    capturaAviso: null,
+    audioTravado: false,
     meuVolume: 0,
     telaComSom: false,
     qualidade: { ...QUALIDADE_PADRAO },
@@ -841,6 +859,7 @@ export class Malha {
       this.meuFluxo = await this.abrirMicrofone();
       this.meuMedidor = criarMedidor(this.meuFluxo);
       // Só agora, com a permissão dada, os dispositivos têm nome.
+      this.vigiarCaptura();
       await this.listarMicrofones();
       navigator.mediaDevices?.addEventListener?.("devicechange", this.aoTrocarDispositivos);
     } catch {
@@ -1088,7 +1107,10 @@ export class Malha {
       noiseSuppression: !musica && q.ruido !== "desligado",
       autoGainControl: !musica,
       sampleRate: 48000,
-      sampleSize: 16,
+      // `sampleSize` saiu: o Chrome não implementa essa restrição, e pedir o
+      // que o navegador não conhece só aumenta a chance de uma combinação
+      // recusada sem explicação. O que ela pedia — 16 bits — é o que o
+      // WebRTC usa de qualquer jeito.
       channelCount: musica ? 2 : 1,
     };
   }
@@ -1115,6 +1137,80 @@ export class Malha {
         video: false,
       });
     }
+  }
+
+  /**
+   * Fica de olho na faixa do microfone.
+   *
+   * Uma faixa viva não quer dizer uma faixa que capta. O Chrome marca
+   * `muted` quando o sistema operacional silencia ou toma o dispositivo — um
+   * programa que abre o microfone em modo exclusivo, o mixer do sistema, um
+   * fone que troca de perfil. Nada disso lança erro, nada aparece no console,
+   * e a faixa continua `live`: do lado de dentro parece tudo certo, e do lado
+   * de fora é silêncio.
+   *
+   * `ended` é o dispositivo sumindo de vez — o fone desconectado.
+   */
+  private vigiarCaptura() {
+    const faixa = this.meuFluxo?.getAudioTracks()[0];
+    if (!faixa) return;
+
+    faixa.onmute = () => {
+      this.estado.capturaAviso =
+        "o sistema silenciou este microfone — outro programa pode ter tomado " +
+        "ele. Assim que soltar, volta sozinho.";
+      this.avisar();
+    };
+    faixa.onunmute = () => {
+      this.estado.capturaAviso = null;
+      this.avisar();
+    };
+    faixa.onended = () => {
+      // Desconectou. Reabrir cai no padrão do sistema se o escolhido sumiu.
+      void this.recuperarCaptura();
+    };
+  }
+
+  /**
+   * Reabre a captura e entrega a faixa nova a quem já está na chamada.
+   *
+   * É a resposta a tudo que possa ter derrubado o microfone no meio: fone
+   * desconectado, dispositivo tomado, captura que emudeceu sem avisar.
+   * `refazerCadeia` termina em `replaceTrack`, então a troca não renegocia
+   * nada — ninguém na sala percebe.
+   */
+  private async recuperarCaptura() {
+    if (this.recuperando || this.fechando) return;
+    this.recuperando = true;
+    try {
+      const novo = await this.abrirMicrofone();
+      novo.getAudioTracks().forEach((f) => (f.enabled = !this.estado.mudo));
+      this.meuFluxo?.getTracks().forEach((f) => f.stop());
+      this.meuFluxo = novo;
+      this.meuMedidor?.parar();
+      this.meuMedidor = criarMedidor(novo);
+      this.vigiarCaptura();
+      this.estado.capturaAviso = null;
+      await this.refazerCadeia();
+      await this.listarMicrofones();
+    } catch {
+      this.estado.capturaAviso =
+        "perdi o microfone e não consegui reabrir. Escolha outro na lista, " +
+        "ou recarregue a página.";
+    } finally {
+      this.recuperando = false;
+      this.avisar();
+    }
+  }
+
+  /** Destrava o motor de áudio. Vem de um clique, que é o que o Chrome exige. */
+  async destravarSom() {
+    try {
+      await contextoDeAudio().resume();
+    } catch {
+      /* o próximo clique tenta de novo */
+    }
+    this.avisar();
   }
 
   /** Relê a lista de microfones do sistema. */
@@ -1158,7 +1254,9 @@ export class Malha {
       this.meuFluxo = novo;
       this.meuMedidor?.parar();
       this.meuMedidor = criarMedidor(novo);
+      this.vigiarCaptura();
       this.estado.erro = null;
+      this.estado.capturaAviso = null;
       guardarMicrofone(id);
       await this.refazerCadeia();
     } catch {
@@ -1864,7 +1962,7 @@ export class Malha {
         return;
       }
       ultimo = agora;
-      let mudou = false;
+      let mudou = this.conferirCaptura(agora);
       // Arredondar para um décimo corta a maior parte das atualizações: o
       // ruído de fundo oscila na terceira casa e não muda nada na tela.
       const passoDe = (v: number) => Math.round(v * 10) / 10;
@@ -1888,6 +1986,85 @@ export class Malha {
       this.quadro = requestAnimationFrame(passo);
     };
     this.quadro = requestAnimationFrame(passo);
+  }
+
+  /**
+   * O microfone está mesmo captando?
+   *
+   * Todo o resto do código só sabe dizer se a faixa **existe**. Existir e
+   * captar são coisas diferentes, e a distância entre as duas é exatamente
+   * onde este defeito morava: contexto de áudio preso, dispositivo tomado
+   * pelo sistema, entrada errada escolhida — em todos, a faixa está viva,
+   * `readyState` é `live`, e o que sai é zero.
+   *
+   * Silêncio **absoluto** é o sinal. Uma sala vazia de madrugada ainda tem
+   * ruído de fundo na terceira casa decimal; zero cravado por segundos
+   * seguidos não é silêncio, é captura morta.
+   *
+   * Devolve se alguma coisa mudou na tela.
+   */
+  private conferirCaptura(agora: number): boolean {
+    let mudou = false;
+
+    // O motor de áudio, primeiro: enquanto ele não roda, o medidor mede zero
+    // por conta dele, e acusar a captura seria acusar o inocente.
+    const travado = !!contextoUnico && contextoUnico.state !== "running";
+    if (travado !== this.estado.audioTravado) {
+      this.estado.audioTravado = travado;
+      mudou = true;
+    }
+
+    const faixa = this.meuFluxo?.getAudioTracks()[0];
+    const podeMedir =
+      !!faixa &&
+      faixa.readyState === "live" &&
+      !faixa.muted &&
+      !this.estado.mudo &&
+      !travado &&
+      !this.recuperando;
+
+    if (!podeMedir) {
+      this.mudaDesde = 0;
+      return mudou;
+    }
+
+    if (nivelBruto(this.meuMedidor) > 0.0005) {
+      // Captou. Se havia aviso de silêncio, ele deixa de valer.
+      this.mudaDesde = 0;
+      this.tenteiRecuperar = false;
+      if (this.estado.capturaAviso) {
+        this.estado.capturaAviso = null;
+        mudou = true;
+      }
+      return mudou;
+    }
+
+    if (this.mudaDesde === 0) {
+      this.mudaDesde = agora;
+      return mudou;
+    }
+
+    const parado = agora - this.mudaDesde;
+
+    // Primeiro, tentar consertar sozinho: reabrir a captura resolve o
+    // dispositivo que foi tomado e devolvido, que é o caso comum.
+    if (parado > 5000 && !this.tenteiRecuperar) {
+      this.tenteiRecuperar = true;
+      void this.recuperarCaptura();
+      return mudou;
+    }
+
+    // Reabriu e continua mudo: aí é escolha de dispositivo, e só a pessoa
+    // resolve. Melhor dizer do que deixá-la achando que o microfone quebrou.
+    if (parado > 13000 && !this.estado.capturaAviso) {
+      const atual = this.estado.microfones.find((m) => m.id === this.estado.microfoneId);
+      this.estado.capturaAviso =
+        `não está entrando som por ${atual ? `"${atual.nome}"` : "este microfone"}. ` +
+        "Escolha outra entrada em Qualidade → Microfone.";
+      mudou = true;
+    }
+
+    return mudou;
   }
 
   sair() {

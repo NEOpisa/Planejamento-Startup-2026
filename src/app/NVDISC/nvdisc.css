@@ -922,3 +922,35 @@
   border-color: var(--hairline-hi);
   outline: none;
 }
+
+/**
+ * O aviso de captura.
+ *
+ * Âmbar e não vermelho: `nv-erro` quer dizer "a sala não funcionou", e isto
+ * quer dizer "a sala está de pé, o seu som é que não está saindo". São
+ * gravidades diferentes e merecem cores diferentes — se tudo é vermelho,
+ * vermelho deixa de significar alguma coisa.
+ *
+ * É `<button>` quando dá para agir (destravar o áudio) e `<div>` quando é só
+ * informação; a regra vale para os dois, e o `all: unset` limpa a aparência
+ * de botão que o navegador impõe sem tirar o comportamento.
+ */
+.nv-aviso {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 13.5px;
+  border: 0;
+  border-bottom: 1px solid rgba(245, 191, 66, 0.3);
+  background: rgba(245, 191, 66, 0.1);
+  color: var(--alerta);
+  padding: 11px 20px;
+}
+button.nv-aviso {
+  cursor: pointer;
+  transition: background 0.18s;
+}
+button.nv-aviso:hover {
+  background: rgba(245, 191, 66, 0.18);
+}
