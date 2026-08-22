@@ -32,6 +32,7 @@ npm start       # produção
 
 npm test              # o servidor do NVDISC: salas, chat, limites
 npm run test:navegador  # a chamada de verdade, em dois Chrome
+npm run test:redis    # o arranjo da Vercel: duas instâncias, uma sala
 npm run cert          # certificado local, para chamar a turma pela rede
 ```
 
@@ -110,24 +111,39 @@ poucos: enfileira e trava tudo de uma vez, inclusive a voz.
 
 ### Onde isto pode rodar
 
-**Não roda em hospedagem serverless.** Vercel, Netlify e parentes servem as
-páginas muito bem e não têm onde manter uma conexão de pé: cada requisição
-nasce e morre. O `server.mjs` — que é quem apresenta as pessoas de uma sala
-umas às outras — nunca sobe, o `wss://.../NVDISC/sinal` responde 404, e o
-sintoma é cruel: a sala abre, o nome aparece, e ninguém nunca chega. A página
-diz isso na cara agora, em vez de ficar em "reconectando…" para sempre.
-
-Três arranjos que funcionam:
-
 | Onde | O que fazer |
 |------|-------------|
-| **Um processo, tudo junto** | Render, Railway, Fly.io ou um VPS com Node. `npm run build && npm start`, TLS no proxy da frente. É o arranjo que este repositório assume. |
-| **Páginas na Vercel, sinalização à parte** | Suba o `server.mjs` num lugar com processo e aponte as páginas para ele com `NEXT_PUBLIC_SINAL_URL=wss://sinal.seu-dominio` |
-| **Na sua rede, sem publicar** | `npm run cert` e suba com TLS (abaixo). Serve para chamar quem está na mesma casa. |
+| **Vercel** | Precisa de um Redis no projeto (abaixo). |
+| **Um processo, tudo junto** | Render, Railway, Fly.io ou um VPS com Node: `npm run build && npm start`, TLS no proxy da frente. É o arranjo mais simples que existe aqui. |
+| **Páginas num lugar, sinalização noutro** | Suba o `server.mjs` onde houver processo e aponte as páginas com `NEXT_PUBLIC_SINAL_URL=wss://sinal.seu-dominio` |
+| **Na sua rede, sem publicar** | `npm run cert` e suba com TLS. Para chamar quem está na mesma casa, publicar na internet não acrescenta nada. |
 
-O terceiro é o mais subestimado: para uma conversa entre duas pessoas que já
-estão na mesma rede, publicar na internet não acrescenta nada — e a conversa
-continua indo direto de um navegador ao outro de qualquer jeito.
+### Na Vercel
+
+Funciona, e não funcionava até junho de 2026 — WebSocket em função é recente
+lá. Duas coisas precisam estar de pé:
+
+1. **Um Redis no projeto** (Vercel → Storage → Redis). Ele define `REDIS_URL`
+   sozinho, e é só isso que a rota `/api/sinal` procura.
+2. **Fluid compute ligado**, que é o padrão em projetos criados de abril de
+   2025 para cá.
+
+O Redis não é enfeite. Na Vercel, duas pessoas da mesma sala podem cair em
+**instâncias diferentes** da função, e não há como escolher: uma lista de
+participantes em memória viraria duas listas, cada um sozinho na sua, sem erro
+em lugar nenhum. Com o Redis, a lista é uma só e as instâncias conversam por
+publicação. Sem ele a rota sobe assim mesmo e avisa no log — funciona por
+acidente, enquanto todo mundo cair na mesma instância.
+
+A outra diferença é que **a conexão morre no teto de duração da função**
+(cinco minutos, no padrão). Isso é normal e não deveria aparecer para
+ninguém: o identificador de cada participante é a aba, não a conexão, então
+quem volta volta como a mesma pessoa. Ninguém sai, ninguém entra, e a voz —
+que vai direto de um navegador ao outro — nem fica sabendo. É o que o
+`npm run test:redis` confere, com duas instâncias de verdade.
+
+Se as páginas estiverem na Vercel e a sinalização não subir por lá, a sala
+diz isso na cara em vez de ficar em "reconectando…" para sempre.
 
 ### Antes de chamar a turma
 
@@ -204,6 +220,10 @@ forma de ver o defeito original.
 
 ```
 server.mjs                       Next + WebSocket da sinalização, num processo só
+src/lib/sinalizacao.mjs          o protocolo da sala, sem saber onde roda
+src/lib/registro-memoria.mjs     as salas na memória (server.mjs)
+src/lib/registro-redis.mjs       as salas no Redis (Vercel)
+src/app/api/sinal/route.ts       a sinalização como função da Vercel
 src/app/globals.css              o sistema visual (o do NVGHUB) + as peças daqui
 src/app/layout.tsx               só o documento: fontes e tokens
 src/app/(central)/layout.tsx     a telinha: trilhos + coluna de painéis

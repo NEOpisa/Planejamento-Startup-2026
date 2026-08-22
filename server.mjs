@@ -40,18 +40,11 @@
 import { createServer } from "node:http";
 import { createServer as createServerTLS } from "node:https";
 import { readFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
 import next from "next";
 import { WebSocketServer } from "ws";
 
-import {
-  PARA_CLIENTE,
-  PARA_SERVIDOR,
-  LIMITES,
-  limparNome,
-  limparSala,
-  limparSessao,
-} from "./src/lib/protocolo.mjs";
+import { criarSinalizacao } from "./src/lib/sinalizacao.mjs";
+import { criarRegistroMemoria } from "./src/lib/registro-memoria.mjs";
 import { BASE, CAMINHO_SINAL } from "./src/lib/base.mjs";
 
 const dev = process.env.NODE_ENV !== "production";
@@ -62,196 +55,14 @@ const app = next({ dev, hostname: host, port: porta });
 const paginas = app.getRequestHandler();
 
 /**
- * As salas, na memória.
+ * As salas vivem na memória deste processo.
  *
- * `Map<codigoDaSala, Map<idDoParticipante, Participante>>`. Não há
- * persistência de propósito: uma sala é uma conversa, e conversa que acabou
- * não precisa continuar existindo em disco.
+ * Aqui isso basta, e é o que torna este servidor barato: um processo só serve
+ * as páginas e a sinalização, e não há banco nenhum para manter. Na Vercel o
+ * mesmo protocolo roda com o registro em Redis, porque lá não existe "este
+ * processo" — ver `src/app/api/sinal/route.ts`.
  */
-const salas = new Map();
-
-/** @typedef {{id:string, nome:string, mudo:boolean, tela:boolean, ws:import("ws").WebSocket, sala:string, sessao:string, chatEm:number[]}} Participante */
-
-function envia(ws, tipo, corpo = {}) {
-  if (ws.readyState !== ws.OPEN) return;
-  ws.send(JSON.stringify({ tipo, ...corpo }));
-}
-
-/** Manda para todos da sala, menos (opcionalmente) um. */
-function difunde(sala, tipo, corpo, exceto = null) {
-  const gente = salas.get(sala);
-  if (!gente) return;
-  for (const p of gente.values()) {
-    if (p.id === exceto) continue;
-    envia(p.ws, tipo, corpo);
-  }
-}
-
-function publico(p) {
-  return { id: p.id, nome: p.nome, mudo: p.mudo, tela: p.tela };
-}
-
-function sair(p) {
-  if (!p?.sala) return;
-  const gente = salas.get(p.sala);
-  if (!gente) return;
-  gente.delete(p.id);
-  if (gente.size === 0) {
-    // Sala vazia é sala que não existe. Guardar o registro dela seria guardar
-    // uma lista crescente de nomes de sala para sempre, sem servir a ninguém.
-    salas.delete(p.sala);
-  } else {
-    difunde(p.sala, PARA_CLIENTE.SAIU, { id: p.id });
-  }
-}
-
-/**
- * Tira da sala a conexão anterior **da mesma aba**.
- *
- * Uma aba que volta — reconexão depois de queda de rede, recarga da página,
- * ou o remonte que o React faz em desenvolvimento — chega como uma conexão
- * nova, com identificador novo. Do lado do servidor não há como distinguir
- * isso de uma segunda pessoa, e a anterior fica na sala até a varredura de
- * trinta segundos derrubá-la. Nesse meio tempo todo mundo vê a pessoa duas
- * vezes, ela inclusive — que é o "aparecem dois eu" ao entrar numa sala.
- *
- * O `sessao` que a aba manda no `ENTRAR` é o que fecha esse buraco: mesma
- * aba, a antiga sai na hora.
- */
-function derrubarSessaoAnterior(gente, sala, sessao) {
-  if (!sessao) return;
-  for (const outro of [...gente.values()]) {
-    if (outro.sessao !== sessao) continue;
-    gente.delete(outro.id);
-    difunde(sala, PARA_CLIENTE.SAIU, { id: outro.id });
-    // Zera a sala antes de fechar: o `close` chama `sair`, e sem isto ele
-    // anunciaria a mesma saída de novo — e apagaria uma sala que acabou de
-    // receber gente.
-    outro.sala = "";
-    try {
-      outro.ws.close();
-    } catch {
-      /* já fechada */
-    }
-  }
-}
-
-function entrar(ws, dados) {
-  const sala = limparSala(dados.sala);
-  const nome = limparNome(dados.nome) || "anônimo";
-  const sessao = limparSessao(dados.sessao);
-
-  if (!sala) {
-    envia(ws, PARA_CLIENTE.ERRO, { motivo: "código de sala inválido" });
-    return null;
-  }
-
-  if (!salas.has(sala)) salas.set(sala, new Map());
-  const gente = salas.get(sala);
-
-  // Antes de contar o limite: a aba que volta não pode ocupar duas vagas.
-  derrubarSessaoAnterior(gente, sala, sessao);
-
-  if (gente.size >= LIMITES.POR_SALA) {
-    envia(ws, PARA_CLIENTE.ERRO, {
-      motivo:
-        `esta sala já está com ${LIMITES.POR_SALA} pessoas, que é o limite. ` +
-        `A conversa é direta entre os navegadores, e acima disso a conexão de ` +
-        `quem tem internet mais fraca começa a sofrer.`,
-    });
-    return null;
-  }
-
-  /** @type {Participante} */
-  const p = {
-    id: randomUUID(),
-    nome,
-    mudo: false,
-    tela: false,
-    ws,
-    sala,
-    sessao,
-    chatEm: [],
-  };
-
-  // A lista vai **antes** de anunciar a chegada: assim quem entra já sabe com
-  // quem falar, e quem estava lá recebe um `ENTROU` de alguém que a lista do
-  // recém-chegado já contempla. Na ordem inversa, dois entrando ao mesmo
-  // tempo podem não se ver.
-  envia(ws, PARA_CLIENTE.BEMVINDO, {
-    voceId: p.id,
-    sala,
-    participantes: [...gente.values()].map(publico),
-  });
-  gente.set(p.id, p);
-  difunde(sala, PARA_CLIENTE.ENTROU, publico(p), p.id);
-  return p;
-}
-
-/** Rajada de chat: janela deslizante de 10 s por conexão. */
-function podeFalar(p) {
-  const agora = Date.now();
-  p.chatEm = p.chatEm.filter((t) => agora - t < 10_000);
-  if (p.chatEm.length >= LIMITES.CHAT_RAJADA) return false;
-  p.chatEm.push(agora);
-  return true;
-}
-
-function aoReceber(estado, bruto) {
-  let msg;
-  try {
-    msg = JSON.parse(bruto);
-  } catch {
-    return; // lixo entra, lixo é ignorado — não vale derrubar a conexão
-  }
-  if (!msg || typeof msg.tipo !== "string") return;
-
-  // Antes de entrar, a única mensagem aceita é a de entrar.
-  if (!estado.p) {
-    if (msg.tipo === PARA_SERVIDOR.ENTRAR) estado.p = entrar(estado.ws, msg);
-    return;
-  }
-  const p = estado.p;
-
-  switch (msg.tipo) {
-    case PARA_SERVIDOR.PING:
-      envia(p.ws, PARA_CLIENTE.PONG);
-      break;
-
-    case PARA_SERVIDOR.SINAL: {
-      // O servidor não lê o conteúdo do sinal — ele é assunto entre os dois
-      // navegadores. O que ele garante é a **origem**: `de` é preenchido aqui,
-      // e não aceito do cliente, senão qualquer um poderia se passar por
-      // qualquer um dentro da sala.
-      const alvo = salas.get(p.sala)?.get(msg.para);
-      if (alvo) envia(alvo.ws, PARA_CLIENTE.SINAL, { de: p.id, dados: msg.dados });
-      break;
-    }
-
-    case PARA_SERVIDOR.CHAT: {
-      const texto = String(msg.texto ?? "").slice(0, LIMITES.CHAT).trim();
-      if (!texto || !podeFalar(p)) break;
-      difunde(p.sala, PARA_CLIENTE.CHAT, {
-        de: p.id,
-        nome: p.nome,
-        texto,
-        em: Date.now(),
-      });
-      break;
-    }
-
-    case PARA_SERVIDOR.ESTADO: {
-      if (typeof msg.mudo === "boolean") p.mudo = msg.mudo;
-      if (typeof msg.tela === "boolean") p.tela = msg.tela;
-      difunde(p.sala, PARA_CLIENTE.ESTADO, {
-        id: p.id,
-        mudo: p.mudo,
-        tela: p.tela,
-      });
-      break;
-    }
-  }
-}
+const sinalizacao = criarSinalizacao(criarRegistroMemoria());
 
 await app.prepare();
 
@@ -278,22 +89,59 @@ const http = comTLS
       (req, res) => paginas(req, res),
     )
   : createServer((req, res) => paginas(req, res));
+/**
+ * Quem atende o `upgrade` — e por que isso precisa de cuidado.
+ *
+ * O Next instala **o próprio** tratador de `upgrade` no servidor HTTP na
+ * primeira requisição que atende (ele usa isso para o recarregamento em
+ * desenvolvimento). A partir daí, todo pedido de WebSocket passa pelos dois:
+ * o nosso aceita a conexão da sala, o dele não reconhece o caminho e destrói
+ * o socket em seguida. O sintoma é dos bons: a sala funciona enquanto ninguém
+ * abriu uma página, e para de funcionar depois da primeira — a conexão abre e
+ * cai na mesma hora, com o código 1006 e nenhuma mensagem em lugar nenhum.
+ *
+ * Então o despacho é nosso: guardamos o que o Next quiser registrar e
+ * decidimos, por caminho, quem atende. `/NVDISC/sinal` é da sala; o resto
+ * segue para ele.
+ */
+const upgradesDoNext = [];
+const registrar = http.on.bind(http);
+for (const metodo of ["on", "addListener", "prependListener"]) {
+  http[metodo] = (evento, ouvinte) => {
+    if (evento === "upgrade") {
+      upgradesDoNext.push(ouvinte);
+      return http;
+    }
+    return registrar(evento, ouvinte);
+  };
+}
+
 // O caminho do WebSocket carrega o mesmo prefixo das páginas. Se ele ficasse
 // em `/sinal` fixo enquanto o site vive em `/NVDISC`, o proxy da frente
 // entregaria a página e engoliria a conexão — e o sintoma seria "entrei na
 // sala e não vejo ninguém", sem nada no log do navegador que explique.
-const wss = new WebSocketServer({ server: http, path: CAMINHO_SINAL });
+const wss = new WebSocketServer({ noServer: true });
+
+registrar("upgrade", (req, socket, head) => {
+  const caminho = (req.url ?? "").split("?")[0];
+  if (caminho === CAMINHO_SINAL) {
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+    return;
+  }
+  for (const ouvinte of upgradesDoNext) ouvinte(req, socket, head);
+  if (upgradesDoNext.length === 0) socket.destroy();
+});
 
 wss.on("connection", (ws) => {
-  const estado = { ws, p: null, vivo: true };
-  ws.on("message", (bruto) => aoReceber(estado, bruto));
+  const sessao = sinalizacao.aoConectar(ws);
+  const estado = { vivo: true };
+  ws.on("message", (bruto) => void sessao.aoReceber(bruto));
   ws.on("pong", () => (estado.vivo = true));
-  ws.on("close", () => sair(estado.p));
+  ws.on("close", () => void sessao.aoFechar());
   // Uma conexão que morre sem avisar (notebook fechado, Wi-Fi caiu) deixaria
   // um fantasma na lista de participantes para sempre. O erro é tratado como
   // fechamento normal.
-  ws.on("error", () => sair(estado.p));
-  estado.ws = ws;
+  ws.on("error", () => void sessao.aoFechar());
   ws._estado = estado;
 });
 

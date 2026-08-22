@@ -570,12 +570,18 @@ export class Malha {
 
     this.religar = setTimeout(() => {
       this.religar = undefined;
-      // Ao voltar, o servidor dá um identificador novo — para os outros, é
-      // uma pessoa nova entrando. As conexões antigas não servem mais e são
-      // desfeitas aqui, senão ficariam penduradas consumindo memória.
-      for (const id of [...this.pares.keys()]) this.fecharPar(id);
-      this.estado.participantes = [];
-      this.avisar();
+      // **As conexões de áudio ficam de pé.**
+      //
+      // Elas não passam pelo servidor: são diretas entre os navegadores, e a
+      // queda da sinalização não as afeta em nada. Desfazê-las aqui — que era
+      // o que este trecho fazia — cortava a voz de todo mundo a cada
+      // reconexão, e é o que tornaria a sala inutilizável numa hospedagem que
+      // derruba a conexão de tempos em tempos por projeto (a Vercel corta a
+      // função em cinco minutos).
+      //
+      // O que torna isso possível é o identificador do participante ser a
+      // aba, e não a conexão: quem volta volta com o mesmo nome de sempre, e
+      // os pares continuam válidos.
       this.abrirSinalizacao();
     }, espera);
   }
@@ -626,11 +632,24 @@ export class Malha {
         this.estado.erro = null;
         if (this.tentativa > 0) this.sistema("conexão restabelecida.");
         const gente = msg.participantes as Omit<Participante, "volume" | "conexao">[];
-        this.estado.participantes = gente.map((p) => ({
-          ...p,
-          volume: 0,
-          conexao: "aguardando" as const,
-        }));
+        // Numa reconexão a lista chega de novo, e as pessoas dela podem já
+        // estar aqui, com áudio tocando. O que veio do servidor é o cadastro
+        // (nome, microfone, tela); o que já existe é a mídia — e ela não se
+        // recria só porque a sinalização piscou.
+        this.estado.participantes = gente.map((p) => {
+          const antes = this.acha(p.id);
+          return {
+            ...p,
+            audio: antes?.audio,
+            video: antes?.video,
+            volume: antes?.volume ?? 0,
+            conexao: antes?.conexao ?? ("aguardando" as const),
+          };
+        });
+        // Quem sumiu da lista enquanto estávamos fora saiu de verdade.
+        for (const id of [...this.pares.keys()]) {
+          if (!gente.some((p) => p.id === id)) this.fecharPar(id);
+        }
         // Quem chega liga para quem já estava. O contrário faria os dois lados
         // ligarem ao mesmo tempo para cada novo participante.
         for (const p of gente) await this.abrirPar(p.id, true);
@@ -1158,6 +1177,10 @@ export class Malha {
 
   sair() {
     this.fechando = true;
+    // Avisa que a saída é de propósito: sem isto o servidor não tem como
+    // distinguir "fechei a aba" de "a conexão caiu e já volto", e teria de
+    // esperar a carência antes de tirar você da lista dos outros.
+    this.manda(PARA_SERVIDOR.SAIR);
     cancelAnimationFrame(this.quadro);
     if (this.apurar) clearTimeout(this.apurar);
     if (this.pingTimer) clearInterval(this.pingTimer);

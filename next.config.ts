@@ -13,6 +13,18 @@ const nextConfig: NextConfig = {
    * não tem nada a ver com isso.
    */
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
+  /**
+   * O caminho da sinalização é o mesmo nas duas casas.
+   *
+   * Com o `server.mjs`, `/NVDISC/sinal` é atendido pelo próprio processo e
+   * nunca chega ao Next. Na Vercel, ele cai aqui e é reescrito para a rota de
+   * função que faz o upgrade do WebSocket. O cliente não precisa saber onde
+   * está rodando — e, principalmente, não há um segundo endereço para lembrar
+   * de configurar em cada ambiente.
+   */
+  async rewrites() {
+    return [{ source: "/NVDISC/sinal", destination: "/api/sinal" }];
+  },
   async redirects() {
     return [{ source: "/calculadora", destination: "/calculadora.html", permanent: false }];
   },

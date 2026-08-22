@@ -29,6 +29,15 @@ export const PARA_SERVIDOR = {
   ESTADO: "estado",
   /** sem corpo — mantém a conexão viva atrás de proxies */
   PING: "ping",
+  /**
+   * sem corpo — "estou saindo de verdade"
+   *
+   * Fechar o socket não diz por quê: pode ser a pessoa fechando a aba ou a
+   * hospedagem cortando a função no teto de duração. A primeira tem de sumir
+   * da sala na hora; a segunda vai voltar em um segundo e não pode fazer os
+   * outros derrubarem a chamada. Esta mensagem separa as duas.
+   */
+  SAIR: "sair",
 };
 
 /** Servidor → cliente */

@@ -8,9 +8,12 @@
     "start": "NODE_ENV=production node server.mjs",
     "test": "node scripts/teste.mjs",
     "test:navegador": "node scripts/teste-navegador.mjs",
-    "cert": "node scripts/certificado.mjs"
+    "cert": "node scripts/certificado.mjs",
+    "test:redis": "node scripts/teste-redis.mjs"
   },
   "dependencies": {
+    "@vercel/functions": "^3.9.5",
+    "ioredis": "^6.0.0",
     "next": "^15.3.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -20,8 +23,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "typescript": "^5",
-    "@types/ws": "^8.5.13"
+    "@types/ws": "^8.5.13",
+    "typescript": "^5"
   },
   "type": "module"
 }
