@@ -304,11 +304,78 @@ type Medidor = {
  */
 let contextoUnico: AudioContext | null = null;
 
+/**
+ * Os gestos que o Chrome aceita como "a pessoa quis".
+ *
+ * Mover o mouse não conta, e nem devia: a política existe para impedir que
+ * uma página faça barulho sozinha. Clique, tecla e toque cobrem tudo o que
+ * alguém faz numa sala de conversa.
+ */
+const GESTOS = ["pointerdown", "keydown", "touchend"] as const;
+
+let destravando = false;
+
+/**
+ * Espera um gesto para soltar o áudio.
+ *
+ * **O Chrome entrega o `AudioContext` suspenso.** A política de autoplay vale
+ * para ele como vale para um `<audio>`, e a ativação do usuário **não
+ * atravessa a navegação**: clicar "entrar" na página de fora não conta como
+ * gesto no documento da sala. O `Som` aqui do lado já tratava isso para a
+ * reprodução, com o botão "ouvir fulano" — o contexto ficou de fora.
+ *
+ * O estrago é caro e mudo, e é por isso que ele passou:
+ *
+ * - o medidor mede zero, então o anel de "está falando" nunca acende e a
+ *   pessoa conclui que o microfone dela morreu;
+ * - com a supressão em `forte`, a porta de ruído lê esse zero e fica fechada
+ *   para sempre — aí não é só o anel, é a voz mesmo que não sai;
+ * - compartilhando tela com som, a mistura sai de um `MediaStreamDestination`
+ *   parado, que é silêncio digital puro.
+ *
+ * No Firefox nada disso aparece: ele deixa o contexto rodar. Daí o defeito
+ * ser "não funciona no Chrome".
+ *
+ * `resume()` sem gesto não lança — fica pendente. Não dá para descobrir se
+ * deu certo pelo `catch`; o que vale é o `state` depois.
+ */
+function destravarAudio() {
+  if (destravando || typeof window === "undefined") return;
+  destravando = true;
+
+  const soltar = () => {
+    for (const ev of GESTOS) window.removeEventListener(ev, tentar);
+    document.removeEventListener("visibilitychange", tentar);
+    destravando = false;
+  };
+
+  const tentar = () => {
+    const c = contextoUnico;
+    if (!c) return soltar();
+    void c.resume().then(
+      () => {
+        if (c.state === "running") soltar();
+      },
+      () => {
+        /* ainda sem permissão: o próximo gesto tenta de novo */
+      },
+    );
+  };
+
+  for (const ev of GESTOS) window.addEventListener(ev, tentar, { passive: true });
+  // Voltar para a aba também é hora de tentar: o navegador suspende o
+  // contexto quando ela perde o foco, e aí não há gesto nenhum a esperar.
+  document.addEventListener("visibilitychange", tentar);
+}
+
 function contextoDeAudio(): AudioContext {
   if (!contextoUnico) contextoUnico = new AudioContext({ sampleRate: 48000 });
-  // Navegador suspende o contexto quando a aba perde o foco; retomar aqui
-  // evita o indicador de fala congelar ao voltar para a aba.
-  if (contextoUnico.state === "suspended") void contextoUnico.resume();
+  if (contextoUnico.state === "suspended") {
+    void contextoUnico.resume();
+    // Se o `resume()` acima ficar pendente — que é o que acontece no Chrome
+    // sem gesto —, isto garante que o primeiro clique na sala resolve.
+    destravarAudio();
+  }
   return contextoUnico;
 }
 
@@ -451,6 +518,8 @@ function montarCadeia(
   if (!comPorta && comSom.length === 0) return null;
 
   const contexto = contextoDeAudio();
+  // A mistura sai daqui: com o contexto suspenso esta faixa é silêncio, e
+  // ninguém ouviria nada sem um único erro no console.
   const destino = contexto.createMediaStreamDestination();
   const desfazer: (() => void)[] = [];
   let porta: GainNode | null = null;
@@ -667,6 +736,23 @@ export class Malha {
     const porta = this.cadeia?.porta;
     if (!porta) return;
     const contexto = porta.context;
+    /**
+     * Contexto parado é medidor medindo zero — e zero, para a porta, quer
+     * dizer "ninguém está falando". Ela fecharia e ficaria fechada, que é
+     * silêncio absoluto em vez de "abafa o ventilador".
+     *
+     * Enquanto ele não roda, a porta fica **aberta**. Deixar passar um ruído
+     * de fundo é um defeito pequeno e audível; deixar de passar a voz é um
+     * defeito grande e invisível, e entre os dois a escolha não é difícil.
+     */
+    if (contexto.state !== "running") {
+      // Limpar o agendamento antes: uma transição marcada por
+      // `setTargetAtTime` ainda pendente voltaria a fechar a porta assim que
+      // o contexto retomasse.
+      porta.gain.cancelScheduledValues(contexto.currentTime);
+      porta.gain.value = this.estado.mudo ? 0 : 1;
+      return;
+    }
     const falando = nivelBruto(this.meuMedidor) > LIMIAR_DA_PORTA;
     const alvo = falando && !this.estado.mudo ? 1 : 0;
     // `setTargetAtTime` faz a transição no próprio motor de áudio, sem
