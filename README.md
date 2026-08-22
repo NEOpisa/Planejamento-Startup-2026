@@ -65,22 +65,14 @@ ignora o pedido em qualquer situação — o `getDisplayMedia({audio:true})` nun
 foi implementado lá. O Chrome entrega, e só quando se compartilha **uma aba**
 com a caixa de áudio marcada: tela inteira e janela vêm mudas.
 
-Por isso existe **Qualidade → Som do computador**. A placa de som expõe a
-própria saída como se fosse uma entrada — "Monitor of…" no Linux, "Stereo Mix"
-ou "What U Hear" no Windows —, e capturar essa entrada é ouvir o que a máquina
-está tocando. Funciona em qualquer navegador, com a tela inteira, e é o
-caminho para quem usa Firefox.
+Quando o áudio vem, ele vai **misturado à sua voz, numa faixa só**. Mandá-lo
+separado obrigaria a renegociar a conexão com todo mundo bem no momento em que
+alguém aperta "compartilhar", que é onde uma malha costuma quebrar — e essa é
+a mesma razão de o transceptor de vídeo nascer pronto e vazio.
 
-Ele vai **misturado à sua voz, numa faixa só**: mandar o som separado
-obrigaria a renegociar a conexão com todo mundo bem no momento em que alguém
-aperta "compartilhar", que é onde uma malha costuma quebrar.
-
-**Use fone quando ligar isso.** Sem fone, o som que sai pelo alto-falante volta
-pelo microfone e vira eco para a sala inteira.
-
-Sem ninguém compartilhando, **as pessoas ocupam o meio da tela**, com o contorno
-acendendo em quem fala. Quando alguém compartilha, elas recolhem para uma faixa
-embaixo e a tela toma o palco.
+Quando não vem, a sala diz isso no chat na hora. É melhor saber ao apertar o
+botão do que descobrir pelo outro lado avisando que o vídeo está mudo dez
+minutos depois.
 
 ### A central passou a ter servidor próprio
 

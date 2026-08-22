@@ -131,19 +131,6 @@ export type Qualidade = {
    * é ótimo; numa roda em que gente ri junto, incomoda.
    */
   ruido: "desligado" | "padrao" | "forte";
-  /**
-   * De onde vem o som do computador, quando se quer mandá-lo junto.
-   *
-   * `null` é o padrão: só o microfone (mais o áudio da captura de tela,
-   * quando o navegador entrega — o que hoje só o Chrome faz, e só para aba).
-   *
-   * Um `deviceId` aqui é o caminho que funciona **em qualquer navegador**,
-   * inclusive Firefox, e para a tela inteira: no Linux e no Windows, a placa
-   * de som expõe a própria saída como se fosse uma entrada — "Monitor of…",
-   * "Stereo Mix", "What U Hear". Capturar essa entrada é ouvir o que o
-   * computador está tocando.
-   */
-  somDoComputador: string | null;
   /** altura da tela transmitida; 0 = como está no monitor */
   resolucao: 0 | 720 | 1080 | 1440 | 2160;
   fps: 30 | 60;
@@ -162,7 +149,6 @@ export type Qualidade = {
 export const QUALIDADE_PADRAO: Qualidade = {
   audio: "voz",
   ruido: "padrao",
-  somDoComputador: null,
   resolucao: 1080,
   fps: 30,
   perfil: "nitidez",
@@ -505,7 +491,6 @@ export class Malha {
   private pares = new Map<string, Par>();
   private meuFluxo: MediaStream | null = null;
   private fluxoTela: MediaStream | null = null;
-  private fluxoComputador: MediaStream | null = null;
   private meuMedidor?: Medidor;
   private cadeia: Cadeia | null = null;
   private quadro = 0;
@@ -607,11 +592,7 @@ export class Malha {
   private async refazerCadeia() {
     const comPorta = this.estado.qualidade.ruido === "forte";
     this.cadeia?.desmontar();
-    this.cadeia = montarCadeia(
-      this.meuFluxo,
-      [this.fluxoTela, this.fluxoComputador],
-      comPorta,
-    );
+    this.cadeia = montarCadeia(this.meuFluxo, [this.fluxoTela], comPorta);
     await this.trocarVoz();
   }
 
@@ -625,65 +606,6 @@ export class Malha {
       } catch {
         /* conexão indo embora */
       }
-    }
-  }
-
-  /**
-   * As entradas de som que este computador oferece.
-   *
-   * Interessa uma em especial: a que devolve o que está **saindo** pelos
-   * alto-falantes. No Linux ela aparece como "Monitor of …", no Windows como
-   * "Stereo Mix" ou "What U Hear". É por ela que se manda o som de um vídeo
-   * compartilhado quando o navegador não entrega o áudio da captura de tela —
-   * que é o caso do Firefox em qualquer situação, e do Chrome fora da
-   * partilha de aba.
-   *
-   * Os rótulos só existem depois de a permissão de microfone ter sido dada;
-   * antes disso o navegador devolve a lista com os nomes em branco, de
-   * propósito, para o site não conseguir identificar a máquina.
-   */
-  async fontesDeSom(): Promise<{ id: string; nome: string; monitor: boolean }[]> {
-    try {
-      const todos = await navigator.mediaDevices.enumerateDevices();
-      return todos
-        .filter((d) => d.kind === "audioinput" && d.deviceId)
-        .map((d) => ({
-          id: d.deviceId,
-          nome: d.label || "entrada sem nome",
-          monitor: /monitor|loopback|stereo mix|what u hear|mixagem/i.test(d.label),
-        }));
-    } catch {
-      return [];
-    }
-  }
-
-  /**
-   * Liga (ou desliga) a captura do som do computador.
-   *
-   * Sem processamento nenhum: supressão de ruído e ganho automático foram
-   * feitos para voz e destroem música — e o que passa por aqui costuma ser
-   * exatamente isso, um vídeo ou uma música que se quer mostrar.
-   */
-  private async abrirSomDoComputador(deviceId: string | null) {
-    this.fluxoComputador?.getTracks().forEach((f) => f.stop());
-    this.fluxoComputador = null;
-    if (!deviceId) return;
-    try {
-      this.fluxoComputador = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: { exact: deviceId },
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          channelCount: 2,
-        },
-        video: false,
-      });
-    } catch {
-      this.estado.erro =
-        "não consegui abrir essa entrada de som. Se ela for o monitor da saída, " +
-        "confira se o sistema permite gravá-la.";
-      this.avisar();
     }
   }
 
@@ -1410,12 +1332,8 @@ export class Malha {
       }
     }
 
-    // O som do computador entra e sai sem tocar no microfone.
-    if (q.somDoComputador !== undefined && q.somDoComputador !== antes.somDoComputador) {
-      await this.abrirSomDoComputador(depois.somDoComputador);
-      await this.refazerCadeia();
-    } else if (q.ruido !== undefined && q.ruido !== antes.ruido && !mudouCaptura) {
-      // A porta liga e desliga sem tocar no microfone.
+    // A porta liga e desliga sem tocar no microfone.
+    if (q.ruido !== undefined && q.ruido !== antes.ruido && !mudouCaptura) {
       await this.refazerCadeia();
     }
 
@@ -1479,9 +1397,9 @@ export class Malha {
         // Dizer isto na hora poupa a descoberta pelo pior caminho, que é o
         // outro lado avisando que o vídeo está mudo depois de dez minutos.
         this.sistema(
-          "esta captura veio sem som — o Firefox nunca manda áudio de tela, e o " +
-            "Chrome só na partilha de aba. Para o som ir junto de qualquer jeito, " +
-            "abra Qualidade e escolha o som do computador.",
+          "esta captura veio sem som. O áudio só acompanha no Chrome, ao " +
+            "compartilhar **uma aba** com a caixa de áudio marcada — tela inteira " +
+            "e janela não levam som, e o Firefox não leva em caso nenhum.",
         );
       }
       this.estado.tela = true;
@@ -1588,7 +1506,6 @@ export class Malha {
     for (const id of [...this.pares.keys()]) this.fecharPar(id);
     this.meuFluxo?.getTracks().forEach((f) => f.stop());
     this.fluxoTela?.getTracks().forEach((f) => f.stop());
-    this.fluxoComputador?.getTracks().forEach((f) => f.stop());
     try {
       this.ws?.close();
       void this.supabase?.fechar();

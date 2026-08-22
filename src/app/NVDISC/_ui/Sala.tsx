@@ -103,25 +103,6 @@ export default function Sala({ sala }: { sala: string }) {
     return () => window.removeEventListener("keydown", tecla);
   }, [estado.mudo]);
 
-  /**
-   * As entradas de som da máquina.
-   *
-   * Buscadas **depois** de a malha ter pedido o microfone: antes disso o
-   * navegador devolve a lista com os rótulos em branco, e uma lista de
-   * "entrada sem nome" não ajuda ninguém a achar o monitor da saída.
-   */
-  const [fontes, setFontes] = useState<{ id: string; nome: string; monitor: boolean }[]>([]);
-  useEffect(() => {
-    if (!estado.voceId) return;
-    let vivo = true;
-    void malha.current?.fontesDeSom().then((lista) => {
-      if (vivo) setFontes(lista);
-    });
-    return () => {
-      vivo = false;
-    };
-  }, [estado.voceId]);
-
   // No celular o chat vive escondido; o contador existe para a pessoa saber que
   // perdeu alguma coisa sem precisar abrir para conferir.
   const ultimaVista = useRef(0);
@@ -172,7 +153,6 @@ export default function Sala({ sala }: { sala: string }) {
       </div>
 
       <Controles
-        fontes={fontes}
         estado={estado}
         onMudo={() => malha.current?.mudo(!estado.mudo)}
         onTela={() => void malha.current?.alternarTela()}
@@ -651,13 +631,11 @@ function Controles({
   onMudo,
   onTela,
   onQualidade,
-  fontes,
 }: {
   estado: EstadoMalha;
   onMudo: () => void;
   onTela: () => void;
   onQualidade: (q: Partial<Qualidade>) => void;
-  fontes: { id: string; nome: string; monitor: boolean }[];
 }) {
   const [aberto, setAberto] = useState(false);
 
@@ -668,7 +646,6 @@ function Controles({
           q={estado.qualidade}
           onQualidade={onQualidade}
           onFechar={() => setAberto(false)}
-          fontes={fontes}
         />
       )}
 
@@ -703,14 +680,11 @@ function PainelQualidade({
   q,
   onQualidade,
   onFechar,
-  fontes,
 }: {
   q: Qualidade;
   onQualidade: (q: Partial<Qualidade>) => void;
   onFechar: () => void;
-  fontes: { id: string; nome: string; monitor: boolean }[];
 }) {
-  const sugerida = fontes.find((f) => f.monitor);
   return (
     <div className="nv-painel nv-cantos">
       <header>
@@ -754,37 +728,6 @@ function PainelQualidade({
             : q.ruido === "padrao"
               ? "O supressor do navegador tira ventilador, teclado e chiado sem encostar na voz. Serve para quase todo mundo."
               : "Além do supressor, o microfone fica fechado enquanto você não fala. Resolve obra na rua e cachorro no quintal — e cobra: começo de palavra dita baixinho pode se perder, e respiração some."}
-        </p>
-      </div>
-
-      <div className="grupo">
-        <span className="nv-rotulo">Som do computador</span>
-        <div className="nv-opcoes">
-          <button
-            className={`nv-opcao${q.somDoComputador === null ? " ativa" : ""}`}
-            onClick={() => onQualidade({ somDoComputador: null })}
-          >
-            Não enviar
-          </button>
-          {fontes
-            .filter((f) => f.monitor || f.id === q.somDoComputador)
-            .map((f) => (
-              <button
-                key={f.id}
-                className={`nv-opcao${q.somDoComputador === f.id ? " ativa" : ""}`}
-                onClick={() => onQualidade({ somDoComputador: f.id })}
-                title={f.nome}
-              >
-                {f.nome.replace(/^Monitor of /i, "").slice(0, 28)}
-              </button>
-            ))}
-        </div>
-        <p className="nv-nota" style={{ marginTop: 8 }}>
-          {q.somDoComputador
-            ? "O que o computador estiver tocando vai junto com a sua voz. Use fone: sem ele, o som volta pelo microfone e vira eco para todo mundo."
-            : sugerida
-              ? "Para o vídeo que você compartilha ter som, mande a saída do computador junto. O Firefox nunca envia o áudio da captura de tela, e o Chrome só na partilha de aba — este caminho funciona nos dois, e com a tela inteira."
-              : "Nenhuma entrada de monitor foi encontrada. No Linux ela costuma aparecer como \"Monitor of…\" depois que o navegador tem permissão de microfone; no Windows, como \"Stereo Mix\" (às vezes é preciso habilitá-la nas opções de som)."}
         </p>
       </div>
 
