@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="260 290 760 560" role="img" aria-label="NEOVANGUARD">
+  <!-- GERADO por scripts/marca.mjs a partir de src/lib/v-malha.json.
+       Não edite à mão: rode o script.
+
+       O vetor da marca sem campo e sem extrusão, para uso inline no site
+       (trilho esquerdo, barra mobile, reserva do 3D). A 30px de altura a
+       extrusão não desenha relevo — só engrossa a peça e suja o entalhe.
+
+       Os degradês são os mesmos do avatar e em espaço de usuário, então a
+       luz atravessa as duas metades como uma luz só, igual ao resto do
+       sistema. -->
+  <defs>
+    <linearGradient id="nv-lamina" gradientUnits="userSpaceOnUse" x1="300" y1="300" x2="1000" y2="850">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.36" stop-color="#dbe5fc"/>
+      <stop offset="0.72" stop-color="#9dbaf5"/>
+      <stop offset="1" stop-color="#6495ED"/>
+    </linearGradient>
+    <linearGradient id="nv-esmalte" gradientUnits="userSpaceOnUse" x1="300" y1="300" x2="1000" y2="850">
+      <stop offset="0" stop-color="#4f7ce8"/>
+      <stop offset="0.5" stop-color="#2b54e3"/>
+      <stop offset="1" stop-color="#0000CD"/>
+    </linearGradient>
+  </defs>
+
+  <g fill="url(#nv-lamina)">
+    <path d="M492 306 L278 369 L424 578 L350 409 L477 377 L640 830 L520 308 Z"/>
+    <path d="M788 306 L1002 369 L856 578 L930 409 L803 377 L640 830 L760 308 Z"/>
+  </g>
+  <g fill="url(#nv-esmalte)">
+    <path d="M520 308 L577 348 L629 782 Z"/>
+    <path d="M760 308 L703 348 L651 782 Z"/>
+    <path d="M477 377 L350 409 L424 578 L396 421 L485 404 Z"/>
+    <path d="M803 377 L930 409 L856 578 L884 421 L795 404 Z"/>
+  </g>
+</svg>

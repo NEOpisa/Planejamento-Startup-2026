@@ -5,28 +5,37 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Neovanguard · Calculadora de Precificação (uso interno)</title>
 <style>
+  /* Os tokens são os do sistema único da casa (o mesmo do NVGHUB e da
+     central): MediumBlue de área, CornflowerBlue de detalhe, superfícies
+     arredondadas sobre quase-preto. Ficam repetidos aqui, e não importados,
+     porque esta calculadora é um arquivo só e precisa abrir offline — um
+     `@import` a deixaria sem cor no primeiro voo de avião. */
   :root{
-    --bg:#050408; --bg-2:#07050d;
-    --card-surface:rgba(9,7,15,.93);
-    --card-hairline:rgba(167,139,250,.18);
-    --card-hairline-hover:rgba(139,92,246,.55);
-    --accent:#8b5cf6; --accent-hover:#7c3aed; --accent-light:#a78bfa;
-    --accent-subtle:rgba(139,92,246,.12);
-    --txt:#f0f0f0; --txt-2:#b4b4b4; --txt-3:#8c8c8c;
-    --ok:#34d399; --warn:#fbbf24; --danger:#f87171;
-    --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+    --bg:#06070b; --bg-2:#0e1017;
+    --card-surface:#0e1017;
+    --card-hairline:rgba(255,255,255,.09);
+    --card-hairline-hover:rgba(100,149,237,.45);
+    /* azul de ÁREA (fundo de botão, com texto branco por cima) */
+    --accent:#2a4dc5; --accent-hover:#0a0aa4;
+    /* azul de DETALHE (texto, filete e contorno sobre fundo escuro) */
+    --accent-light:#6495ed;
+    --accent-subtle:rgba(100,149,237,.10);
+    --txt:#eef1f7; --txt-2:#aeb7c9; --txt-3:#98a2b8;
+    --ok:#3ef08a; --warn:#f4b74a; --danger:#f87171;
+    --r:14px; --r-sm:10px;
+    --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box}
   html,body{margin:0}
   body{
     color:var(--txt);
-    font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    font-family:"Plus Jakarta Sans",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
     background:
-      radial-gradient(1100px 560px at 82% -8%, rgba(139,92,246,.12), transparent 60%),
-      radial-gradient(820px 480px at -8% 18%, rgba(124,58,237,.10), transparent 55%),
-      linear-gradient(rgba(139,92,246,.026) 1px, transparent 1px) 0 0/40px 40px,
-      linear-gradient(90deg, rgba(139,92,246,.026) 1px, transparent 1px) 0 0/40px 40px,
+      radial-gradient(1100px 560px at 82% -8%, rgba(42,77,197,.16), transparent 60%),
+      radial-gradient(820px 480px at -8% 18%, rgba(100,149,237,.08), transparent 55%),
+      linear-gradient(rgba(100,149,237,.022) 1px, transparent 1px) 0 0/40px 40px,
+      linear-gradient(90deg, rgba(100,149,237,.022) 1px, transparent 1px) 0 0/40px 40px,
       var(--bg);
   }
   a{color:var(--accent-light)}
@@ -34,23 +43,20 @@
 
   header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
   .brand{display:flex;align-items:center;gap:12px}
-  .logo{width:34px;height:34px;border:1.5px solid var(--accent);display:grid;place-items:center;color:var(--accent-light);font-weight:800;box-shadow:inset 0 0 22px rgba(139,92,246,.25)}
-  .brand h1{font-size:15px;margin:0;letter-spacing:.02em}
+  .logo{width:26px;height:26px;color:var(--accent-light)}
+  .brand h1{font-size:17px;margin:0;font-weight:700;letter-spacing:-.03em}
   .brand h1 b{color:var(--accent-light)}
   .eyebrow{color:var(--txt-3);font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;margin-top:3px}
   .badge{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--warn);border:1px solid rgba(251,191,36,.4);padding:6px 11px;background:rgba(251,191,36,.06)}
 
+  /* Painel do sistema: raio e filete de 1 px. Os oito gradientes que
+     desenhavam um colchete em cada quina saíram junto com a paleta antiga —
+     o material e o raio já dizem "cartão", e as duas gramáticas juntas
+     fariam a calculadora parecer de outra casa. */
   .card{
     background-color:var(--card-surface);
-    background-image:
-      linear-gradient(rgba(139,92,246,.65),rgba(139,92,246,.65)),linear-gradient(rgba(139,92,246,.65),rgba(139,92,246,.65)),
-      linear-gradient(rgba(139,92,246,.65),rgba(139,92,246,.65)),linear-gradient(rgba(139,92,246,.65),rgba(139,92,246,.65)),
-      linear-gradient(rgba(139,92,246,.65),rgba(139,92,246,.65)),linear-gradient(rgba(139,92,246,.65),rgba(139,92,246,.65)),
-      linear-gradient(rgba(139,92,246,.65),rgba(139,92,246,.65)),linear-gradient(rgba(139,92,246,.65),rgba(139,92,246,.65));
-    background-repeat:no-repeat;
-    background-size:14px 1px,1px 14px,14px 1px,1px 14px,14px 1px,1px 14px,14px 1px,1px 14px;
-    background-position:left top,left top,right top,right top,left bottom,left bottom,right bottom,right bottom;
-    border:1px solid var(--card-hairline);border-left:2px solid rgba(139,92,246,.45);
+    border:1px solid var(--card-hairline);
+    border-radius:var(--r);
     padding:18px;margin-bottom:16px;
   }
   .card > .eb{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-light);margin:0 0 4px;font-family:var(--mono)}
@@ -58,9 +64,9 @@
   .card .hint{color:var(--txt-3);font-size:12.5px;margin:0 0 14px}
 
   .bases{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:10px}
-  .base{background-color:var(--card-surface);border:1px solid var(--card-hairline);border-left:2px solid rgba(139,92,246,.45);padding:12px;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .2s}
-  .base:hover{border-color:var(--card-hairline-hover);transform:translateY(-2px);box-shadow:0 0 0 1px rgba(139,92,246,.15),0 16px 40px -20px rgba(124,58,237,.6)}
-  .base.on{border-color:var(--accent);background-color:rgba(139,92,246,.10);box-shadow:0 0 0 1px var(--accent)}
+  .base{background-color:var(--card-surface);border:1px solid var(--card-hairline);border-left:2px solid rgba(100,149,237,.45);padding:12px;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .2s}
+  .base:hover{border-color:var(--card-hairline-hover);transform:translateY(-2px);box-shadow:0 0 0 1px rgba(100,149,237,.15),0 16px 40px -20px rgba(42,77,197,.6)}
+  .base.on{border-color:var(--accent-light);background-color:rgba(100,149,237,.10);box-shadow:0 0 0 1px var(--accent-light)}
   .base .n{font-weight:800;font-size:13.5px}
   .base .p{font-family:var(--mono);color:var(--accent-light);font-size:12.5px;margin-top:4px}
   .base .d{color:var(--txt-3);font-size:11px;margin-top:6px;line-height:1.35}
@@ -68,7 +74,7 @@
   .presets{display:flex;gap:8px;flex-wrap:wrap}
   .chip{border:1px solid var(--card-hairline);padding:8px 13px;cursor:pointer;font-size:13px;transition:.15s;user-select:none;background-color:var(--card-surface);white-space:nowrap}
   .chip:hover{border-color:var(--card-hairline-hover)}
-  .chip.on{border-color:var(--accent);background-color:var(--accent-subtle);color:var(--accent-light)}
+  .chip.on{border-color:var(--accent-light);background-color:var(--accent-subtle);color:var(--accent-light)}
   .chip .mx,.chip .ct{font-family:var(--mono);font-size:11px;color:var(--txt-3);margin-left:6px}
   .chip.on .mx,.chip.on .ct{color:var(--accent-light)}
   .rowsel{display:flex;gap:8px;flex-wrap:wrap}
@@ -76,8 +82,8 @@
   /* lupa de pesquisa */
   .searchbar{position:relative;display:flex;align-items:center;margin-bottom:10px}
   .searchbar svg.lupa{position:absolute;left:11px;width:16px;height:16px;color:var(--accent-light);pointer-events:none}
-  .search{width:100%;background-color:rgba(139,92,246,.05);border:1px solid var(--card-hairline);color:var(--txt);padding:11px 38px 11px 36px;font-size:13.5px;border-left:2px solid rgba(139,92,246,.45)}
-  .search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px rgba(139,92,246,.35)}
+  .search{width:100%;background-color:rgba(100,149,237,.05);border:1px solid var(--card-hairline);color:var(--txt);padding:11px 38px 11px 36px;font-size:13.5px;border-left:2px solid rgba(100,149,237,.45)}
+  .search:focus{outline:none;border-color:var(--accent-light);box-shadow:0 0 0 1px rgba(100,149,237,.35)}
   .search::placeholder{color:var(--txt-3)}
   .searchClear{position:absolute;right:8px;width:24px;height:24px;border:0;background:transparent;color:var(--txt-3);cursor:pointer;font-size:17px;line-height:1;display:none}
   .searchClear:hover{color:var(--accent-light)}
@@ -91,7 +97,7 @@
   .catfilter .chip{padding:6px 11px;font-size:12px}
 
   /* categorias recolhíveis */
-  .cat{border-top:1px solid rgba(167,139,250,.1)}
+  .cat{border-top:1px solid rgba(255,255,255,.1)}
   .cat:first-child{border-top:0}
   .cathead{display:flex;align-items:center;gap:8px;padding:11px 6px;cursor:pointer;user-select:none}
   .cathead:hover .catname{color:var(--accent-light)}
@@ -101,23 +107,23 @@
   .catbody{padding-bottom:6px}
 
   .item{display:flex;align-items:center;gap:12px;padding:9px 11px;border:1px solid transparent;border-left:2px solid transparent;transition:.15s}
-  .item:hover{background-color:var(--accent-subtle);border-color:var(--card-hairline);border-left-color:var(--accent)}
-  .item.sel{border-color:var(--card-hairline);border-left-color:var(--accent);background-color:rgba(139,92,246,.06)}
-  .item input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto;cursor:pointer}
+  .item:hover{background-color:var(--accent-subtle);border-color:var(--card-hairline);border-left-color:var(--accent-light)}
+  .item.sel{border-color:var(--card-hairline);border-left-color:var(--accent);background-color:rgba(100,149,237,.06)}
+  .item input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent-light);flex:0 0 auto;cursor:pointer}
   .item .lbl{flex:1;min-width:0}
   .item .lbl .t{font-size:13.5px}
   .item .lbl .s{color:var(--txt-3);font-size:11.5px}
   .item .price{font-family:var(--mono);color:var(--txt-2);font-size:12.5px;white-space:nowrap}
   .qty{display:flex;align-items:center;border:1px solid var(--card-hairline)}
-  .qty button{background:rgba(139,92,246,.08);color:var(--txt);border:0;width:26px;height:28px;cursor:pointer;font-size:15px;line-height:1}
+  .qty button{background:rgba(100,149,237,.08);color:var(--txt);border:0;width:26px;height:28px;cursor:pointer;font-size:15px;line-height:1}
   .qty button:hover{background:var(--accent-hover);color:#fff}
   .qty input{width:38px;height:28px;border:0;background:transparent;color:var(--txt);text-align:center;font-family:var(--mono);font-size:13px}
   .qty input::-webkit-outer-spin-button,.qty input::-webkit-inner-spin-button{-webkit-appearance:none}
 
   .field{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}
   .field label{font-size:13px;color:var(--txt-2)}
-  input.num{background-color:rgba(139,92,246,.05);border:1px solid var(--card-hairline);color:var(--txt);padding:8px 10px;font-family:var(--mono);font-size:13px;width:130px}
-  input.txt{background-color:rgba(139,92,246,.05);border:1px solid var(--card-hairline);color:var(--txt);padding:9px 11px;font-size:13.5px;width:100%;margin-top:8px}
+  input.num{background-color:rgba(100,149,237,.05);border:1px solid var(--card-hairline);color:var(--txt);padding:8px 10px;font-family:var(--mono);font-size:13px;width:130px}
+  input.txt{background-color:rgba(100,149,237,.05);border:1px solid var(--card-hairline);color:var(--txt);padding:9px 11px;font-size:13.5px;width:100%;margin-top:8px}
   input.num:focus,input.txt:focus{outline:none;border-color:var(--accent)}
 
   .grid{display:grid;grid-template-columns:1fr 388px;gap:22px;align-items:start}
@@ -127,7 +133,7 @@
   .sumline .v{font-family:var(--mono);color:var(--txt)}
   .sumline.sub{color:var(--txt-3);font-size:12px}
   .scroller{max-height:210px;overflow:auto;margin-bottom:6px;padding-right:4px}
-  .scroller::-webkit-scrollbar{width:6px}.scroller::-webkit-scrollbar-thumb{background:rgba(139,92,246,.4)}
+  .scroller::-webkit-scrollbar{width:6px}.scroller::-webkit-scrollbar-thumb{background:rgba(100,149,237,.4)}
   .divide{height:1px;background:var(--card-hairline);margin:10px 0}
   .total{display:flex;justify-content:space-between;align-items:baseline;margin-top:5px}
   .total .k{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--txt-3);font-family:var(--mono)}
@@ -149,21 +155,36 @@
   .foot{margin-top:26px;color:var(--txt-3);font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-align:center}
   .empty{color:var(--txt-3);font-size:12.5px;padding:10px 4px}
 
-  .saved{display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--card-hairline);border-left:2px solid rgba(139,92,246,.45);margin-bottom:6px}
+  .saved{display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--card-hairline);border-left:2px solid rgba(100,149,237,.45);margin-bottom:6px}
   .saved .lbl{flex:1;min-width:0}
   .saved .lbl .t{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .saved .lbl .s{color:var(--txt-3);font-size:11px;font-family:var(--mono)}
-  .mini{background-color:rgba(139,92,246,.08);border:1px solid var(--card-hairline);color:var(--txt-2);padding:5px 9px;font-size:11px;cursor:pointer;transition:.15s;white-space:nowrap}
+  .mini{background-color:rgba(100,149,237,.08);border:1px solid var(--card-hairline);color:var(--txt-2);padding:5px 9px;font-size:11px;cursor:pointer;transition:.15s;white-space:nowrap}
   .mini:hover{border-color:var(--accent);color:var(--accent-light)}
   .mini.del:hover{border-color:var(--danger);color:var(--danger)}
+
+  /* ── arredondamento (sistema único) ────────────────────────────────
+     Estas regras vêm depois de propósito: o resto da folha foi escrito
+     quando tudo era quadrado, e uma linha por peça aqui embaixo é menos
+     ruído do que um `border-radius` espalhado por cem seletores. ── */
+  .badge,.chip,.pill,.act,.qty button,.searchClear{border-radius:999px}
+  .base,.item,.total,.searchbar,.search,input[type=text],input[type=number],select,textarea,
+  .cat,.catbody,.panel,.summary,.toast{border-radius:var(--r-sm)}
+  .card .card,.tabela,table{border-radius:var(--r-sm);overflow:hidden}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <div class="logo">N</div>
-      <div><h1>NEO<b>VANGUARD</b> · Calculadora de Precificação</h1><div class="eyebrow">// ferramenta interna · equipe de vendas</div></div>
+      <!-- A marca vai desenhada aqui, e não como <img src="/logo.svg">: este
+           arquivo tem de abrir sozinho, de um pen drive ou de um anexo, e um
+           logo que só carrega servido deixaria o cabeçalho quebrado
+           justamente na situação em que a calculadora mais se usa. -->
+      <svg class="logo" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M3 5h6l3 7 3-7h6l-9 15L3 5Z" fill="currentColor" />
+      </svg>
+      <div><h1>neovanguard<b>.</b> · Calculadora de Precificação</h1><div class="eyebrow">// ferramenta interna · equipe de vendas</div></div>
     </div>
     <span class="badge">⚠ uso interno — não mostrar piso/custo ao cliente</span>
   </header>

@@ -1,0 +1,744 @@
+/*
+ * NVDISC — a mesma linguagem visual da central.
+ *
+ * Os tokens são os do sistema único (`src/app/globals.css`), que veio do
+ * NVGHUB: MediumBlue de interface, CornflowerBlue de acento, superfícies
+ * arredondadas sobre quase-preto e rótulos em monoespaçada com entreletra
+ * larga. Aqui eles ganham apelidos curtos (`--accent`, `--txt-2`) porque a
+ * sala tem CSS próprio e nomes curtos se leem melhor em quinhentas linhas —
+ * mas **nenhuma cor nasce neste arquivo**: todas apontam para o sistema.
+ *
+ * O que é só daqui é o formato: a sala ocupa a tela inteira, sem os trilhos
+ * da central. Um menu de navegação em volta de uma chamada tomaria o espaço
+ * do vídeo para oferecer o que ninguém abre no meio de uma conversa.
+ *
+ * Não há Tailwind aqui de propósito: a central não usa, e acrescentar uma
+ * ferramenta de build inteira para uma rota seria pagar caro por conveniência.
+ */
+
+.nv {
+  --bg: var(--ink);
+  --surface: var(--panel);
+  --raised: var(--panel-2);
+  --hairline: var(--line);
+  --hairline-hi: rgba(100, 149, 237, 0.45);
+  /* O azul de interface é o de área (`--nv-blue`); o claro é o de detalhe
+     sobre fundo escuro, que é onde o CornflowerBlue tem contraste. */
+  --accent: var(--nv-blue);
+  --accent-hover: var(--nv-blue-mid);
+  --accent-light: var(--nv-corn);
+  --txt: var(--tx);
+  --txt-2: var(--tx-2);
+  --txt-3: var(--tx-3);
+  --ok: #3ef08a;
+  --alerta: var(--nv-gold);
+  --erro: #fb7185;
+  --mono: var(--ff-mono);
+  --r-nv: 14px;
+  --r-nv-sm: 10px;
+  font-family: var(--ff-body);
+}
+
+/* O sistema herdado só normaliza a COR do link; o sublinhado do navegador
+   fica. Numa página de texto ele ajuda, mas aqui todo link é botão ou marca —
+   "NVDISC" e "Sair" sublinhados pareciam erro de folha de estilo. */
+.nv a {
+  text-decoration: none;
+}
+
+.nv h1,
+.nv h2,
+.nv h3 {
+  font-family: var(--ff-display);
+  letter-spacing: -0.035em;
+}
+
+/* O fundo da central: dois brilhos azuis e a grade de 44 px. */
+.nv-fundo {
+  background:
+    radial-gradient(1100px 560px at 84% -10%, rgba(42, 77, 197, 0.16), transparent 60%),
+    radial-gradient(820px 480px at -10% 12%, rgba(100, 149, 237, 0.08), transparent 55%),
+    linear-gradient(rgba(100, 149, 237, 0.022) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(90deg, rgba(100, 149, 237, 0.022) 1px, transparent 1px) 0 0 / 44px 44px,
+    var(--bg);
+}
+
+/* ------------------------------------------------------------- painel -- */
+/*
+ * A superfície da central: canto arredondado e um filete de 1 px, igual aos
+ * painéis do site. Antes eram oito faixas de gradiente desenhando um L em
+ * cada quina — o "colchete" do visual anterior. Ele saiu com a paleta: o
+ * sistema do NVGHUB conta a mesma história com raio e material, e manter as
+ * duas gramáticas juntas faria a sala parecer colada à central, não parte
+ * dela.
+ */
+.nv-cantos {
+  position: relative;
+  border-radius: var(--r-nv);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+}
+
+/* ------------------------------------------------------------- textos -- */
+
+.nv-eyebrow {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--accent-light);
+  margin: 0;
+}
+
+.nv-rotulo {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+
+.nv-nota {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--txt-3);
+  margin: 0;
+}
+
+/* ------------------------------------------------------------ entrada -- */
+
+.nv-entrada {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 48px 22px;
+}
+.nv-entrada .caixa {
+  width: 100%;
+  max-width: 440px;
+}
+.nv-entrada .marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 30px;
+  text-decoration: none;
+}
+.nv-entrada .marca img {
+  height: 26px;
+  width: auto;
+}
+.nv-entrada .nm {
+  font-family: var(--ff-display);
+  font-size: 1.32rem;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  color: var(--txt);
+}
+.nv-entrada .nm b {
+  color: var(--accent-light);
+}
+.nv-entrada .eyebrow {
+  margin: 0 0 16px;
+}
+.nv-entrada h1 {
+  font-size: 38px;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 14px 0;
+  font-weight: 730;
+}
+.nv-entrada .lede {
+  font-size: 16.5px;
+  color: var(--txt-2);
+  margin: 0 0 28px;
+  line-height: 1.5;
+}
+.nv-entrada form {
+  padding: 24px 22px;
+  display: grid;
+  gap: 18px;
+}
+
+.nv-campo {
+  display: grid;
+  gap: 8px;
+}
+.nv-campo input {
+  width: 100%;
+  border-radius: var(--r-nv-sm);
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  color: var(--txt);
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.nv-campo input:focus {
+  border-color: var(--hairline-hi);
+}
+.nv-campo input::placeholder {
+  color: var(--txt-3);
+}
+.nv-campo .linha {
+  display: flex;
+  gap: 8px;
+}
+.nv-campo .linha input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+}
+
+.nv-btn {
+  font: inherit;
+  font-size: 14px;
+  border-radius: 999px;
+  padding: 12px 18px;
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--txt);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s, transform 0.2s;
+}
+.nv-btn:hover:not(:disabled) {
+  border-color: var(--hairline-hi);
+  color: var(--accent-light);
+}
+.nv-btn:disabled {
+  color: var(--txt-3);
+  cursor: not-allowed;
+}
+.nv-btn.principal {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 620;
+}
+.nv-btn.principal:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #06070b;
+}
+.nv-btn.principal:disabled {
+  background: rgba(10, 10, 164, 0.35);
+  border-color: var(--hairline);
+}
+.nv-btn.ligado {
+  background: var(--nv-corn);
+  border-color: var(--nv-corn);
+  color: #06070b;
+}
+.nv-btn.perigo {
+  color: var(--erro);
+  border-color: rgba(251, 113, 133, 0.35);
+}
+.nv-btn.perigo:hover {
+  background: rgba(251, 113, 133, 0.12);
+  color: var(--erro);
+}
+.nv-btn kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  border: 1px solid currentColor;
+  opacity: 0.5;
+  padding: 0 4px;
+  margin-left: 7px;
+}
+
+.nv-voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--txt-3);
+  transition: color 0.2s;
+}
+.nv-voltar:hover {
+  color: var(--accent-light);
+}
+
+/* --------------------------------------------------------------- sala -- */
+
+.nv-sala {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.nv-topo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.nv-topo .marca {
+  font-family: var(--ff-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+}
+.nv-topo .marca b {
+  color: var(--accent-light);
+}
+.nv-topo .codigo {
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent-light);
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  padding: 5px 10px;
+  max-width: 30ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nv-topo .direita {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.nv-mini {
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--txt-3);
+  background: none;
+  border: 1px solid var(--hairline);
+  padding: 5px 9px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  position: relative;
+}
+.nv-mini:hover {
+  border-color: var(--hairline-hi);
+  color: var(--accent-light);
+}
+.nv-selo {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  background: var(--nv-corn);
+  color: #06070b;
+  font-size: 10px;
+  font-weight: 700;
+}
+.nv-estado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--txt-3);
+}
+.nv-ponto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.nv-ponto.off {
+  background: var(--alerta);
+}
+
+.nv-corpo {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.nv-palco {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+/* ----------------------------------------------------------- pessoas -- */
+
+.nv-gente {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  justify-content: center;
+}
+.nv-gente.faixa {
+  justify-content: flex-start;
+}
+.nv-pessoas-faixa {
+  flex-shrink: 0;
+  border-top: 1px solid var(--hairline);
+  background: var(--surface);
+  padding: 12px 16px;
+}
+.nv-pessoas-grade {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-content: center;
+  gap: 22px;
+  padding: 24px;
+}
+
+.nv-pessoa {
+  border-radius: var(--r-nv);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.nv-pessoa.grande {
+  flex-direction: column;
+  gap: 14px;
+  width: 172px;
+  padding: 26px 16px 20px;
+}
+.nv-pessoa.falando {
+  border-color: var(--hairline-hi);
+  box-shadow: 0 0 0 1px rgba(100, 149, 237, 0.22), 0 22px 50px -30px rgba(42, 77, 197, 0.85);
+}
+
+.nv-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(150deg, var(--nv-blue-mid), var(--nv-corn));
+  color: #06070b;
+  font-weight: 750;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.nv-pessoa.grande .nv-avatar {
+  width: 88px;
+  height: 88px;
+  font-size: 34px;
+}
+/* O anel que cresce com a voz. A transformação é do CSS, não do React —
+   é o que permite o indicador ser suave com o estado mudando 12 vezes por
+   segundo em vez de 60. */
+.nv-anel {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid var(--nv-corn);
+  transition: transform 0.12s linear, opacity 0.2s;
+}
+.nv-nome {
+  font-size: 14px;
+  color: var(--txt);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.nv-pessoa.grande .nv-nome {
+  text-align: center;
+}
+.nv-nome span {
+  color: var(--txt-3);
+  margin-left: 5px;
+}
+.nv-icones {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+/* -------------------------------------------------------------- telas -- */
+
+.nv-telas {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+.nv-telas.uma {
+  grid-template-columns: 1fr;
+}
+.nv-telas.varias {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 1024px) {
+  .nv-telas.varias {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.nv-tela {
+  border-radius: var(--r-nv);
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--hairline);
+  margin: 0;
+}
+.nv-tela video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.nv-tela figcaption {
+  border-radius: 999px;
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--txt-2);
+  background: rgba(6, 7, 11, 0.82);
+  border: 1px solid var(--hairline);
+  padding: 4px 8px;
+  backdrop-filter: blur(6px);
+}
+
+/* --------------------------------------------------------------- chat -- */
+
+.nv-chat {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--hairline);
+  background: var(--surface);
+}
+.nv-chat h2 {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+.nv-chat h2 button {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  color: var(--txt-2);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.nv-chat .rolagem {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: grid;
+  gap: 13px;
+  align-content: start;
+}
+.nv-chat .sistema {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--txt-3);
+  margin: 0;
+}
+.nv-chat .quem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.nv-chat .quem b {
+  font-size: 13.5px;
+  font-weight: 620;
+  color: var(--accent-light);
+}
+.nv-chat .quem b.eu {
+  color: var(--nv-corn-soft);
+}
+.nv-chat .quem time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--txt-3);
+}
+.nv-chat .texto {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--txt-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.nv-chat form {
+  border-top: 1px solid var(--hairline);
+  padding: 12px;
+}
+.nv-chat form input {
+  width: 100%;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  color: var(--txt);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.nv-chat form input:focus {
+  border-color: var(--hairline-hi);
+}
+
+@media (max-width: 1023px) {
+  .nv-chat {
+    position: fixed;
+    inset: 0 0 0 auto;
+    z-index: 20;
+    width: 100%;
+    max-width: 380px;
+    transform: translateX(100%);
+    transition: transform 0.25s;
+    box-shadow: -30px 0 60px -30px rgba(0, 0, 0, 0.9);
+  }
+  .nv-chat.aberto {
+    transform: translateX(0);
+  }
+}
+@media (min-width: 1024px) {
+  .nv-so-mobile {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------- controles -- */
+
+.nv-controles {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 13px 16px;
+  border-top: 1px solid var(--hairline);
+  background: var(--surface);
+}
+
+.nv-painel {
+  border-radius: var(--r-nv);
+  position: absolute;
+  bottom: 100%;
+  right: 16px;
+  z-index: 30;
+  margin-bottom: 12px;
+  width: 330px;
+  padding: 18px;
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.95);
+  /* Sem teto ele passa de 600 px, transborda por cima do cabeçalho e cobre o
+     chat inteiro — num monitor baixo, some parte das opções fora da tela. */
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.nv-painel header {
+  position: sticky;
+  top: -18px;
+  background: var(--surface);
+  padding-top: 2px;
+  margin-top: -2px;
+}
+.nv-painel header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+  z-index: 1;
+}
+.nv-painel header button {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  color: var(--txt-2);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.nv-painel .grupo {
+  margin-bottom: 16px;
+}
+.nv-painel .grupo:last-of-type {
+  margin-bottom: 0;
+}
+.nv-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.nv-opcao {
+  font: inherit;
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  color: var(--txt-2);
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.nv-opcao:hover {
+  border-color: var(--hairline-hi);
+  color: var(--accent-light);
+}
+.nv-opcao.ativa {
+  background: var(--nv-corn);
+  border-color: var(--nv-corn);
+  color: #06070b;
+  font-weight: 600;
+}
+.nv-painel .rodape {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+.nv-erro {
+  border-bottom: 1px solid rgba(251, 113, 133, 0.3);
+  background: rgba(251, 113, 133, 0.09);
+  color: var(--erro);
+  padding: 11px 20px;
+  font-size: 13.5px;
+}
+
+.nv-vazio {
+  max-width: 44ch;
+  text-align: center;
+  margin: 0 auto;
+}

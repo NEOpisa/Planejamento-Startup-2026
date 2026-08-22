@@ -1,10 +1,1442 @@
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
-body {
-  background: #050408;
-  color: #f2f0f5;
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
+/* ═══════════════════════════════════════════════════════════════════
+   NEOVANGUARD — SISTEMA ÚNICO (dark)
+
+   É o mesmo sistema do NVGHUB (neovanguard.com.br), trazido para a
+   central de ferramentas: as duas coisas são a mesma casa, e uma
+   ferramenta interna com paleta própria pareceria de outra empresa.
+   O que veio de lá veio inteiro — tokens, esqueleto, painéis, pílulas —
+   e o que é só daqui está no fim do arquivo, escrito nos mesmos tokens.
+   Sem Tailwind: a central não tem, e trazer o build inteiro para usar
+   três utilitários custaria mais do que resolve.
+
+   O site inteiro vive numa "telinha": dois trilhos fixos (rotas à
+   esquerda, utilidades à direita) e uma coluna central de painéis
+   arredondados que rola nativamente. Toda página é montada com as
+   mesmas peças: painel, tile numerado, pílula, lista, prosa.
+
+   Paleta: fonte = neovanguard-logo-mediumblue-cornflower.svg
+   MediumBlue #0000CD (principal) · CornflowerBlue #6495ED (acento)
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+    /* marca — um degrau abaixo do MediumBlue puro (#0000CD). O azul cheio
+       de saturação máxima queimava como bloco grande: cansa a vista e puxa
+       toda a atenção da página para um botão. A marca (V, OG, ícones) segue
+       no MediumBlue; aqui é a cor de INTERFACE, que se comporta diferente
+       porque ocupa área. */
+    --nv-blue: #0a0aa4;
+    --nv-blue-mid: #2a4dc5;
+    --nv-blue-deep: #07076a;
+    --nv-corn: #6495ed;
+    --nv-corn-soft: #a8c0f5;
+    --nv-corn-pale: #d6e2fb;
+    --nv-gold: #f4b74a;
+
+    /* superfícies */
+    --ink: #06070b;
+    --panel: #0e1017;
+    --panel-2: #141824;
+    --panel-3: #1b2030;
+    --line: rgba(255, 255, 255, 0.09);
+    --line-strong: rgba(255, 255, 255, 0.16);
+
+    /* texto — contraste medido sobre --panel
+       tx 16.8:1 · tx-2 8.1:1 · tx-3 6.2:1 (micro-rótulo) */
+    --tx: #eef1f7;
+    --tx-2: #aeb7c9;
+    --tx-3: #98a2b8;
+
+    --r: 22px;
+    --r-sm: 16px;
+    --gap: 14px;
+    --rail: 232px;
+    --rail-r: 244px;
+
+    --ff-display: var(--ff-grotesk), ui-sans-serif, system-ui, sans-serif;
+    --ff-body: var(--ff-jakarta), ui-sans-serif, system-ui, sans-serif;
+    --ff-mono: var(--ff-mono-var), ui-monospace, monospace;
+
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
-a { color: inherit; text-decoration: none; }
-:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
+
+* {
+    box-sizing: border-box;
+}
+html {
+    background: var(--ink);
+    color: var(--tx);
+    font-family: var(--ff-body);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+}
+body {
+    margin: 0;
+    background: var(--ink);
+    min-height: 100svh;
+}
+img,
+svg,
+canvas {
+    display: block;
+    max-width: 100%;
+}
+a {
+    color: inherit;
+}
+::selection {
+    background: var(--nv-corn);
+    color: #05070f;
+}
+:focus-visible {
+    outline: 2px solid var(--nv-corn);
+    outline-offset: 3px;
+    border-radius: 6px;
+}
+.skip-link {
+    position: fixed;
+    top: -100px;
+    left: 14px;
+    z-index: 999;
+    padding: 12px 18px;
+    border-radius: 999px;
+    background: var(--nv-corn);
+    color: #05070f;
+    font-weight: 600;
+    text-decoration: none;
+    transition: top 200ms var(--ease);
+}
+.skip-link:focus {
+    top: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ═══ ESQUELETO: trilho · conteúdo · trilho ═══════════════════════ */
+.sh {
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr) var(--rail-r);
+    gap: var(--gap);
+    align-items: start;
+    max-width: 1880px;
+    margin: 0 auto;
+    padding: var(--gap);
+}
+.sh-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    min-width: 0;
+}
+
+/* ── trilhos ── */
+.rail {
+    position: sticky;
+    top: var(--gap);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.rail-brand {
+    display: block;
+    padding: 6px 8px 14px;
+    text-decoration: none;
+}
+.rail-brand img {
+    height: 30px;
+    width: auto;
+    margin-bottom: 8px;
+}
+.rail-brand-word {
+    display: block;
+    font-family: var(--ff-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.045em;
+    line-height: 1;
+    color: var(--tx);
+}
+.rail-brand-word b {
+    color: var(--nv-corn);
+}
+.rail-tag {
+    display: block;
+    margin-top: 7px;
+    font-family: var(--ff-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+}
+
+/* NAVEGAÇÃO — cartão único com uma linha por destino. Mesmo material dos
+   cartões do trilho direito; a cor da rota virou uma lasca vertical, que é
+   o que sobrou de útil dos blocos chapados que se encavalavam aqui. */
+.navcard {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 10px 10px;
+    border-radius: var(--r-sm);
+    background: var(--panel);
+    border: 1px solid var(--line);
+}
+.navcard .rcard-h {
+    padding: 0 6px;
+    margin-bottom: 8px;
+}
+.nlink {
+    --nlink-tone: var(--nv-corn);
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px 9px 14px;
+    border-radius: 11px;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--tx-2);
+    text-decoration: none;
+    transition:
+        background 200ms var(--ease),
+        color 200ms var(--ease);
+}
+/* a lasca de cor: fina em repouso, cheia na rota aberta */
+.nlink::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    width: 3px;
+    height: 13px;
+    margin-top: -6.5px;
+    border-radius: 2px;
+    background: var(--nlink-tone);
+    opacity: 0.5;
+    transition:
+        height 240ms var(--ease),
+        margin-top 240ms var(--ease),
+        opacity 240ms var(--ease);
+}
+.nlink:hover {
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--tx);
+}
+.nlink:hover::before {
+    opacity: 1;
+}
+.nlink[aria-current="page"] {
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--tx);
+    font-weight: 600;
+}
+.nlink[aria-current="page"]::before {
+    height: 22px;
+    margin-top: -11px;
+    opacity: 1;
+}
+.nlink-n {
+    font-family: var(--ff-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--tx-3);
+}
+.nlink[aria-current="page"] .nlink-n {
+    color: var(--nlink-tone);
+}
+.nlink-label {
+    flex: 1;
+    min-width: 0;
+    letter-spacing: -0.01em;
+}
+.nlink svg {
+    width: 13px;
+    height: 13px;
+    flex: none;
+    opacity: 0;
+    transition:
+        opacity 200ms var(--ease),
+        transform 200ms var(--ease);
+}
+.nlink:hover svg {
+    opacity: 0.6;
+    transform: translate(1px, -1px);
+}
+.nlink--a {
+    --nlink-tone: var(--nv-blue-mid);
+}
+.nlink--b {
+    --nlink-tone: var(--nv-corn);
+}
+.nlink--c {
+    --nlink-tone: var(--nv-corn-soft);
+}
+.nlink--d {
+    --nlink-tone: var(--nv-corn-pale);
+}
+
+/* cartões do trilho direito */
+.rcard {
+    padding: 14px;
+    border-radius: var(--r-sm);
+    background: var(--panel);
+    border: 1px solid var(--line);
+}
+.rcard-h {
+    display: block;
+    font-family: var(--ff-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+    margin-bottom: 10px;
+}
+.rstatus {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--tx);
+}
+.rstatus i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3ef08a;
+    box-shadow: 0 0 0 4px rgba(62, 240, 138, 0.16);
+}
+.rcard-note {
+    margin: 8px 0 0;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--tx-2);
+}
+.rlink {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 0;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--tx-2);
+    text-decoration: none;
+    border-top: 1px solid var(--line);
+    transition: color 220ms var(--ease);
+}
+.rlink:first-child {
+    border-top: 0;
+}
+.rlink:hover {
+    color: var(--nv-corn);
+}
+.rlink svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+}
+
+.rmeta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px 8px;
+    font-family: var(--ff-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+}
+.rmeta a {
+    color: inherit;
+    text-decoration: none;
+}
+.rmeta a:hover {
+    color: var(--nv-corn);
+}
+
+/* botão sólido do trilho (WhatsApp / ação principal) */
+.rail-cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 15px;
+    border-radius: var(--r-sm);
+    background: var(--tx);
+    color: #06070b;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition:
+        background 240ms var(--ease),
+        transform 240ms var(--ease);
+}
+.rail-cta svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+}
+.rail-cta:hover {
+    background: var(--nv-corn);
+    transform: translateY(-2px);
+}
+.rail-cta--accent {
+    background: var(--nv-blue);
+    color: #fff;
+}
+.rail-cta--accent:hover {
+    background: var(--nv-blue-mid);
+}
+
+/* ═══ PEÇAS DE CONTEÚDO ══════════════════════════════════════════ */
+.panel {
+    border-radius: var(--r);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: clamp(26px, 3.4vw, 56px);
+}
+/* A faixa de números é a única superfície CORNFLOWER cheia do site. Ela é
+   clara, então o texto inverte para tinta: branco sobre cornflower dá 3:1 e
+   não passa em corpo de texto; a tinta dá 6,7:1. */
+.panel--accent {
+    background: var(--nv-corn);
+    border-color: transparent;
+}
+.panel--accent .num dt {
+    color: #06070b;
+}
+.panel--accent .num dd {
+    color: rgba(6, 7, 11, 0.74);
+}
+
+.eyebrow {
+    display: inline-block;
+    padding: 7px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    font-family: var(--ff-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--tx-2);
+}
+
+h1,
+h2,
+h3,
+h4 {
+    font-family: var(--ff-display);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    margin: 0;
+    color: var(--tx);
+    text-wrap: balance;
+}
+.h-xl {
+    font-size: clamp(2.4rem, 5vw, 4.6rem);
+    line-height: 0.98;
+    letter-spacing: -0.045em;
+}
+.h-lg {
+    font-size: clamp(1.9rem, 3.4vw, 3.1rem);
+}
+.h-md {
+    font-size: clamp(1.35rem, 2vw, 1.9rem);
+    letter-spacing: -0.03em;
+}
+.h-accent {
+    font-style: normal;
+    color: var(--nv-corn);
+}
+.panel--accent .h-accent {
+    color: var(--nv-blue-deep);
+}
+
+.lead {
+    margin: 20px 0 0;
+    font-size: clamp(1.02rem, 1.15vw, 1.18rem);
+    line-height: 1.62;
+    color: var(--tx-2);
+    max-width: 62ch;
+}
+.lead strong {
+    color: var(--tx);
+    font-weight: 600;
+}
+.sec-head {
+    max-width: 46ch;
+    margin-bottom: clamp(26px, 3vw, 44px);
+}
+.sec-head .eyebrow {
+    margin-bottom: 18px;
+}
+
+/* pílulas */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 15px 26px;
+    border-radius: 999px;
+    background: var(--tx);
+    color: #06070b;
+    font-family: var(--ff-display);
+    font-size: 0.98rem;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition:
+        transform 240ms var(--ease),
+        background 240ms var(--ease),
+        color 240ms var(--ease);
+}
+.pill svg {
+    width: 15px;
+    height: 15px;
+}
+.pill:hover {
+    transform: translateY(-2px);
+    background: var(--nv-corn);
+}
+.pill--accent {
+    background: var(--nv-blue);
+    color: #fff;
+}
+.pill--accent:hover {
+    background: var(--nv-blue-mid);
+}
+.pill--ghost {
+    background: transparent;
+    color: var(--tx);
+    border-color: var(--line-strong);
+}
+.pill--ghost:hover {
+    background: var(--panel-2);
+    color: var(--tx);
+}
+.pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 30px;
+}
+
+/* grade de cards */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 12px;
+}
+.card {
+    padding: 26px;
+    border-radius: var(--r-sm);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    transition:
+        background 280ms var(--ease),
+        transform 280ms var(--ease),
+        border-color 280ms var(--ease);
+}
+a.card:hover,
+.card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(100, 149, 237, 0.45);
+    background: var(--panel-3);
+}
+.card-n {
+    font-family: var(--ff-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--nv-corn);
+}
+.card-t {
+    margin: 14px 0 9px;
+    font-size: 1.16rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: var(--tx);
+}
+.card-d {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--tx-2);
+}
+.card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 14px;
+}
+.tag {
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--line);
+    font-family: var(--ff-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    color: var(--tx-2);
+}
+
+/* faixa de números */
+/* São sempre QUATRO números, então as colunas são fixas. Com auto-fit e
+   minmax(190px) cabiam só três na largura útil do painel e o quarto ficava
+   órfão numa segunda fileira, ao lado de um vazio do tamanho dele. */
+.nums {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px 20px;
+    margin: 0;
+}
+.num dt {
+    font-family: var(--ff-display);
+    /* teto em 2,2rem: acima disso "20–30 min" estoura a coluna */
+    font-size: clamp(1.45rem, 2.2vw, 2.2rem);
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: #fff;
+}
+.num dd {
+    margin: 9px 0 0;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+/* lista de etapas / timeline */
+.steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+.step {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 22px;
+    padding: 24px 0;
+    border-top: 1px solid var(--line);
+}
+.step:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+.step-code {
+    font-family: var(--ff-mono);
+    font-size: 0.76rem;
+    letter-spacing: 0.1em;
+    color: var(--nv-corn);
+    padding-top: 4px;
+}
+.step-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 12px;
+}
+.step-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+}
+.step-dur {
+    font-family: var(--ff-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    color: var(--tx-3);
+}
+.step-desc {
+    margin: 10px 0 0;
+    font-size: 0.96rem;
+    line-height: 1.62;
+    color: var(--tx-2);
+    max-width: 68ch;
+}
+
+/* prosa (páginas legais e textos longos) */
+.prose {
+    max-width: 74ch;
+}
+.prose h2 {
+    margin: 44px 0 14px;
+    font-size: 1.45rem;
+    letter-spacing: -0.03em;
+}
+.prose h3 {
+    margin: 30px 0 10px;
+    font-size: 1.12rem;
+}
+.prose p,
+.prose li {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--tx-2);
+}
+.prose p {
+    margin: 0 0 16px;
+}
+.prose ul,
+.prose ol {
+    margin: 0 0 20px;
+    padding-left: 22px;
+}
+.prose li {
+    margin-bottom: 10px;
+}
+.prose strong {
+    color: var(--tx);
+    font-weight: 600;
+}
+.prose a {
+    color: var(--nv-corn);
+    text-underline-offset: 3px;
+}
+
+.door {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    padding: clamp(24px, 2.6vw, 38px);
+    border-radius: var(--r-sm);
+    text-decoration: none;
+    color: #fff;
+    background: var(--nv-blue);
+    transition:
+        transform 320ms var(--ease),
+        filter 320ms var(--ease);
+}
+.door:hover {
+    transform: translateY(-4px);
+    filter: brightness(1.1);
+}
+.door--gold {
+    background: var(--nv-gold);
+    color: #1b1200;
+}
+/* Porta única e larga: o nome da parceria já é o título da seção, então
+   aqui não há h3 e a peça vira um convite em três linhas. */
+.door--wide p {
+    font-size: 1.04rem;
+    max-width: 62ch;
+}
+.door-flag {
+    align-self: flex-start;
+    padding: 6px 13px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    font-family: var(--ff-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+.door--gold .door-flag {
+    background: rgba(27, 18, 0, 0.18);
+}
+.door h3 {
+    font-size: clamp(1.9rem, 3vw, 2.8rem);
+    letter-spacing: -0.04em;
+}
+.door p {
+    margin: 0;
+    font-size: 0.98rem;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.86);
+    max-width: 44ch;
+}
+.door--gold p {
+    color: rgba(27, 18, 0, 0.82);
+}
+.door-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-family: var(--ff-display);
+    font-size: 0.98rem;
+    font-weight: 600;
+}
+.door-cta svg {
+    width: 15px;
+    height: 15px;
+    transition: transform 300ms var(--ease);
+}
+.door:hover .door-cta svg {
+    transform: translate(3px, -3px);
+}
+
+/* fecho de página */
+.closer {
+    border-radius: var(--r);
+    padding: clamp(44px, 6vw, 92px) clamp(28px, 4vw, 64px);
+    text-align: center;
+    background: var(--nv-blue-deep);
+}
+.closer .lead {
+    margin-inline: auto;
+    color: rgba(255, 255, 255, 0.85);
+}
+.closer .pill-row {
+    justify-content: center;
+}
+
+/* rodapé compacto (assina toda página) */
+.foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 22px clamp(20px, 3vw, 34px);
+    border-radius: var(--r);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    font-family: var(--ff-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+}
+.foot nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+}
+.foot a {
+    text-decoration: none;
+    transition: color 200ms var(--ease);
+}
+.foot a:hover {
+    color: var(--nv-corn);
+}
+
+/* ═══ RESPONSIVO ═════════════════════════════════════════════════ */
+@media (max-width: 1180px) {
+    .sh {
+        grid-template-columns: 200px minmax(0, 1fr) 210px;
+    }
+    .nlink {
+        font-size: 0.87rem;
+        padding: 8px 8px 8px 13px;
+    }
+}
+@media (max-width: 980px) {
+    /* no mobile fica SÓ a coluna do meio: os trilhos viram o menu da barra */
+    .sh {
+        grid-template-columns: minmax(0, 1fr);
+        padding-top: calc(var(--gap) + 62px);
+    }
+    .rail {
+        display: none;
+    }
+    .hero {
+        grid-template-columns: minmax(0, 1fr);
+        min-height: 0;
+        padding-bottom: 70px;
+    }
+    .hero-art {
+        min-height: 178px;
+        order: -1;
+    }
+    .hero .h-xl {
+        font-size: clamp(1.85rem, 7.2vw, 2.4rem);
+    }
+    .step {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    /* Quatro colunas de números não cabem num telefone; duas cabem e ainda
+       mantêm o par de leitura (número em cima do rótulo). */
+    .nums {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px 16px;
+    }
+}
+/* ── TELEFONE ──────────────────────────────────────────────────────
+   Tudo aqui é a mesma correção repetida: as medidas foram desenhadas
+   olhando para um monitor, e num aparelho de 390px elas passam de
+   generosas a grandes. O que muda é escala e respiro; nenhuma peça sai
+   e nenhum texto encolhe abaixo de 16px, que é o piso para não dar
+   zoom automático em campo de formulário no iOS.
+   ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+    html {
+        font-size: 16px;
+    }
+    :root {
+        --r: 18px;
+        --r-sm: 14px;
+        --gap: 10px;
+    }
+    /* o painel tinha 26px de folga interna de cada lado: num aparelho de
+       390px isso é 13% da tela gasto em margem */
+    .panel {
+        padding: 22px 18px;
+    }
+    .closer {
+        padding: 40px 20px;
+    }
+    /* O h-xl é o H1 de toda página interna, não só o do hero — e era ele
+       que continuava em 38px enquanto o resto encolhia. O fecho fica um
+       degrau abaixo: ele se repete em todas as páginas e não deveria
+       gritar mais alto que o título de nenhuma. */
+    .h-xl {
+        font-size: clamp(1.8rem, 7vw, 2.25rem);
+    }
+    .closer .h-xl {
+        font-size: clamp(1.65rem, 6.4vw, 2.05rem);
+    }
+    .h-lg {
+        font-size: clamp(1.55rem, 6vw, 1.95rem);
+    }
+    .lead {
+        font-size: 1rem;
+    }
+    .pill {
+        padding: 13px 20px;
+        font-size: 0.94rem;
+    }
+    .card {
+        padding: 18px 16px;
+    }
+    .card-d {
+        font-size: 0.9rem;
+    }
+    .door {
+        padding: 20px 18px;
+    }
+    .door--wide p {
+        font-size: 0.96rem;
+    }
+    .num dt {
+        font-size: 1.5rem;
+    }
+    .num dd {
+        font-size: 0.8rem;
+    }
+    .foot {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+.pill:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+@media (max-width: 900px) {
+    .duo {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* ── cartão de fatos e nota do CTA (trilho direito) ── */
+.rcta-note {
+    margin: -4px 0 2px;
+    padding: 0 8px;
+    font-family: var(--ff-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+}
+.rfatos {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+}
+.rfatos > div {
+    padding: 9px 0;
+    border-top: 1px solid var(--line);
+}
+.rfatos > div:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+.rfatos dt {
+    font-family: var(--ff-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+}
+.rfatos dd {
+    margin: 3px 0 0;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    color: var(--tx);
+}
+
+
+/* ═══ BARRA E MENU MOBILE ════════════════════════════════════════ */
+.mbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 80;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 10px var(--gap);
+    background: var(--ink);
+    border-bottom: 1px solid var(--line);
+}
+.mbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-right: auto;
+    text-decoration: none;
+    font-family: var(--ff-display);
+    font-size: 1.12rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    color: var(--tx);
+}
+.mbar-brand img {
+    height: 22px;
+    width: auto;
+}
+.mbar-brand b {
+    color: var(--nv-corn);
+}
+.mbar-cta {
+    padding: 11px 18px;
+    border-radius: 999px;
+    background: var(--nv-blue);
+    color: #fff;
+    font-family: var(--ff-display);
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.mbar-burger {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    border: 0;
+    border-radius: 13px;
+    background: var(--tx);
+    cursor: pointer;
+}
+.mbar-burger span {
+    display: grid;
+    gap: 4px;
+    width: 18px;
+}
+.mbar-burger i {
+    display: block;
+    height: 2px;
+    border-radius: 2px;
+    background: #06070b;
+    transition: transform 260ms var(--ease), opacity 200ms var(--ease);
+}
+.mbar-burger .is-x i:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+}
+.mbar-burger .is-x i:nth-child(2) {
+    opacity: 0;
+}
+.mbar-burger .is-x i:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
+}
+
+body.menu-aberto {
+    overflow: hidden;
+}
+.mmenu {
+    position: fixed;
+    inset: 62px 0 0;
+    z-index: 79;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    padding: 30px var(--gap) 48px;
+    background: var(--ink);
+    overflow-y: auto;
+    text-align: center;
+}
+.mmenu-nav {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+}
+.mmenu-item {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 12px;
+    padding: 9px 0;
+    font-family: var(--ff-display);
+    /* sete destinos agora, não quatro: o tipo cede para o menu caber */
+    font-size: clamp(1.55rem, 6.4vw, 2.1rem);
+    font-weight: 700;
+    letter-spacing: -0.045em;
+    color: var(--tx);
+    text-decoration: none;
+}
+.mmenu-item.is-on {
+    color: var(--nv-corn);
+}
+.mmenu-n {
+    font-family: var(--ff-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: var(--tx-3);
+}
+.mmenu-wa {
+    width: 100%;
+    justify-content: center;
+}
+.mmenu-fatos,
+.mmenu-uteis {
+    width: 100%;
+    padding: 18px;
+    border-radius: var(--r-sm);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    text-align: left;
+}
+.mmenu-fatos .rstatus {
+    margin: 0 0 12px;
+}
+
+/* a barra mobile entra depois da própria definição (senão a cascata
+   devolve o display:none base) */
+@media (max-width: 980px) {
+    .mbar {
+        display: flex;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PEÇAS DESTA CENTRAL
+
+   O que o site público não tem: a grade de ferramentas da home e as
+   peças do plano de captação (chips, orçamento de horas, roteiros,
+   decisões). Tudo escrito nos tokens de cima — nada aqui inventa cor,
+   raio ou tipografia própria.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── a linha de "abrir" no pé de um cartão-ferramenta ── */
+.card-go {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    font-family: var(--ff-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    color: var(--tx);
+}
+.card-go svg {
+    width: 13px;
+    height: 13px;
+    transition: transform 240ms var(--ease);
+}
+a.card:hover .card-go {
+    color: var(--nv-corn);
+}
+a.card:hover .card-go svg {
+    transform: translate(3px, -3px);
+}
+/* o cartão-ferramenta é um link: precisa de altura própria para a linha
+   de "abrir" descer até o pé, senão ela flutua no meio do texto */
+a.card {
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+}
+a.card .card-d {
+    flex: 1;
+}
+
+/* ── metadados de documento (de/para/data), sob o título ── */
+.meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 26px;
+    margin: 26px 0 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    font-family: var(--ff-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+}
+.meta b {
+    color: var(--tx-2);
+    font-weight: 500;
+}
+
+/* ── voltar para a central ── */
+.voltar {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--ff-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+    text-decoration: none;
+    transition: color 200ms var(--ease);
+}
+.voltar:hover {
+    color: var(--nv-corn);
+}
+
+/* ── destaque com rótulo (o "por que funciona" do plano) ── */
+.callout {
+    margin: 4px 0 0;
+    padding: 20px 22px;
+    border-radius: var(--r-sm);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--nv-corn);
+}
+.callout > span {
+    display: block;
+    margin-bottom: 10px;
+    font-family: var(--ff-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--nv-corn);
+}
+.callout p {
+    margin: 0;
+    font-size: 0.96rem;
+    line-height: 1.62;
+    color: var(--tx-2);
+}
+.callout strong {
+    color: var(--tx);
+    font-weight: 600;
+}
+
+/* ── chips de restrição: valor em destaque, rótulo apagado ── */
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 18px 0;
+}
+.chip {
+    padding: 7px 13px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--line);
+    font-family: var(--ff-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--tx-3);
+}
+.chip b {
+    color: var(--nv-gold);
+    font-weight: 600;
+}
+
+/* ── listas de prosa marcada: uma linha por item, filete entre elas ── */
+.lista {
+    list-style: none;
+    margin: 18px 0 0;
+    padding: 0;
+}
+.lista li {
+    position: relative;
+    padding: 13px 0 13px 28px;
+    border-top: 1px solid var(--line);
+    font-size: 0.96rem;
+    line-height: 1.6;
+    color: var(--tx-2);
+}
+.lista li:first-child {
+    border-top: 0;
+}
+.lista li::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    font-family: var(--ff-mono);
+    font-size: 0.85rem;
+    color: var(--nv-corn);
+}
+.lista--marcos li::before {
+    content: "◇";
+}
+.lista b {
+    color: var(--tx);
+    font-weight: 600;
+}
+.lista .horas {
+    font-family: var(--ff-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--tx-3);
+    margin-left: 6px;
+}
+
+/* ── decisões: a mesma lista, numerada, porque a ordem é a pauta ── */
+.decide {
+    list-style: none;
+    counter-reset: d;
+    margin: 18px 0 0;
+    padding: 0;
+}
+.decide li {
+    counter-increment: d;
+    position: relative;
+    padding: 15px 0 15px 46px;
+    border-top: 1px solid var(--line);
+    font-size: 0.96rem;
+    line-height: 1.6;
+    color: var(--tx-2);
+}
+.decide li:first-child {
+    border-top: 0;
+}
+.decide li::before {
+    content: counter(d, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 15px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    border: 1px solid var(--line-strong);
+    font-family: var(--ff-mono);
+    font-size: 0.7rem;
+    color: var(--nv-corn);
+}
+.decide b {
+    color: var(--tx);
+    font-weight: 600;
+}
+
+/* ── orçamento de horas: barra por frente de trabalho ── */
+.barras {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 18px;
+}
+.barra {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr) 56px;
+    align-items: center;
+    gap: 14px;
+}
+.barra > span:first-child {
+    font-size: 0.92rem;
+    color: var(--tx-2);
+}
+.barra .trilha {
+    position: relative;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    overflow: hidden;
+}
+.barra .trilha i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--nv-blue-mid), var(--nv-corn));
+}
+.barra .horas {
+    font-family: var(--ff-mono);
+    font-size: 0.78rem;
+    color: var(--nv-corn);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── roteiro pronto: cabeça em monoespaçada, corpo em prosa ── */
+.script {
+    border-radius: var(--r-sm);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    overflow: hidden;
+}
+.script + .script {
+    margin-top: 12px;
+}
+.script > h3 {
+    margin: 0;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(100, 149, 237, 0.06);
+    font-family: var(--ff-mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--nv-corn);
+}
+.script > p {
+    margin: 0;
+    padding: 18px;
+    font-size: 0.95rem;
+    line-height: 1.66;
+    color: var(--tx-2);
+}
+/* o que é para trocar antes de mandar aparece apagado, não em colchete */
+.script em {
+    font-style: normal;
+    color: var(--tx-3);
+    border-bottom: 1px dashed var(--line-strong);
+}
+
+/* ── um painel encostado no outro precisa de ar entre os títulos ── */
+.panel > .sec-head + .cards,
+.panel > .sec-head + .steps {
+    margin-top: 0;
+}
+.panel h3 + p {
+    margin-top: 10px;
+}
+
+@media (max-width: 560px) {
+    .barra {
+        grid-template-columns: 106px minmax(0, 1fr) 48px;
+        gap: 10px;
+    }
+    .meta {
+        gap: 6px 18px;
+    }
+}
