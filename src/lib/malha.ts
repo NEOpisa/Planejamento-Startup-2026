@@ -294,6 +294,30 @@ function nivel(m: Medidor | undefined): number {
 }
 
 /**
+ * Um identificador aleatório que funciona **fora de HTTPS**.
+ *
+ * `crypto.randomUUID` só existe em contexto seguro, e a sala é usada
+ * exatamente onde não há um: alguém sobe o servidor no notebook e chama o
+ * resto da casa pelo IP da rede (`http://192.168.x.x:3000`). Ali a função é
+ * `undefined`, e a chamada estoura — o sintoma é entrar na sala e ficar
+ * sozinho, com "reconectando…" eterno no topo e um `TypeError` que só aparece
+ * para quem abre o console.
+ *
+ * O reserva não é criptográfico e não precisa ser: estes identificadores só
+ * distinguem uma mensagem de outra e uma aba de outra dentro de uma sala que
+ * já é pública para quem tem o código.
+ */
+function novoId(): string {
+  try {
+    if (typeof crypto?.randomUUID === "function") return crypto.randomUUID();
+  } catch {
+    /* contexto sem crypto */
+  }
+  const acaso = () => Math.random().toString(36).slice(2, 10);
+  return `${Date.now().toString(36)}-${acaso()}-${acaso()}`;
+}
+
+/**
  * O identificador **desta aba**.
  *
  * Vive no `sessionStorage`, e não no `localStorage`: ele precisa valer para
@@ -310,13 +334,13 @@ function idDaAba(): string {
   try {
     const guardado = limparSessao(sessionStorage.getItem("nvdisc:sessao"));
     if (guardado) return guardado;
-    const novo = crypto.randomUUID();
+    const novo = novoId();
     sessionStorage.setItem("nvdisc:sessao", novo);
     return novo;
   } catch {
     // Navegação privada com armazenamento bloqueado: um identificador só de
     // memória ainda cobre a reconexão desta página.
-    return crypto.randomUUID();
+    return novoId();
   }
 }
 
@@ -366,7 +390,7 @@ export class Malha {
     this.estado.mensagens = [
       ...this.estado.mensagens,
       {
-        id: crypto.randomUUID(),
+        id: novoId(),
         de: "sistema",
         nome: "",
         texto,
@@ -393,9 +417,17 @@ export class Malha {
       });
       this.meuMedidor = criarMedidor(this.meuFluxo);
     } catch {
-      this.estado.erro =
-        "não consegui acessar o microfone. Dê a permissão no navegador e recarregue — " +
-        "sem ele dá para usar o chat, mas não a voz.";
+      // Duas causas, e confundi-las custa uma noite: sem HTTPS o navegador
+      // nem oferece o microfone — não adianta procurar permissão para dar,
+      // porque não existe. Dizer "dê a permissão" nesse caso manda a pessoa
+      // caçar um botão que não está em lugar nenhum.
+      this.estado.erro = !window.isSecureContext
+        ? "sem HTTPS o navegador não entrega o microfone — é regra dele, não " +
+          "deste site. Abrindo por um endereço de rede (http://192.168…) dá " +
+          "para ver quem está na sala e usar o chat, mas não a voz. Para falar, " +
+          "acesse por HTTPS ou pelo próprio computador (localhost)."
+        : "não consegui acessar o microfone. Dê a permissão no navegador e recarregue — " +
+          "sem ele dá para usar o chat, mas não a voz.";
       this.avisar();
     }
 
@@ -571,7 +603,7 @@ export class Malha {
         this.estado.mensagens = [
           ...this.estado.mensagens,
           {
-            id: crypto.randomUUID(),
+            id: novoId(),
             de: msg.de as string,
             nome: msg.nome as string,
             texto: msg.texto as string,

@@ -38,6 +38,8 @@
  */
 
 import { createServer } from "node:http";
+import { createServer as createServerTLS } from "node:https";
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import next from "next";
 import { WebSocketServer } from "ws";
@@ -253,7 +255,29 @@ function aoReceber(estado, bruto) {
 
 await app.prepare();
 
-const http = createServer((req, res) => paginas(req, res));
+/**
+ * TLS, quando houver certificado.
+ *
+ * Não é capricho: **sem HTTPS o navegador não entrega o microfone** fora do
+ * `localhost`. Chamar a turma pelo IP da rede (`http://192.168.x.x:3000`)
+ * funciona para ver quem está na sala e para o chat, e não funciona para a
+ * voz — e o pior é que o sintoma não diz isso, os botões só não fazem nada.
+ *
+ * `npm run cert` gera um certificado para esta máquina; os dois caminhos
+ * entram por variável de ambiente para que o servidor continue rodando sem
+ * TLS onde já existe um proxy fazendo isso na frente (que é o caso de
+ * qualquer hospedagem séria).
+ */
+const certificado = process.env.TLS_CERT;
+const chave = process.env.TLS_KEY;
+const comTLS = Boolean(certificado && chave);
+
+const http = comTLS
+  ? createServerTLS(
+      { cert: readFileSync(certificado), key: readFileSync(chave) },
+      (req, res) => paginas(req, res),
+    )
+  : createServer((req, res) => paginas(req, res));
 // O caminho do WebSocket carrega o mesmo prefixo das páginas. Se ele ficasse
 // em `/sinal` fixo enquanto o site vive em `/NVDISC`, o proxy da frente
 // entregaria a página e engoliria a conexão — e o sintoma seria "entrei na
@@ -301,8 +325,19 @@ wss.on("close", () => clearInterval(batida));
 
 http.listen(porta, host, () => {
   const onde = host === "0.0.0.0" ? "localhost" : host;
-  console.log(`NVDISC em http://${onde}:${porta}${BASE || "/"}`);
-  console.log(`sinalização em ws://${onde}:${porta}${CAMINHO_SINAL}`);
+  const esquema = comTLS ? "https" : "http";
+  console.log(`NVDISC em ${esquema}://${onde}:${porta}${BASE || "/"}`);
+  console.log(
+    `sinalização em ${comTLS ? "wss" : "ws"}://${onde}:${porta}${CAMINHO_SINAL}`,
+  );
+  if (!comTLS) {
+    console.log(
+      "\naviso: sem TLS. Do próprio computador funciona tudo; de outro\n" +
+        "aparelho (http://IP-da-rede) dá para ver a sala e usar o chat, mas o\n" +
+        "navegador não entrega o microfone. Rode `npm run cert` e suba com\n" +
+        "TLS_CERT/TLS_KEY para falar entre dois aparelhos.",
+    );
+  }
   if (!process.env.NVDISC_TURN_URL) {
     console.log(
       "\naviso: sem TURN configurado. Na mesma rede e na maioria das casas\n" +

@@ -32,6 +32,7 @@ npm start       # produção
 
 npm test              # o servidor do NVDISC: salas, chat, limites
 npm run test:navegador  # a chamada de verdade, em dois Chrome
+npm run cert          # certificado local, para chamar a turma pela rede
 ```
 
 Uso interno — valores e estratégia não são públicos.
@@ -110,8 +111,28 @@ poucos: enfileira e trava tudo de uma vez, inclusive a voz.
 ### Antes de chamar a turma
 
 **HTTPS não é opcional fora do `localhost`.** Navegador só entrega microfone e
-captura de tela em contexto seguro; sem TLS os botões simplesmente não fazem
-nada.
+captura de tela em contexto seguro. Chamando a turma pelo IP da rede
+(`http://192.168.x.x:3000`) dá para ver quem está na sala e usar o chat — e a
+voz simplesmente não vai, sem mensagem de erro, porque para o navegador não há
+erro nenhum: a captura não é oferecida.
+
+Para dois aparelhos conversarem na sua rede:
+
+```bash
+npm run cert     # um certificado para esta máquina, com os IPs dela dentro
+TLS_CERT=.cert/certificado.pem TLS_KEY=.cert/chave.pem npm run dev
+```
+
+O servidor sobe em `https://` e a sinalização em `wss://`. Cada aparelho mostra
+um aviso de certificado na primeira visita — avançar é o esperado, já que quem
+assina este servidor é você. Em hospedagem, deixe o TLS com o proxy da frente e
+não passe `TLS_CERT`.
+
+Uma armadilha que custou uma noite: fora de HTTPS, **`crypto.randomUUID` não
+existe** (é API de contexto seguro). Todo identificador do NVDISC passa por um
+`novoId()` com reserva não-criptográfica por causa disso — sem ele, a página
+estourava antes de conectar e o sintoma era entrar na sala e ficar sozinho,
+com "reconectando…" eterno no topo.
 
 **Sem TURN, alguns não vão conseguir falar.** O STUN embutido resolve na mesma
 rede e na maioria das casas, mas atrás de NAT simétrico (rede de empresa,
