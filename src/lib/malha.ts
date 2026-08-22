@@ -359,6 +359,9 @@ export class Malha {
   private nome = "";
   private sessao = "";
   private tentativa = 0;
+  /** já houve conexão alguma vez? separa "caiu" de "nunca existiu" */
+  private jaAbriu = false;
+  private apurar?: ReturnType<typeof setTimeout>;
   private religar?: ReturnType<typeof setTimeout>;
 
   private estado: EstadoMalha = {
@@ -455,14 +458,48 @@ export class Malha {
    * religar sozinho, a sala parece funcionar até o momento em que para para
    * sempre, e a única saída visível é recarregar a página.
    */
+  /**
+   * O endereço da sinalização.
+   *
+   * Por padrão é o mesmo servidor que entregou a página, que é o caso quando
+   * o `server.mjs` serve tudo. `NEXT_PUBLIC_SINAL_URL` existe para o arranjo
+   * em que as páginas estão numa hospedagem sem processo (Vercel e parentes,
+   * onde só há função serverless) e o processo da sinalização vive noutro
+   * lugar — sem ela, esse arranjo não tem como funcionar, porque não há
+   * WebSocket num servidor que nasce e morre a cada requisição.
+   */
+  private enderecoDaSinalizacao(): string {
+    const configurado = process.env.NEXT_PUBLIC_SINAL_URL;
+    if (configurado) {
+      const limpo = configurado.replace(/\/+$/, "");
+      return /^wss?:/.test(limpo)
+        ? `${limpo}${CAMINHO_SINAL}`
+        : limpo.replace(/^http/, "ws") + CAMINHO_SINAL;
+    }
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${location.host}${CAMINHO_SINAL}`;
+  }
+
   private abrirSinalizacao() {
     if (this.fechando) return;
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${location.host}${CAMINHO_SINAL}`);
+    const ws = new WebSocket(this.enderecoDaSinalizacao());
     this.ws = ws;
+
+    // Um endereço sem sinalização se comporta de dois jeitos, e nenhum deles
+    // é um erro claro: em hospedagem serverless o handshake volta 404 e o
+    // socket fecha na hora; num Next servido sozinho ele fica **pendurado**,
+    // sem abrir, sem fechar e sem erro. Por isso a apuração é por tempo, e
+    // não por evento — seis segundos é mais do que qualquer conexão honesta
+    // precisa e menos do que a paciência de quem está esperando entrar.
+    if (this.apurar) clearTimeout(this.apurar);
+    this.apurar = setTimeout(() => {
+      if (this.ws === ws && ws.readyState !== WebSocket.OPEN) void this.diagnosticar();
+    }, 6000);
 
     ws.onopen = () => {
       if (this.ws !== ws) return;
+      this.jaAbriu = true;
+      if (this.apurar) clearTimeout(this.apurar);
       this.tentativa = 0;
       // `sessao` diz ao servidor que esta aba é a mesma de antes, para ele
       // tirar da sala a conexão anterior dela em vez de somar mais uma pessoa.
@@ -491,6 +528,35 @@ export class Malha {
     };
   }
 
+  /**
+   * Por que a conexão nunca abriu.
+   *
+   * "Reconectando…" é a mensagem certa para Wi-Fi que oscila, e a errada para
+   * um endereço que **não tem** servidor de sinalização — ali não há o que
+   * reconectar, e a pessoa fica olhando para uma sala que nunca vai encher.
+   *
+   * A diferença se descobre com uma requisição comum ao mesmo caminho: se
+   * alguém responde um HTTP normal (404, ou a própria página), então o
+   * servidor está de pé mas não fala WebSocket. É o que acontece em
+   * hospedagem serverless, onde o `server.mjs` não roda — e é exatamente o
+   * caso que dá dias de "não consigo entrar na mesma sala que você".
+   */
+  private async diagnosticar() {
+    if (this.jaAbriu) return;
+    const endereco = this.enderecoDaSinalizacao().replace(/^ws/, "http");
+    try {
+      const r = await fetch(endereco, { method: "GET" });
+      this.estado.erro =
+        `este endereço não tem servidor de sinalização (respondeu ${r.status} a ` +
+        `${CAMINHO_SINAL}). O NVDISC precisa de um processo de pé para apresentar ` +
+        `as pessoas de uma sala — em hospedagem serverless ele não roda, e ninguém ` +
+        `chega a se ver. Veja "Onde isto pode rodar" no README.`;
+      this.avisar();
+    } catch {
+      /* sem resposta nenhuma: aí é rede mesmo, e "reconectando…" está certo */
+    }
+  }
+
   private agendarReconexao() {
     if (this.fechando || this.religar) return;
     // 1s, 2s, 4s, 8s, e daí em diante de 10 em 10. Insistir de meio em meio
@@ -498,7 +564,9 @@ export class Malha {
     // olhando para uma sala morta.
     const espera = Math.min(10_000, 1000 * 2 ** this.tentativa);
     this.tentativa += 1;
-    if (this.tentativa === 1) this.sistema("a conexão caiu; tentando voltar…");
+    if (this.tentativa === 1 && this.jaAbriu) {
+      this.sistema("a conexão caiu; tentando voltar…");
+    }
 
     this.religar = setTimeout(() => {
       this.religar = undefined;
@@ -1091,6 +1159,7 @@ export class Malha {
   sair() {
     this.fechando = true;
     cancelAnimationFrame(this.quadro);
+    if (this.apurar) clearTimeout(this.apurar);
     if (this.pingTimer) clearInterval(this.pingTimer);
     if (this.religar) clearTimeout(this.religar);
     this.meuMedidor?.parar();

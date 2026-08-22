@@ -108,6 +108,27 @@ A malha manda **uma cópia para cada pessoa**, então existe um teto de subida
 (12 Mbps) dividido pelo número de pares. Estourar a subida não degrada aos
 poucos: enfileira e trava tudo de uma vez, inclusive a voz.
 
+### Onde isto pode rodar
+
+**Não roda em hospedagem serverless.** Vercel, Netlify e parentes servem as
+páginas muito bem e não têm onde manter uma conexão de pé: cada requisição
+nasce e morre. O `server.mjs` — que é quem apresenta as pessoas de uma sala
+umas às outras — nunca sobe, o `wss://.../NVDISC/sinal` responde 404, e o
+sintoma é cruel: a sala abre, o nome aparece, e ninguém nunca chega. A página
+diz isso na cara agora, em vez de ficar em "reconectando…" para sempre.
+
+Três arranjos que funcionam:
+
+| Onde | O que fazer |
+|------|-------------|
+| **Um processo, tudo junto** | Render, Railway, Fly.io ou um VPS com Node. `npm run build && npm start`, TLS no proxy da frente. É o arranjo que este repositório assume. |
+| **Páginas na Vercel, sinalização à parte** | Suba o `server.mjs` num lugar com processo e aponte as páginas para ele com `NEXT_PUBLIC_SINAL_URL=wss://sinal.seu-dominio` |
+| **Na sua rede, sem publicar** | `npm run cert` e suba com TLS (abaixo). Serve para chamar quem está na mesma casa. |
+
+O terceiro é o mais subestimado: para uma conversa entre duas pessoas que já
+estão na mesma rede, publicar na internet não acrescenta nada — e a conversa
+continua indo direto de um navegador ao outro de qualquer jeito.
+
 ### Antes de chamar a turma
 
 **HTTPS não é opcional fora do `localhost`.** Navegador só entrega microfone e
