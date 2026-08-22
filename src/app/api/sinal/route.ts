@@ -191,6 +191,19 @@ async function provar() {
   };
 }
 
+/**
+ * Qual código está no ar.
+ *
+ * Sem isto, "não funcionou" e "a correção subiu?" são duas perguntas que se
+ * confundem — e a Vercel tem um botão de *Redeploy* que republica **aquele**
+ * deploy, não o commit mais novo, o que é fácil de fazer sem perceber. Sete
+ * caracteres aqui encerram o assunto.
+ */
+function versao() {
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA;
+  return sha ? sha.slice(0, 7) : "local";
+}
+
 async function diagnosticar() {
   const supabase = acharSupabase();
   const redis = acharRedis();
@@ -201,6 +214,7 @@ async function diagnosticar() {
       const registro = criarRegistroSupabase(supabase.url, supabase.chave);
       await registro.listar("diagnostico");
       return {
+        versao: versao(),
         sinalizacao: "de pé",
         salas: "no supabase, compartilhadas entre as instâncias",
         ...(await provar()),
@@ -209,6 +223,7 @@ async function diagnosticar() {
       const motivo = String((erro as Error)?.message ?? erro);
       const semTabela = /nvdisc_participantes|schema cache|does not exist|42P01/i.test(motivo);
       return {
+        versao: versao(),
         sinalizacao: "de pé",
         salas: "o supabase respondeu, mas a sala não pôde ser lida",
         erro: motivo,
@@ -221,6 +236,7 @@ async function diagnosticar() {
 
   if (redis) {
     return {
+      versao: versao(),
       sinalizacao: "de pé",
       salas: "no redis, compartilhadas entre as instâncias",
       ...(await provar()),
@@ -228,6 +244,7 @@ async function diagnosticar() {
   }
 
   return {
+    versao: versao(),
     sinalizacao: "de pé",
     salas: "cada instância com a sua — duas pessoas podem não se ver",
     comoResolver:
@@ -246,7 +263,7 @@ export async function GET(requisicao: Request) {
   }
 
   const sessaoDe = obter();
-  return experimental_upgradeWebSocket(async (ws) => {
+  return experimental_upgradeWebSocket((ws) => {
     const sessao = sessaoDe.aoConectar(
       ws as unknown as { readyState: number; send: (d: string) => void },
     );
@@ -293,22 +310,6 @@ export async function GET(requisicao: Request) {
     ws.on("close", () => void sessao.aoFechar());
     ws.on("error", () => void sessao.aoFechar());
 
-    // **A função só pode voltar quando a conversa acabar.**
-    //
-    // O `experimental_upgradeWebSocket` devolve a resposta HTTP assim que
-    // este tratador retorna, e a invocação termina com ela. O que acontece
-    // dentro do tratador funciona — foi por isso que o `pong` de boas-vindas
-    // chegava —, e tudo o que dependia de um evento **posterior** morria sem
-    // rastro: o `entrar` do navegador chegava a um ninguém, e a pessoa ficava
-    // olhando "reconectando…" para sempre.
-    //
-    // Ficar pendurado aqui é o que mantém a instância viva ouvindo o socket.
-    // O fim vem do fechamento, ou do teto de duração da função — e nesse caso
-    // o navegador reconecta sozinho, como a mesma pessoa, sem ninguém notar.
-    await new Promise<void>((acabou) => {
-      ws.on("close", () => acabou());
-      ws.on("error", () => acabou());
-    });
   });
 }
 
