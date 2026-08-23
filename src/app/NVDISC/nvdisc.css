@@ -1092,3 +1092,330 @@ button.nv-aviso:hover {
   object-fit: contain;
   border-radius: var(--r-nv-sm);
 }
+
+/* ------------------------------------------------- painel de ajustes ----- */
+
+/*
+ * As abas.
+ *
+ * Grudadas no cabeçalho e com a linha de baixo servindo de trilho: a aba ativa
+ * "fura" essa linha, que é o que faz o conteúdo abaixo parecer pendurado nela
+ * em vez de solto embaixo de três botões.
+ */
+.nv-abas {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+.nv-aba {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 9px 12px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--txt-3);
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s;
+}
+.nv-aba:hover {
+  color: var(--txt-2);
+}
+.nv-aba.ativa {
+  color: var(--accent-light);
+  border-bottom-color: var(--accent-light);
+}
+
+/* Um campo do avançado: rótulo, controle e a nota que explica o que ele faz. */
+.nv-campo {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.nv-campo:last-child {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+.nv-campo-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.nv-campo-topo output {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent-light);
+}
+
+/*
+ * O `<details>` do avançado.
+ *
+ * Fechado por padrão. Quem precisa dele já sabe que existe; quem não precisa
+ * não deveria ter que rolar por cima de um limiar de porta de ruído para
+ * chegar ao botão de fechar.
+ */
+.nv-avancado {
+  border-top: 1px solid var(--hairline);
+  padding: 0 16px 12px;
+}
+.nv-avancado > summary {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+  padding: 12px 0;
+  cursor: pointer;
+  list-style: none;
+}
+.nv-avancado > summary::-webkit-details-marker {
+  display: none;
+}
+.nv-avancado > summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform 0.18s;
+}
+.nv-avancado[open] > summary::before {
+  content: "▾ ";
+}
+.nv-avancado > summary:hover {
+  color: var(--accent-light);
+}
+
+/* A chave de liga/desliga. */
+.nv-chave {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--txt-2);
+  cursor: pointer;
+  padding: 0;
+}
+.nv-chave.ligada {
+  color: var(--txt);
+}
+.nv-chave-trilho {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 19px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  position: relative;
+  transition: background 0.18s, border-color 0.18s;
+}
+.nv-chave.ligada .nv-chave-trilho {
+  background: var(--accent);
+  border-color: var(--accent-light);
+}
+.nv-chave-bola {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: var(--txt-3);
+  transition: transform 0.18s, background 0.18s;
+}
+.nv-chave.ligada .nv-chave-bola {
+  transform: translateX(15px);
+  background: #fff;
+}
+
+/*
+ * O deslizante.
+ *
+ * `appearance: none` nos dois pseudo-elementos porque Chrome e Firefox usam
+ * nomes diferentes para a mesma peça, e estilizar só um deixa o outro com o
+ * controle cinza do sistema no meio de um painel escuro.
+ */
+.nv-range {
+  width: 100%;
+  margin: 10px 0 2px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.nv-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+}
+.nv-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+}
+.nv-range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  margin-top: -6px;
+  border-radius: 999px;
+  background: var(--accent-light);
+  border: 2px solid var(--surface);
+}
+.nv-range::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: var(--accent-light);
+  border: 2px solid var(--surface);
+}
+.nv-range:focus-visible {
+  outline: none;
+}
+.nv-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(100, 149, 237, 0.35);
+}
+
+/* O medidor de entrada, com a marca do limiar. */
+.nv-medidor {
+  position: relative;
+  height: 10px;
+  margin: 10px 0 8px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+}
+.nv-medidor-barra {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 70%, var(--alerta) 100%);
+  /* Curto o bastante para acompanhar a fala, longo o bastante para a barra
+     não tremer com o ruído de fundo. */
+  transition: width 0.07s linear;
+}
+.nv-medidor-limiar {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--alerta);
+  /* A marca fica **em cima** da barra: ela é a referência, e ficar por baixo
+     a esconderia justamente quando o nível a ultrapassa, que é a hora em que
+     se quer vê-la. */
+  z-index: 1;
+}
+
+/* Os temas. */
+.nv-temas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.nv-tema {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: var(--r-nv-sm);
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  color: var(--txt-2);
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.nv-tema:hover {
+  border-color: var(--hairline-hi);
+}
+.nv-tema.ativo {
+  border-color: var(--accent-light);
+  color: var(--txt);
+}
+.nv-tema span {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* ------------------------------------------------------------- temas ----- */
+
+/*
+ * Cada tema troca **só o acento** e o brilho do fundo.
+ *
+ * As superfícies e o texto ficam onde estão: é deles que vem a legibilidade,
+ * medida uma vez. Trocar contraste por gosto é como se produz uma interface
+ * bonita que ninguém consegue ler por muito tempo.
+ */
+.nv[data-tema="ambar"] {
+  --accent: #8a5a10;
+  --accent-hover: #a86f18;
+  --accent-light: #f4b74a;
+  --hairline-hi: rgba(244, 183, 74, 0.45);
+}
+.nv[data-tema="esmeralda"] {
+  --accent: #0d6b45;
+  --accent-hover: #128555;
+  --accent-light: #3ef08a;
+  --hairline-hi: rgba(62, 240, 138, 0.4);
+}
+.nv[data-tema="gelo"] {
+  --accent: #0e6478;
+  --accent-hover: #127e97;
+  --accent-light: #67e8f9;
+  --hairline-hi: rgba(103, 232, 249, 0.42);
+}
+.nv[data-tema="violeta"] {
+  --accent: #4c2f9e;
+  --accent-hover: #5f3cc4;
+  --accent-light: #a78bfa;
+  --hairline-hi: rgba(167, 139, 250, 0.45);
+}
+.nv[data-tema="carmim"] {
+  --accent: #8d1f3a;
+  --accent-hover: #ad2749;
+  --accent-light: #fb7185;
+  --hairline-hi: rgba(251, 113, 133, 0.42);
+}
+
+/* O fundo acompanha o acento: os dois brilhos são a mesma cor, mais fracos. */
+.nv-fundo[data-tema="ambar"] {
+  background:
+    radial-gradient(1100px 560px at 84% -10%, rgba(244, 183, 74, 0.13), transparent 60%),
+    radial-gradient(820px 480px at -10% 12%, rgba(244, 183, 74, 0.06), transparent 55%),
+    var(--bg);
+}
+.nv-fundo[data-tema="esmeralda"] {
+  background:
+    radial-gradient(1100px 560px at 84% -10%, rgba(62, 240, 138, 0.11), transparent 60%),
+    radial-gradient(820px 480px at -10% 12%, rgba(62, 240, 138, 0.05), transparent 55%),
+    var(--bg);
+}
+.nv-fundo[data-tema="gelo"] {
+  background:
+    radial-gradient(1100px 560px at 84% -10%, rgba(103, 232, 249, 0.12), transparent 60%),
+    radial-gradient(820px 480px at -10% 12%, rgba(103, 232, 249, 0.05), transparent 55%),
+    var(--bg);
+}
+.nv-fundo[data-tema="violeta"] {
+  background:
+    radial-gradient(1100px 560px at 84% -10%, rgba(167, 139, 250, 0.15), transparent 60%),
+    radial-gradient(820px 480px at -10% 12%, rgba(167, 139, 250, 0.06), transparent 55%),
+    var(--bg);
+}
+.nv-fundo[data-tema="carmim"] {
+  background:
+    radial-gradient(1100px 560px at 84% -10%, rgba(251, 113, 133, 0.13), transparent 60%),
+    radial-gradient(820px 480px at -10% 12%, rgba(251, 113, 133, 0.05), transparent 55%),
+    var(--bg);
+}

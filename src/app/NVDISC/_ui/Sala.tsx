@@ -48,6 +48,7 @@ const VAZIO: EstadoMalha = {
   microfoneId: null,
   capturaAviso: null,
   audioTravado: false,
+  meuNivel: 0,
   qualidade: QUALIDADE_PADRAO,
 };
 
@@ -58,7 +59,33 @@ export default function Sala({ sala }: { sala: string }) {
   /** de quem é a tela que está ocupando o palco */
   const [telaAberta, setTelaAberta] = useState<string | null>(null);
   const [naoLidas, setNaoLidas] = useState(0);
+  /**
+   * O tema começa no padrão e é lido do `localStorage` depois de montar.
+   *
+   * Ler direto no `useState` quebraria a hidratação: o servidor renderiza sem
+   * `localStorage` e chegaria a um valor diferente do que o navegador acha
+   * na primeira passada.
+   */
+  const [tema, setTema] = useState("cornflower");
   const malha = useRef<Malha | null>(null);
+
+  useEffect(() => {
+    try {
+      const guardado = localStorage.getItem("nvdisc:tema");
+      if (guardado) setTema(guardado);
+    } catch {
+      /* navegação privativa: fica o padrão */
+    }
+  }, []);
+
+  function trocarTema(t: string) {
+    setTema(t);
+    try {
+      localStorage.setItem("nvdisc:tema", t);
+    } catch {
+      /* vale por esta sessão */
+    }
+  }
 
   useEffect(() => {
     const guardado = limparNome(localStorage.getItem("nvdisc:nome"));
@@ -125,7 +152,7 @@ export default function Sala({ sala }: { sala: string }) {
   if (!nome) return null;
 
   return (
-    <div className="nv nv-fundo nv-sala">
+    <div className="nv nv-fundo nv-sala" data-tema={tema}>
       <Topo
         sala={sala}
         estado={estado}
@@ -178,10 +205,12 @@ export default function Sala({ sala }: { sala: string }) {
 
       <Controles
         estado={estado}
+        tema={tema}
         onMudo={() => malha.current?.mudo(!estado.mudo)}
         onTela={() => void malha.current?.alternarTela()}
         onQualidade={(q) => void malha.current?.definirQualidade(q)}
         onMicrofone={(id) => void malha.current?.definirMicrofone(id)}
+        onTema={trocarTema}
       />
     </div>
   );
@@ -823,16 +852,20 @@ function ImagemDoChat({ src, de }: { src: string; de: string }) {
 
 function Controles({
   estado,
+  tema,
   onMudo,
   onTela,
   onQualidade,
   onMicrofone,
+  onTema,
 }: {
   estado: EstadoMalha;
+  tema: string;
   onMudo: () => void;
   onTela: () => void;
   onQualidade: (q: Partial<Qualidade>) => void;
   onMicrofone: (id: string | null) => void;
+  onTema: (t: string) => void;
 }) {
   const [aberto, setAberto] = useState(false);
 
@@ -841,10 +874,13 @@ function Controles({
       {aberto && (
         <PainelQualidade
           q={estado.qualidade}
+          estado={estado}
+          tema={tema}
           microfones={estado.microfones}
           microfoneId={estado.microfoneId}
           onQualidade={onQualidade}
           onMicrofone={onMicrofone}
+          onTema={onTema}
           onFechar={() => setAberto(false)}
         />
       )}
@@ -865,7 +901,7 @@ function Controles({
         onClick={() => setAberto((v) => !v)}
       >
         <AjustesIcon />
-        Qualidade
+        Ajustes
       </button>
 
       <Link href={comBase("/")} className="nv-btn perigo">
@@ -876,34 +912,107 @@ function Controles({
   );
 }
 
+/**
+ * O painel de ajustes, em três abas.
+ *
+ * Uma lista só, com tudo, obrigava a rolar por resolução de vídeo para chegar
+ * ao microfone — e microfone é o que a pessoa vem procurar quando alguma
+ * coisa está errada. Separar por assunto põe cada coisa a um clique, e deixa
+ * o avançado existir sem atrapalhar quem só quer trocar o microfone.
+ *
+ * Cada aba começa pelo que a maioria mexe e termina no que quase ninguém
+ * mexe, atrás de um `<details>`. Esconder o avançado não é escondê-lo de
+ * quem procura: é não empurrá-lo para quem não procura.
+ */
 function PainelQualidade({
   q,
+  estado,
+  tema,
   microfones,
   microfoneId,
   onQualidade,
   onMicrofone,
+  onTema,
   onFechar,
 }: {
   q: Qualidade;
+  estado: EstadoMalha;
+  tema: string;
   microfones: { id: string; nome: string }[];
   microfoneId: string | null;
   onQualidade: (q: Partial<Qualidade>) => void;
   onMicrofone: (id: string | null) => void;
+  onTema: (t: string) => void;
   onFechar: () => void;
 }) {
+  const [aba, setAba] = useState<"transmissao" | "microfone" | "tema">("microfone");
+
   return (
     <div className="nv-painel nv-cantos">
       <header>
-        <span className="nv-eyebrow">Qualidade</span>
+        <span className="nv-eyebrow">Ajustes</span>
         <button onClick={onFechar} aria-label="fechar">
           ×
         </button>
       </header>
 
-      {/* Primeiro grupo de propósito: quando não se ouve alguém, o
-          microfone é a primeira coisa a conferir, não a última. */}
+      <nav className="nv-abas" role="tablist">
+        {(
+          [
+            ["microfone", "Microfone"],
+            ["transmissao", "Transmissão"],
+            ["tema", "Personalização"],
+          ] as const
+        ).map(([v, r]) => (
+          <button
+            key={v}
+            role="tab"
+            aria-selected={aba === v}
+            className={`nv-aba${aba === v ? " ativa" : ""}`}
+            onClick={() => setAba(v)}
+          >
+            {r}
+          </button>
+        ))}
+      </nav>
+
+      {aba === "microfone" && (
+        <AbaMicrofone
+          q={q}
+          estado={estado}
+          microfones={microfones}
+          microfoneId={microfoneId}
+          onQualidade={onQualidade}
+          onMicrofone={onMicrofone}
+        />
+      )}
+      {aba === "transmissao" && <AbaTransmissao q={q} onQualidade={onQualidade} />}
+      {aba === "tema" && <AbaTema tema={tema} onTema={onTema} />}
+    </div>
+  );
+}
+
+// ------------------------------------------------------- aba: microfone --
+
+function AbaMicrofone({
+  q,
+  estado,
+  microfones,
+  microfoneId,
+  onQualidade,
+  onMicrofone,
+}: {
+  q: Qualidade;
+  estado: EstadoMalha;
+  microfones: { id: string; nome: string }[];
+  microfoneId: string | null;
+  onQualidade: (q: Partial<Qualidade>) => void;
+  onMicrofone: (id: string | null) => void;
+}) {
+  return (
+    <>
       <div className="grupo">
-        <span className="nv-rotulo">Microfone</span>
+        <span className="nv-rotulo">Entrada</span>
         {microfones.length === 0 ? (
           <p className="nv-nota" style={{ marginTop: 8 }}>
             A lista aparece depois que você dá a permissão do microfone.
@@ -924,17 +1033,32 @@ function PainelQualidade({
             </select>
             <p className="nv-nota" style={{ marginTop: 8 }}>
               Um PC costuma ter mais de uma entrada, e a padrão do sistema nem
-              sempre é a que tem alguém falando na frente. Se ninguém te ouve e
-              o seu anel não acende quando você fala, é aqui. A troca é na hora
-              — ninguém na sala percebe.
+              sempre é a que tem alguém falando na frente. A troca é na hora —
+              ninguém na sala percebe.
             </p>
           </>
         )}
       </div>
 
+      {/* O medidor é a peça que faz o resto desta aba ser regulável em vez de
+          adivinhável: sem ver o nível, escolher um limiar é chute. */}
+      <div className="grupo">
+        <span className="nv-rotulo">Nível de entrada</span>
+        <Medidor nivel={estado.meuNivel} limiar={q.ruido === "forte" ? q.limiar : null} />
+        <p className="nv-nota">
+          {estado.mudo
+            ? "O microfone está desligado — ligue para ver o nível."
+            : estado.meuNivel > 0.5
+              ? "Bem alto. Se estiver estourando, baixe o reforço no avançado."
+              : estado.meuNivel > 0.02
+                ? "Captando."
+                : "Nada entrando. Fale algo; se a barra não mexer, troque a entrada acima."}
+        </p>
+      </div>
+
       <div className="grupo">
         <Escolha
-          titulo="Som"
+          titulo="Modo"
           valor={q.audio}
           opcoes={[
             { v: "voz", r: "Voz" },
@@ -944,8 +1068,12 @@ function PainelQualidade({
         />
         <p className="nv-nota" style={{ marginTop: 8 }}>
           {q.audio === "voz"
-            ? "Cancelamento de eco e supressão de ruído ligados. É o que evita microfonia em quem usa alto-falante."
-            : "Estéreo, sem processamento, taxa alta. Instrumento e vídeo passam inteiros — mas peça fone a todo mundo, senão vira realimentação."}
+            ? "Cancelamento de eco e supressão ligados, mono, 96 kbps. É o que evita microfonia em quem usa alto-falante."
+            : "Estéreo a 256 kbps, sem processamento. Instrumento e vídeo passam inteiros — mas peça fone a todo mundo, senão vira realimentação."}
+        </p>
+        <p className="nv-nota">
+          Os dois botões são atalhos: eles escrevem o avançado de uma vez, e o
+          que você mexer depois vale sobre eles.
         </p>
       </div>
 
@@ -962,13 +1090,87 @@ function PainelQualidade({
         />
         <p className="nv-nota" style={{ marginTop: 8 }}>
           {q.ruido === "desligado"
-            ? "Nada é tirado do som. É o certo quando o que importa não é a fala: instrumento, vídeo, uma voz cantando."
+            ? "Nada é tirado do som. É o certo quando o que importa não é a fala."
             : q.ruido === "padrao"
-              ? "O supressor do navegador tira ventilador, teclado e chiado sem encostar na voz. Serve para quase todo mundo."
-              : "Além do supressor, o microfone fica fechado enquanto você não fala. Resolve obra na rua e cachorro no quintal — e cobra: começo de palavra dita baixinho pode se perder, e respiração some."}
+              ? "O supressor do navegador tira ventilador, teclado e chiado sem encostar na voz."
+              : "Além do supressor, o microfone fica fechado enquanto você não fala. Regule o limiar no avançado, olhando o medidor."}
         </p>
       </div>
 
+      <details className="nv-avancado">
+        <summary>Avançado</summary>
+
+        <Chave
+          titulo="Cancelamento de eco"
+          ligado={q.eco}
+          onMudar={(v) => onQualidade({ eco: v })}
+          nota="Impede que o seu alto-falante volte para a sala. Desligue só de fone — ele come agudo, e para instrumento isso pesa."
+        />
+
+        <Chave
+          titulo="Ganho automático"
+          ligado={q.ganhoAuto}
+          onMudar={(v) => onQualidade({ ganhoAuto: v })}
+          nota="Nivela quem fala baixo e quem grita. Em compensação levanta o silêncio junto: com ruído de fundo, ele sobe o ventilador quando ninguém fala."
+        />
+
+        <Deslizante
+          titulo="Reforço de entrada"
+          valor={q.ganho}
+          min={-12}
+          max={18}
+          passo={1}
+          formatar={(v) => `${v > 0 ? "+" : ""}${v} dB`}
+          onMudar={(v) => onQualidade({ ganho: v })}
+          nota="Para o microfone que o sistema entrega baixo demais e não tem onde subir. É ganho linear: amplifica o ruído junto, então é remédio para sinal fraco, não para sala barulhenta."
+        />
+
+        {q.ruido === "forte" && (
+          <Deslizante
+            titulo="Limiar da porta"
+            valor={Math.round(q.limiar * 1000)}
+            min={0}
+            max={150}
+            passo={5}
+            formatar={(v) => (v / 1000).toFixed(3)}
+            onMudar={(v) => onQualidade({ limiar: v / 1000 })}
+            nota="Abaixo deste nível o microfone fica fechado. Olhe o medidor acima: ponha o limiar logo em cima do ruído de fundo e abaixo da sua voz. Alto demais corta o começo das palavras."
+          />
+        )}
+
+        <Deslizante
+          titulo="Taxa da voz"
+          valor={q.taxaVoz}
+          min={24}
+          max={320}
+          passo={8}
+          formatar={(v) => `${v} kbps`}
+          onMudar={(v) => onQualidade({ taxaVoz: v })}
+          nota="O padrão do WebRTC é ~32 kbps, que é o som de telefone. Acima de 128 o ganho fica difícil de ouvir em voz; para música, vale ir alto. Só entra por inteiro na próxima negociação."
+        />
+
+        <Chave
+          titulo="Cortar transmissão no silêncio"
+          ligado={q.dtx}
+          onMudar={(v) => onQualidade({ dtx: v })}
+          nota="Economiza banda de verdade e come o começo das palavras ditas baixinho. Ligue só em rede muito apertada."
+        />
+      </details>
+    </>
+  );
+}
+
+// ----------------------------------------------------- aba: transmissão --
+
+function AbaTransmissao({
+  q,
+  onQualidade,
+}: {
+  q: Qualidade;
+  onQualidade: (q: Partial<Qualidade>) => void;
+}) {
+  return (
+    <>
       <div className="grupo">
         <Escolha
           titulo="Resolução da tela"
@@ -980,9 +1182,7 @@ function PainelQualidade({
             { v: "2160", r: "4K" },
             { v: "0", r: "Original" },
           ]}
-          onEscolher={(v) =>
-            onQualidade({ resolucao: Number(v) as Qualidade["resolucao"] })
-          }
+          onEscolher={(v) => onQualidade({ resolucao: Number(v) as Qualidade["resolucao"] })}
         />
       </div>
 
@@ -996,6 +1196,10 @@ function PainelQualidade({
           ]}
           onEscolher={(v) => onQualidade({ fps: Number(v) as Qualidade["fps"] })}
         />
+        <p className="nv-nota" style={{ marginTop: 8 }}>
+          60 custa cerca de 60% mais banda. Vale para jogo e vídeo; para código
+          e planilha, 30 é indistinguível.
+        </p>
       </div>
 
       <div className="grupo">
@@ -1015,15 +1219,183 @@ function PainelQualidade({
         </p>
       </div>
 
+      <div className="grupo">
+        <Chave
+          titulo="Mandar o som da tela"
+          ligado={q.somDaTela}
+          onMudar={(v) => onQualidade({ somDaTela: v })}
+          nota="O áudio da captura vai misturado à sua voz, numa faixa só. Só o Chrome entrega esse som, e só ao compartilhar uma aba."
+        />
+      </div>
+
+      <details className="nv-avancado">
+        <summary>Avançado</summary>
+
+        <Deslizante
+          titulo="Teto de subida"
+          valor={q.tetoVideo}
+          min={0}
+          max={20000}
+          passo={500}
+          formatar={(v) => (v === 0 ? "automático" : `${(v / 1000).toFixed(1)} Mbps`)}
+          onMudar={(v) => onQualidade({ tetoVideo: v })}
+          nota="Quanto o vídeo pode gastar no total, dividido entre as pessoas da sala. Se você sabe a sua subida, ponha um pouco abaixo dela: estourar não degrada aos poucos, enfileira e trava tudo de uma vez — inclusive a voz."
+        />
+      </details>
+
       <div className="rodape">
         <p className="nv-nota">
           A sua conexão manda{" "}
           <strong style={{ color: "var(--txt-2)" }}>uma cópia para cada pessoa</strong>{" "}
-          na sala. Com muita gente, a taxa é dividida sozinha para não estourar a
-          sua subida — estourar não degrada aos poucos, trava tudo de uma vez,
-          inclusive a voz.
+          na sala. Com muita gente, a taxa é dividida sozinha para não estourar
+          a sua subida.
         </p>
       </div>
+    </>
+  );
+}
+
+// -------------------------------------------------- aba: personalização --
+
+/**
+ * Os temas.
+ *
+ * Todos saem da paleta da marca — não são cores inventadas aqui. O que muda é
+ * o acento e o brilho do fundo; as superfícies continuam as mesmas, porque é
+ * delas que vem a legibilidade, e trocar o contraste do texto por gosto é
+ * como se produz uma interface bonita que ninguém consegue ler.
+ */
+const TEMAS = [
+  { v: "cornflower", r: "Cornflower", cor: "#6495ed" },
+  { v: "ambar", r: "Âmbar", cor: "#f4b74a" },
+  { v: "esmeralda", r: "Esmeralda", cor: "#3ef08a" },
+  { v: "gelo", r: "Gelo", cor: "#67e8f9" },
+  { v: "violeta", r: "Violeta", cor: "#a78bfa" },
+  { v: "carmim", r: "Carmim", cor: "#fb7185" },
+] as const;
+
+function AbaTema({ tema, onTema }: { tema: string; onTema: (t: string) => void }) {
+  return (
+    <>
+      <div className="grupo">
+        <span className="nv-rotulo">Cor de acento</span>
+        <div className="nv-temas">
+          {TEMAS.map((t) => (
+            <button
+              key={t.v}
+              className={`nv-tema${tema === t.v ? " ativo" : ""}`}
+              onClick={() => onTema(t.v)}
+              aria-pressed={tema === t.v}
+              title={t.r}
+            >
+              <span style={{ background: t.cor }} aria-hidden />
+              {t.r}
+            </button>
+          ))}
+        </div>
+        <p className="nv-nota" style={{ marginTop: 10 }}>
+          Vale só para você, neste navegador — a sala de quem está do outro
+          lado não muda. Fica guardado entre visitas.
+        </p>
+      </div>
+    </>
+  );
+}
+
+// ------------------------------------------------------------ controles --
+
+/** Uma chave de liga/desliga com a explicação embaixo. */
+function Chave({
+  titulo,
+  ligado,
+  onMudar,
+  nota,
+}: {
+  titulo: string;
+  ligado: boolean;
+  onMudar: (v: boolean) => void;
+  nota?: string;
+}) {
+  return (
+    <div className="nv-campo">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={ligado}
+        className={`nv-chave${ligado ? " ligada" : ""}`}
+        onClick={() => onMudar(!ligado)}
+      >
+        <span className="nv-chave-trilho" aria-hidden>
+          <span className="nv-chave-bola" />
+        </span>
+        {titulo}
+      </button>
+      {nota && <p className="nv-nota">{nota}</p>}
+    </div>
+  );
+}
+
+/** Um deslizante com o valor escrito ao lado — sem ele, ninguém sabe onde está. */
+function Deslizante({
+  titulo,
+  valor,
+  min,
+  max,
+  passo,
+  formatar,
+  onMudar,
+  nota,
+}: {
+  titulo: string;
+  valor: number;
+  min: number;
+  max: number;
+  passo: number;
+  formatar: (v: number) => string;
+  onMudar: (v: number) => void;
+  nota?: string;
+}) {
+  return (
+    <div className="nv-campo">
+      <div className="nv-campo-topo">
+        <span className="nv-rotulo">{titulo}</span>
+        <output>{formatar(valor)}</output>
+      </div>
+      <input
+        type="range"
+        className="nv-range"
+        min={min}
+        max={max}
+        step={passo}
+        value={valor}
+        onChange={(e) => onMudar(Number(e.target.value))}
+      />
+      {nota && <p className="nv-nota">{nota}</p>}
+    </div>
+  );
+}
+
+/**
+ * A barra de nível, com a marca do limiar em cima.
+ *
+ * As duas coisas na mesma régua de propósito: o limiar só quer dizer alguma
+ * coisa em relação ao que está entrando, e mostrá-los separados devolveria o
+ * problema que este medidor existe para resolver.
+ */
+function Medidor({ nivel, limiar }: { nivel: number; limiar: number | null }) {
+  // Raiz quadrada: o ouvido é logarítmico e uma escala linear deixa toda a
+  // fala normal espremida no primeiro quinto da barra.
+  const pos = (v: number) => `${Math.min(100, Math.sqrt(Math.min(1, v)) * 100)}%`;
+  return (
+    <div className="nv-medidor">
+      <div className="nv-medidor-barra" style={{ width: pos(nivel) }} />
+      {limiar !== null && (
+        <div
+          className="nv-medidor-limiar"
+          style={{ left: pos(limiar) }}
+          title="limiar da porta de ruído"
+        />
+      )}
     </div>
   );
 }

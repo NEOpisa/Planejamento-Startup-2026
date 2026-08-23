@@ -74,6 +74,15 @@ export type EstadoMalha = {
   /** volume do próprio microfone, para o indicador de fala */
   meuVolume: number;
   /**
+   * O nível **cru**, sem o piso que o indicador de fala aplica.
+   *
+   * O indicador quer responder "esta pessoa está falando?" e por isso corta
+   * embaixo. Regular a porta de ruído quer a pergunta oposta — "quanto barulho
+   * tem quando ninguém fala?" — e a resposta mora justamente na parte que o
+   * indicador joga fora.
+   */
+  meuNivel: number;
+  /**
    * A minha captura de tela trouxe som?
    *
    * Vale a pena estar no estado, e não só num aviso no chat: é a diferença
@@ -174,6 +183,54 @@ export type Qualidade = {
    * e jogo, onde o que incomoda é o soluço.
    */
   perfil: "nitidez" | "movimento";
+
+  // ------------------------------------------------- avançado: microfone --
+
+  /**
+   * Cancelamento de eco.
+   *
+   * Desligar só faz sentido de fone: sem ele, o alto-falante volta para o
+   * microfone e a sala vira microfonia em segundos. Em compensação ele é um
+   * processador, e processador come agudo — para instrumento, desligado soa
+   * bem melhor.
+   */
+  eco: boolean;
+  /**
+   * Controle automático de ganho.
+   *
+   * Nivela quem fala baixo e quem grita. O preço é que ele também levanta o
+   * silêncio: numa sala com ruído de fundo, o ganho automático sobe o
+   * ventilador junto quando ninguém está falando.
+   */
+  ganhoAuto: boolean;
+  /** reforço de entrada em dB, aplicado depois da captura (-12 a +18) */
+  ganho: number;
+  /**
+   * O ponto em que a porta de ruído abre.
+   *
+   * Era uma constante, e a documentação dela dizia que o limiar saía do nível
+   * medido — o código comparava com um número fixo. Microfone fraco nunca
+   * alcançava esse número, e a pessoa ficava muda com a supressão em `forte`.
+   * Agora é ajustável, e o painel mostra o nível ao vivo ao lado para a
+   * escolha ser feita olhando, não adivinhando.
+   */
+  limiar: number;
+  /** taxa da voz em kbps; o Opus decide o resto */
+  taxaVoz: number;
+  /**
+   * Corte de transmissão no silêncio.
+   *
+   * Economiza banda de verdade, e come o começo das palavras ditas baixinho.
+   * Ligado só faz sentido em rede muito apertada.
+   */
+  dtx: boolean;
+
+  // ----------------------------------------------- avançado: transmissão --
+
+  /** teto de subida do vídeo em kbps; 0 = deixa a conta automática decidir */
+  tetoVideo: number;
+  /** mandar o som da captura junto com a imagem */
+  somDaTela: boolean;
 };
 
 export const QUALIDADE_PADRAO: Qualidade = {
@@ -182,6 +239,28 @@ export const QUALIDADE_PADRAO: Qualidade = {
   resolucao: 1080,
   fps: 30,
   perfil: "nitidez",
+  eco: true,
+  ganhoAuto: true,
+  ganho: 0,
+  limiar: 0.035,
+  taxaVoz: 96,
+  dtx: false,
+  tetoVideo: 0,
+  somDaTela: true,
+};
+
+/**
+ * Os dois modos prontos.
+ *
+ * `audio` deixou de mandar sozinho no processamento: agora ele é um atalho
+ * que escreve os campos avançados de uma vez. Quem não quer pensar aperta
+ * "Voz" ou "Música"; quem quer, mexe em cada um depois — e o que vale é
+ * sempre o campo, nunca o atalho. Duas fontes de verdade para a mesma coisa
+ * é como se produz uma tela que mostra "eco desligado" com o eco ligado.
+ */
+export const PREAJUSTES: Record<Qualidade["audio"], Partial<Qualidade>> = {
+  voz: { eco: true, ganhoAuto: true, ruido: "padrao", taxaVoz: 96, dtx: false },
+  musica: { eco: false, ganhoAuto: false, ruido: "desligado", taxaVoz: 256, dtx: false },
 };
 
 /**
@@ -206,13 +285,19 @@ function bitrateVideo(q: Qualidade, pares: number): number {
     2160: 16_000_000,
   };
   const alvo = (base[q.resolucao] ?? 5_000_000) * (q.fps === 60 ? 1.6 : 1);
-  const cabe = TETO_SUBIDA / Math.max(1, pares);
+  // O teto escolhido à mão vale sobre o automático, e é dividido entre as
+  // pessoas do mesmo jeito: quem sabe que tem 3 Mbps de subida põe 3000 aqui
+  // e para de ver a chamada travar quando entra a quarta pessoa.
+  const teto = q.tetoVideo > 0 ? q.tetoVideo * 1000 : TETO_SUBIDA;
+  const cabe = teto / Math.max(1, pares);
   return Math.round(Math.min(alvo, cabe));
 }
 
 /** Taxa do Opus. O `musica` é estéreo, por isso o dobro largo. */
 function bitrateAudio(q: Qualidade): number {
-  return q.audio === "musica" ? 256_000 : 96_000;
+  // Entre 24 e 320 kbps: abaixo disso o Opus soa a telefone mesmo, e acima o
+  // codec não usa o que sobra.
+  return Math.round(Math.min(320, Math.max(24, q.taxaVoz))) * 1000;
 }
 
 /**
@@ -235,11 +320,14 @@ function ajustarOpus(sdp: string, q: Qualidade): string {
   const m = sdp.match(/a=rtpmap:(\d+) opus\/48000/);
   if (!m) return sdp;
   const pt = m[1];
+  // Estéreo acompanha o número de canais que a captura pede, e a captura
+  // segue o modo. Anunciar estéreo no SDP com uma faixa mono só desperdiça
+  // taxa num canal silencioso.
   const estereo = q.audio === "musica";
   const chaves =
     `stereo=${estereo ? 1 : 0};sprop-stereo=${estereo ? 1 : 0};` +
     `maxaveragebitrate=${bitrateAudio(q)};maxplaybackrate=48000;` +
-    `useinbandfec=1;usedtx=0`;
+    `useinbandfec=1;usedtx=${q.dtx ? 1 : 0}`;
 
   const linha = new RegExp(`a=fmtp:${pt} (.*)`);
   if (linha.test(sdp)) {
@@ -602,10 +690,13 @@ function montarCadeia(
   mic: MediaStream | null,
   extras: (MediaStream | null)[],
   comPorta: boolean,
+  ganhoDb = 0,
 ): Cadeia | null {
   const comSom = extras.filter((f): f is MediaStream => (f?.getAudioTracks().length ?? 0) > 0);
   if (!mic?.getAudioTracks().length && comSom.length === 0) return null;
-  if (!comPorta && comSom.length === 0) return null;
+  // Sem porta, sem reforço e sem som de tela não há o que fazer com o
+  // microfone: a faixa crua vai direto, que é o que soa melhor e custa menos.
+  if (!comPorta && comSom.length === 0 && ganhoDb === 0) return null;
 
   const contexto = contextoDeAudio();
   // A mistura sai daqui: com o contexto suspenso esta faixa é silêncio, e
@@ -617,6 +708,26 @@ function montarCadeia(
   if (mic?.getAudioTracks().length) {
     const origem = contexto.createMediaStreamSource(mic);
     let ultimo: AudioNode = origem;
+
+    if (ganhoDb !== 0) {
+      /**
+       * Reforço de entrada.
+       *
+       * Existe para o microfone que o sistema entrega baixo demais e não tem
+       * onde subir — acontece com entrada de linha e com captura por HDMI. É
+       * ganho linear, então **amplifica o ruído junto**: é remédio para sinal
+       * fraco, não para sala barulhenta.
+       *
+       * O teto de +18 dB não é arbitrário: acima disso o que se ganha em
+       * volume se perde em recorte, e o Opus passa a codificar distorção.
+       */
+      const reforco = contexto.createGain();
+      reforco.gain.value = Math.pow(10, Math.min(18, Math.max(-12, ganhoDb)) / 20);
+      ultimo.connect(reforco);
+      ultimo = reforco;
+      desfazer.push(() => reforco.disconnect());
+    }
+
     if (comPorta) {
       // Corte grave: ronco de ar-condicionado e trepidação de mesa vivem
       // abaixo da voz, e tirá-los antes da porta faz a porta errar menos.
@@ -689,6 +800,54 @@ function nivelBruto(m: Medidor | undefined): number {
  * identificador não vale mais, `abrirMicrofone` percebe e volta ao padrão.
  */
 const CHAVE_MICROFONE = "nvdisc:microfone";
+const CHAVE_QUALIDADE = "nvdisc:qualidade";
+
+/**
+ * As configurações duram entre visitas.
+ *
+ * Quem ajustou o limiar da porta olhando o medidor não quer refazer isso toda
+ * vez que entra numa sala. Os campos são conferidos um a um na leitura: um
+ * `localStorage` de outra versão do app, ou editado à mão, não pode injetar
+ * um valor que o resto do código não espera.
+ */
+function qualidadeGuardada(): Qualidade {
+  try {
+    const bruto = localStorage.getItem(CHAVE_QUALIDADE);
+    if (!bruto) return QUALIDADE_PADRAO;
+    const lido = JSON.parse(bruto) as Partial<Qualidade>;
+    const num = (v: unknown, min: number, max: number, padrao: number) =>
+      typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : padrao;
+    const bool = (v: unknown, padrao: boolean) => (typeof v === "boolean" ? v : padrao);
+    const um = <T,>(v: unknown, opcoes: readonly T[], padrao: T) =>
+      opcoes.includes(v as T) ? (v as T) : padrao;
+
+    return {
+      audio: um(lido.audio, ["voz", "musica"] as const, QUALIDADE_PADRAO.audio),
+      ruido: um(lido.ruido, ["desligado", "padrao", "forte"] as const, QUALIDADE_PADRAO.ruido),
+      resolucao: um(lido.resolucao, [0, 720, 1080, 1440, 2160] as const, QUALIDADE_PADRAO.resolucao),
+      fps: um(lido.fps, [30, 60] as const, QUALIDADE_PADRAO.fps),
+      perfil: um(lido.perfil, ["nitidez", "movimento"] as const, QUALIDADE_PADRAO.perfil),
+      eco: bool(lido.eco, QUALIDADE_PADRAO.eco),
+      ganhoAuto: bool(lido.ganhoAuto, QUALIDADE_PADRAO.ganhoAuto),
+      ganho: num(lido.ganho, -12, 18, QUALIDADE_PADRAO.ganho),
+      limiar: num(lido.limiar, 0, 0.2, QUALIDADE_PADRAO.limiar),
+      taxaVoz: num(lido.taxaVoz, 24, 320, QUALIDADE_PADRAO.taxaVoz),
+      dtx: bool(lido.dtx, QUALIDADE_PADRAO.dtx),
+      tetoVideo: num(lido.tetoVideo, 0, 50_000, QUALIDADE_PADRAO.tetoVideo),
+      somDaTela: bool(lido.somDaTela, QUALIDADE_PADRAO.somDaTela),
+    };
+  } catch {
+    return QUALIDADE_PADRAO;
+  }
+}
+
+function guardarQualidade(q: Qualidade) {
+  try {
+    localStorage.setItem(CHAVE_QUALIDADE, JSON.stringify(q));
+  } catch {
+    /* sem onde guardar: vale por esta sessão */
+  }
+}
 
 function microfoneGuardado(): string | null {
   try {
@@ -751,6 +910,7 @@ export class Malha {
     capturaAviso: null,
     audioTravado: false,
     meuVolume: 0,
+    meuNivel: 0,
     telaComSom: false,
     qualidade: { ...QUALIDADE_PADRAO },
   };
@@ -851,7 +1011,7 @@ export class Malha {
       porta.gain.value = this.estado.mudo ? 0 : 1;
       return;
     }
-    const falando = nivelBruto(this.meuMedidor) > LIMIAR_DA_PORTA;
+    const falando = nivelBruto(this.meuMedidor) > this.estado.qualidade.limiar;
     const alvo = falando && !this.estado.mudo ? 1 : 0;
     // `setTargetAtTime` faz a transição no próprio motor de áudio, sem
     // depender do relógio do JavaScript — que é justamente o que costuma
@@ -860,9 +1020,15 @@ export class Malha {
   }
 
   private async refazerCadeia() {
-    const comPorta = this.estado.qualidade.ruido === "forte";
+    const q = this.estado.qualidade;
+    const comPorta = q.ruido === "forte";
     this.cadeia?.desmontar();
-    this.cadeia = montarCadeia(this.meuFluxo, [this.fluxoTela], comPorta);
+    this.cadeia = montarCadeia(
+      this.meuFluxo,
+      [q.somDaTela ? this.fluxoTela : null],
+      comPorta,
+      q.ganho,
+    );
     await this.trocarVoz();
   }
 
@@ -936,6 +1102,7 @@ export class Malha {
       // por quê. `echoCancellation` e companhia importam mais aqui do que em
       // qualquer outro lugar: sem elas, dois na mesma casa viram microfonia.
       this.estado.microfoneId = microfoneGuardado();
+      this.estado.qualidade = qualidadeGuardada();
       this.meuFluxo = await this.abrirMicrofone();
       this.meuMedidor = criarMedidor(this.meuFluxo);
       // Só agora, com a permissão dada, os dispositivos têm nome.
@@ -1183,9 +1350,9 @@ export class Malha {
       // existe para resolver. O preço — um microfone desconectado vira
       // `OverconstrainedError` — é pago em `abrirMicrofone`.
       ...(this.estado.microfoneId ? { deviceId: { exact: this.estado.microfoneId } } : {}),
-      echoCancellation: !musica,
-      noiseSuppression: !musica && q.ruido !== "desligado",
-      autoGainControl: !musica,
+      echoCancellation: q.eco,
+      noiseSuppression: q.ruido !== "desligado",
+      autoGainControl: q.ganhoAuto,
       sampleRate: 48000,
       // `sampleSize` saiu: o Chrome não implementa essa restrição, e pedir o
       // que o navegador não conhece só aumenta a chance de uma combinação
@@ -1879,19 +2046,26 @@ export class Malha {
   /** Troca a qualidade com a chamada em andamento. */
   async definirQualidade(q: Partial<Qualidade>) {
     const antes = this.estado.qualidade;
-    const depois = { ...antes, ...q };
+    // Apertar "Voz" ou "Música" escreve os campos avançados de uma vez; mexer
+    // num campo avançado depois vale sobre o atalho, porque ele vem por
+    // último no espalhamento.
+    const doPreajuste =
+      q.audio !== undefined && q.audio !== antes.audio ? PREAJUSTES[q.audio] : {};
+    const depois = { ...antes, ...doPreajuste, ...q };
     this.estado.qualidade = depois;
+    guardarQualidade(depois);
     this.avisar();
 
     // O microfone só é repedido quando o que muda é ele: reabrir a captura à
     // toa corta o som de todo mundo por um instante.
     const mudouCaptura =
-      (q.audio !== undefined && q.audio !== antes.audio) ||
-      (q.ruido !== undefined &&
-        // Só o `desligado` muda o que o navegador entrega; entre `padrao` e
-        // `forte` o microfone é o mesmo, e o que muda é a porta — reabrir a
-        // captura ali cortaria o som de todo mundo por nada.
-        (q.ruido === "desligado") !== (antes.ruido === "desligado"));
+      depois.eco !== antes.eco ||
+      depois.ganhoAuto !== antes.ganhoAuto ||
+      depois.audio !== antes.audio ||
+      // Só o `desligado` muda o que o navegador entrega; entre `padrao` e
+      // `forte` o microfone é o mesmo, e o que muda é a porta — reabrir a
+      // captura ali cortaria o som de todo mundo por nada.
+      (depois.ruido === "desligado") !== (antes.ruido === "desligado");
 
     if (mudouCaptura) {
       try {
@@ -1909,9 +2083,22 @@ export class Malha {
       }
     }
 
-    // A porta liga e desliga sem tocar no microfone.
-    if (q.ruido !== undefined && q.ruido !== antes.ruido && !mudouCaptura) {
+    // A porta, o reforço e o som da tela mudam o caminho do som sem tocar na
+    // captura: refazer a cadeia troca a faixa por `replaceTrack` e ninguém na
+    // sala ouve o corte.
+    const mudouCadeia =
+      depois.ruido !== antes.ruido ||
+      depois.ganho !== antes.ganho ||
+      depois.somDaTela !== antes.somDaTela;
+    if (mudouCadeia && !mudouCaptura) {
       await this.refazerCadeia();
+    }
+
+    // Taxa da voz e DTX vivem no SDP, que só é escrito numa negociação nova.
+    // Renegociar por causa disso é caro e visível; o teto de envio, que é
+    // metade do efeito, vale na hora — e o resto entra na próxima oferta.
+    if (depois.taxaVoz !== antes.taxaVoz || depois.tetoVideo !== antes.tetoVideo) {
+      await this.aplicarQualidade();
     }
 
     // Já compartilhando: reajusta a captura sem interromper a transmissão.
@@ -1951,10 +2138,11 @@ export class Malha {
     if (this.estado.tela) return this.pararTela();
     try {
       const fluxo = await navigator.mediaDevices.getDisplayMedia({
-        video: this.restricoesDeTela(),
         // O áudio da tela vai junto quando o navegador deixa — é o que faz
-        // vídeo compartilhado ter som.
-        audio: true,
+        // vídeo compartilhado ter som. Desligar é para quem vai mostrar algo
+        // com som que os outros não precisam ouvir.
+        video: this.restricoesDeTela(),
+        audio: this.estado.qualidade.somDaTela,
       });
       this.fluxoTela = fluxo;
       const faixa = fluxo.getVideoTracks()[0];
@@ -1971,7 +2159,7 @@ export class Malha {
       // O som da tela entra na mesma faixa da voz.
       this.estado.telaComSom = fluxo.getAudioTracks().length > 0;
       await this.refazerCadeia();
-      if (fluxo.getAudioTracks().length === 0) {
+      if (fluxo.getAudioTracks().length === 0 && this.estado.qualidade.somDaTela) {
         // Dizer isto na hora poupa a descoberta pelo pior caminho, que é o
         // outro lado avisando que o vídeo está mudo depois de dez minutos.
         this.sistema(
@@ -2077,6 +2265,14 @@ export class Malha {
       const meu = this.estado.mudo ? 0 : passoDe(nivel(this.meuMedidor));
       if (meu !== this.estado.meuVolume) {
         this.estado.meuVolume = meu;
+        mudou = true;
+      }
+      // Duas casas: o bastante para a barrinha do painel se mexer com o
+      // ruído de fundo, e pouco o bastante para não redesenhar a sala a cada
+      // oscilação da terceira casa.
+      const cru = Math.round(nivelBruto(this.meuMedidor) * 100) / 100;
+      if (cru !== this.estado.meuNivel) {
+        this.estado.meuNivel = cru;
         mudou = true;
       }
       for (const p of this.estado.participantes) {
