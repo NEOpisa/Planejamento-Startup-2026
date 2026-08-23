@@ -110,6 +110,16 @@ export type EstadoMalha = {
   capturaAviso: string | null;
   /** o motor de áudio está preso pela política de autoplay do navegador */
   audioTravado: boolean;
+  /**
+   * O volume com que **eu** ouço cada pessoa, de 0 a 2. Ausente = 1.
+   *
+   * Vive só nesta sessão de propósito: o identificador de uma pessoa nasce
+   * com a aba dela, então guardar entre visitas aplicaria o ajuste a quem
+   * calhasse de receber o mesmo identificador depois. Um "silenciar" que
+   * ressuscita na semana seguinte apontando para outra pessoa é pior que
+   * refazer o ajuste.
+   */
+  volumes: Record<string, number>;
   qualidade: Qualidade;
 };
 
@@ -557,6 +567,41 @@ function contextoDeAudio(): AudioContext {
   return contextoUnico;
 }
 
+/**
+ * Amplifica o que chega de uma pessoa acima de 100%.
+ *
+ * O elemento `<audio>` só sabe **abaixar**: `volume` vai de 0 a 1 e não há
+ * como pedir mais. Para subir é preciso passar o fluxo pelo motor de áudio,
+ * e é o que isto faz — o elemento fica mudo e quem toca é o `GainNode`.
+ *
+ * O elemento continua ligado ao fluxo, e não é desperdício: em algumas versões
+ * do Chrome um `MediaStream` de WebRTC só entrega áudio ao motor enquanto
+ * estiver preso a um elemento de mídia. Soltá-lo silenciaria a pessoa
+ * justamente ao tentar ouvi-la mais alto.
+ */
+export function criarReforco(fluxo: MediaStream) {
+  const contexto = contextoDeAudio();
+  const origem = contexto.createMediaStreamSource(fluxo);
+  const ganho = contexto.createGain();
+  origem.connect(ganho);
+  ganho.connect(contexto.destination);
+  return {
+    ajustar(v: number) {
+      // Rampa curta: mudar o ganho de um golpe estala, e o estalo é bem mais
+      // desagradável que os dez milissegundos de transição.
+      ganho.gain.setTargetAtTime(v, contexto.currentTime, 0.01);
+    },
+    parar() {
+      try {
+        origem.disconnect();
+        ganho.disconnect();
+      } catch {
+        /* já desconectado */
+      }
+    },
+  };
+}
+
 function criarMedidor(fluxo: MediaStream): Medidor | undefined {
   const faixas = fluxo.getAudioTracks();
   if (faixas.length === 0) return undefined;
@@ -909,6 +954,7 @@ export class Malha {
     microfoneId: null,
     capturaAviso: null,
     audioTravado: false,
+    volumes: {},
     meuVolume: 0,
     meuNivel: 0,
     telaComSom: false,
@@ -1448,6 +1494,15 @@ export class Malha {
       this.recuperando = false;
       this.avisar();
     }
+  }
+
+  /** Ajusta o volume com que eu ouço uma pessoa. Nada é dito à sala. */
+  definirVolumeDe(id: string, v: number) {
+    const limpo = Math.min(2, Math.max(0, v));
+    // Objeto novo: o React compara por identidade, e mexer por dentro não
+    // faria a lista redesenhar.
+    this.estado.volumes = { ...this.estado.volumes, [id]: limpo };
+    this.avisar();
   }
 
   /** Destrava o motor de áudio. Vem de um clique, que é o que o Chrome exige. */

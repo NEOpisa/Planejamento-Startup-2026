@@ -14,6 +14,7 @@ import Link from "next/link";
 
 import {
   Malha,
+  criarReforco,
   QUALIDADE_PADRAO,
   type EstadoMalha,
   type Participante,
@@ -30,6 +31,8 @@ import {
   AlertaIcon,
   ExpandirIcon,
   ImagemIcon,
+  VolumeIcon,
+  FecharIcon,
 } from "@/components/icons";
 import { comBase } from "@/lib/base.mjs";
 import "../nvdisc.css";
@@ -48,6 +51,7 @@ const VAZIO: EstadoMalha = {
   microfoneId: null,
   capturaAviso: null,
   audioTravado: false,
+  volumes: {},
   meuNivel: 0,
   qualidade: QUALIDADE_PADRAO,
 };
@@ -114,7 +118,6 @@ export default function Sala({ sala }: { sala: string }) {
     () => estado.participantes.filter((p) => p.tela && p.video),
     [estado.participantes],
   );
-  const temTela = compartilhando.length > 0 || estado.tela;
 
   /**
    * `M` liga e desliga o microfone.
@@ -188,10 +191,18 @@ export default function Sala({ sala }: { sala: string }) {
             nome={nome}
             aberta={telaAberta}
             onAbrir={setTelaAberta}
+            onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
           />
           {/* A tirinha embaixo só existe quando o palco está ocupado por uma
               tela; sem ela, as pessoas **são** o palco. */}
-          {temTela && <Pessoas estado={estado} nome={nome} variante="faixa" />}
+          {telaAberta && (
+            <Pessoas
+              estado={estado}
+              nome={nome}
+              variante="faixa"
+              onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
+            />
+          )}
         </main>
 
         <Chat
@@ -278,9 +289,49 @@ function Topo({
  * diferença entre a chamada funcionar e todo mundo entrar numa sala silenciosa
  * achando que o microfone do outro está com defeito.
  */
-function Som({ fluxo, nome }: { fluxo: MediaStream; nome: string }) {
+function Som({
+  fluxo,
+  nome,
+  volume = 1,
+}: {
+  fluxo: MediaStream;
+  nome: string;
+  volume?: number;
+}) {
   const ref = useRef<HTMLAudioElement>(null);
   const [bloqueado, setBloqueado] = useState(false);
+  const reforco = useRef<ReturnType<typeof criarReforco> | null>(null);
+
+  /**
+   * Dois caminhos, e a escolha é pelo valor.
+   *
+   * Até 100% o elemento resolve sozinho, sem depender do motor de áudio — que
+   * é o caminho mais robusto e o que vale para quase todo mundo. Acima de
+   * 100% não há como pedir mais ao elemento, e aí o fluxo passa pelo reforço.
+   * Só quem pede o extra paga o risco do extra.
+   */
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (volume > 1) {
+      el.muted = true;
+      if (!reforco.current) reforco.current = criarReforco(fluxo);
+      reforco.current.ajustar(volume);
+    } else {
+      reforco.current?.parar();
+      reforco.current = null;
+      el.muted = false;
+      el.volume = volume;
+    }
+  }, [fluxo, volume]);
+
+  useEffect(
+    () => () => {
+      reforco.current?.parar();
+      reforco.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     const el = ref.current;
@@ -313,6 +364,15 @@ function Som({ fluxo, nome }: { fluxo: MediaStream; nome: string }) {
 
 // --------------------------------------------------------------- palco --
 
+/**
+ * O palco e a área de telas.
+ *
+ * A área de telas **existe sempre**, mesmo vazia. Antes ela só aparecia quando
+ * alguém já estava compartilhando, e o efeito era que ninguém sabia que a sala
+ * tinha esse lugar: a tela do outro surgia do nada no meio da conversa, e
+ * quando havia duas, descobrir que dava para trocar era acidente. Um lugar
+ * fixo, mesmo vazio, ensina onde olhar antes de haver o que ver.
+ */
 function Palco({
   compartilhando,
   minhaTela,
@@ -320,6 +380,7 @@ function Palco({
   nome,
   aberta,
   onAbrir,
+  onVolume,
 }: {
   compartilhando: Participante[];
   minhaTela: MediaStream | null;
@@ -327,6 +388,7 @@ function Palco({
   nome: string;
   aberta: string | null;
   onAbrir: (id: string | null) => void;
+  onVolume: (id: string, v: number) => void;
 }) {
   /**
    * As telas que existem agora, em ordem estável.
@@ -342,98 +404,125 @@ function Palco({
       id: p.id,
       quem: p.nome,
       fluxo: p.video!,
-      som: null,
+      som: null as boolean | null,
     })),
   ];
 
-  // **Sem tela compartilhada, quem ocupa o palco são as pessoas.**
-  //
-  // Numa chamada de voz — que é o caso comum — ninguém está mostrando nada, e
-  // deixar o meio da tela vazio com um aviso enquanto os participantes se
-  // espremem numa faixa de 60 px embaixo é desperdiçar a tela inteira para
-  // dizer que não há nada nela.
-  if (telas.length === 0) {
-    return (
-      <>
-        <Pessoas estado={estado} nome={nome} variante="grade" />
-        {/* Alguém marcou que está compartilhando e a imagem ainda não chegou.
-            Sem esta linha, a tela fica vazia e parece defeito — quando é só a
-            negociação do vídeo levando alguns segundos. */}
-        {estado.participantes.some((p) => p.tela && !p.video) && (
-          <p className="nv-nota nv-vazio">
-            {estado.participantes.find((p) => p.tela && !p.video)?.nome} começou a
-            compartilhar a tela; a imagem aparece aqui em instantes.
-          </p>
-        )}
-      </>
-    );
-  }
+  // Quem estava sendo assistido pode ter parado de compartilhar. Cair para
+  // "nenhuma" em vez de pular para outra tela: trocar o que a pessoa está
+  // olhando sem ela pedir é pior que mostrar a sala de volta.
+  const atual = telas.find((t) => t.id === aberta) ?? null;
 
-  // A escolhida, ou a primeira — e a primeira também quando quem estava sendo
-  // assistido parou de compartilhar, para o palco nunca ficar preto por causa
-  // de uma escolha que não existe mais.
-  const atual = telas.find((t) => t.id === aberta) ?? telas[0];
+  const chegando = estado.participantes.find((p) => p.tela && !p.video);
 
   return (
     <>
-      <BarraDeTelas telas={telas} atual={atual.id} onAbrir={onAbrir} />
-      <div className="nv-telas uma">
-        <Tela fluxo={atual.fluxo} legenda={atual.quem} />
-      </div>
+      <AreaDeTelas
+        telas={telas}
+        atual={atual?.id ?? null}
+        chegando={chegando?.nome ?? null}
+        onAbrir={onAbrir}
+      />
+
+      {atual ? (
+        <div className="nv-telas uma">
+          <Tela fluxo={atual.fluxo} legenda={atual.quem} onFechar={() => onAbrir(null)} />
+        </div>
+      ) : (
+        // **Sem tela aberta, quem ocupa o palco são as pessoas.**
+        //
+        // Numa chamada de voz — que é o caso comum — ninguém está mostrando
+        // nada, e deixar o meio da tela vazio enquanto os participantes se
+        // espremem numa faixa de 60 px embaixo é desperdiçar a tela inteira
+        // para dizer que não há nada nela.
+        <Pessoas estado={estado} nome={nome} variante="grade" onVolume={onVolume} />
+      )}
     </>
   );
 }
 
 /**
- * A barra das telas compartilhadas.
+ * A área das telas compartilhadas.
  *
- * Ela existe mesmo quando há uma tela só, e isso é de propósito: é ela que
- * responde "onde eu entro na tela que fulano está mostrando?" — pergunta que
- * a grade anterior não respondia, porque simplesmente empilhava tudo e
- * ninguém sabia que dava para agir ali.
+ * Cada tela é um cartão com prévia ao vivo — e a prévia é o ponto. Uma lista
+ * de nomes obriga a abrir para descobrir o que é; com a miniatura, "a tela do
+ * Fulano" deixa de ser um rótulo e passa a ser a coisa.
  */
-function BarraDeTelas({
+function AreaDeTelas({
   telas,
   atual,
+  chegando,
   onAbrir,
 }: {
-  telas: { id: string; quem: string; som: boolean | null }[];
-  atual: string;
-  onAbrir: (id: string) => void;
+  telas: { id: string; quem: string; fluxo: MediaStream; som: boolean | null }[];
+  atual: string | null;
+  chegando: string | null;
+  onAbrir: (id: string | null) => void;
 }) {
   return (
-    <section className="nv-barra-telas" aria-label="Telas compartilhadas">
-      <span className="nv-rotulo">Telas compartilhadas</span>
-      <ul>
-        {telas.map((t) => (
-          <li key={t.id}>
-            <button
-              type="button"
-              className={`nv-aba-tela${t.id === atual ? " ativa" : ""}`}
-              onClick={() => onAbrir(t.id)}
-              aria-current={t.id === atual ? "true" : undefined}
-            >
-              <TelaIcon size={14} />
-              {t.quem}
-            </button>
-            {/* Só a própria captura sabe dizer se veio com som; a dos outros
-                chega pronta e não há como perguntar. */}
-            {t.som === false && (
-              <span className="nv-sem-som" title="o navegador não mandou o áudio desta captura">
-                sem som
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-      {telas.length > 1 && (
-        <span className="nv-nota">clique para trocar de tela</span>
+    <section className="nv-area-telas" aria-label="Telas compartilhadas">
+      <header>
+        <span className="nv-eyebrow">Telas</span>
+        {telas.length > 0 && <span className="nv-conta">{telas.length}</span>}
+        {atual && (
+          <button className="nv-mini" onClick={() => onAbrir(null)}>
+            fechar a tela
+          </button>
+        )}
+      </header>
+
+      {telas.length === 0 ? (
+        <p className="nv-nota nv-telas-vazio">
+          {chegando
+            ? `${chegando} começou a compartilhar; a imagem aparece aqui em instantes.`
+            : "Ninguém está compartilhando. Quando alguém abrir uma tela, ela aparece aqui — é só clicar para assistir."}
+        </p>
+      ) : (
+        <ul>
+          {telas.map((t) => (
+            <li key={t.id}>
+              <button
+                type="button"
+                className={`nv-cartao-tela${t.id === atual ? " ativa" : ""}`}
+                onClick={() => onAbrir(t.id === atual ? null : t.id)}
+                aria-current={t.id === atual ? "true" : undefined}
+                title={t.id === atual ? "fechar esta tela" : `assistir a tela de ${t.quem}`}
+              >
+                <Miniatura fluxo={t.fluxo} />
+                <span className="nome">
+                  <TelaIcon size={13} />
+                  {t.quem}
+                </span>
+                {/* Só a própria captura sabe dizer se veio com som; a dos
+                    outros chega pronta e não há como perguntar. */}
+                {t.som === false && <span className="nv-sem-som">sem som</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );
 }
 
-function Tela({ fluxo, legenda }: { fluxo: MediaStream; legenda: string }) {
+/** A prévia dentro do cartão. Muda, sempre: o som sai pelo `<Som>` da pessoa. */
+function Miniatura({ fluxo }: { fluxo: MediaStream }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.srcObject = fluxo;
+  }, [fluxo]);
+  return <video ref={ref} autoPlay playsInline muted aria-hidden />;
+}
+
+function Tela({
+  fluxo,
+  legenda,
+  onFechar,
+}: {
+  fluxo: MediaStream;
+  legenda: string;
+  onFechar: () => void;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
   const moldura = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -471,15 +560,19 @@ function Tela({ fluxo, legenda }: { fluxo: MediaStream; legenda: string }) {
           com um eco de alguns milissegundos entre as duas cópias. */}
       <video ref={ref} autoPlay playsInline muted onDoubleClick={ampliar} />
       <figcaption>{legenda}</figcaption>
-      <button
-        type="button"
-        className="nv-ampliar"
-        onClick={ampliar}
-        title="abrir em tela cheia (ou dê dois cliques na tela)"
-        aria-label="abrir em tela cheia"
-      >
-        <ExpandirIcon size={15} />
-      </button>
+      <div className="nv-tela-botoes">
+        <button
+          type="button"
+          onClick={ampliar}
+          title="abrir em tela cheia (ou dê dois cliques na tela)"
+          aria-label="abrir em tela cheia"
+        >
+          <ExpandirIcon size={15} />
+        </button>
+        <button type="button" onClick={onFechar} title="fechar esta tela" aria-label="fechar esta tela">
+          <FecharIcon size={15} />
+        </button>
+      </div>
     </figure>
   );
 }
@@ -490,10 +583,12 @@ function Pessoas({
   estado,
   nome,
   variante,
+  onVolume,
 }: {
   estado: EstadoMalha;
   nome: string;
   variante: "grade" | "faixa";
+  onVolume: (id: string, v: number) => void;
 }) {
   const grade = variante === "grade";
   const gente = (
@@ -516,6 +611,8 @@ function Pessoas({
           conexao={p.conexao}
           fluxo={p.audio}
           grande={grade}
+          saida={estado.volumes[p.id] ?? 1}
+          onSaida={(v) => onVolume(p.id, v)}
         />
       ))}
     </>
@@ -552,6 +649,8 @@ function Pessoa({
   conexao,
   fluxo,
   grande,
+  saida = 1,
+  onSaida,
 }: {
   nome: string;
   volume: number;
@@ -561,15 +660,52 @@ function Pessoa({
   conexao?: Participante["conexao"];
   fluxo?: MediaStream;
   grande?: boolean;
+  /** o volume com que **eu** ouço esta pessoa: 0 a 2 */
+  saida?: number;
+  onSaida?: (v: number) => void;
 }) {
+  const [menu, setMenu] = useState(false);
+  const caixa = useRef<HTMLLIElement>(null);
   const falando = volume > 0.06 && !mudo;
+
+  /**
+   * Fechar ao clicar fora, e no Esc.
+   *
+   * `pointerdown` e não `click`: o `click` só dispara ao soltar, e quem
+   * arrasta o deslizante de volume para fora do menu soltaria o botão fora
+   * dele — fechando o menu no meio do ajuste.
+   */
+  useEffect(() => {
+    if (!menu) return;
+    const fora = (e: PointerEvent) => {
+      if (!caixa.current?.contains(e.target as Node)) setMenu(false);
+    };
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(false);
+    };
+    document.addEventListener("pointerdown", fora);
+    window.addEventListener("keydown", tecla);
+    return () => {
+      document.removeEventListener("pointerdown", fora);
+      window.removeEventListener("keydown", tecla);
+    };
+  }, [menu]);
   // Só o que der problema aparece. Um selo "conectado" em cada pessoa o tempo
   // todo é ruído — o silêncio já quer dizer que está tudo bem.
   const problema =
     conexao && conexao !== "connected" && conexao !== "aguardando" ? conexao : null;
 
+  const ajustavel = !eu && !!onSaida;
+
   return (
-    <li className={`nv-pessoa${grande ? " grande" : ""}${falando ? " falando" : ""}`}>
+    <li
+      ref={caixa}
+      className={`nv-pessoa${grande ? " grande" : ""}${falando ? " falando" : ""}${
+        ajustavel ? " ajustavel" : ""
+      }`}
+      onClick={ajustavel ? () => setMenu((v) => !v) : undefined}
+      title={ajustavel ? "clique para ajustar o volume desta pessoa" : undefined}
+    >
       <span className="nv-avatar">
         {nome.slice(0, 1).toUpperCase()}
         {falando && (
@@ -602,11 +738,98 @@ function Pessoa({
             <AlertaIcon size={14} />
           </span>
         )}
+        {/* Só aparece quando saiu do normal: um ícone de volume em todo mundo
+            o tempo todo é ruído, e o silêncio já quer dizer "100%". */}
+        {ajustavel && saida !== 1 && (
+          <span
+            style={{ color: saida === 0 ? "var(--erro)" : "var(--accent-light)" }}
+            title={saida === 0 ? "silenciada para você" : `volume em ${Math.round(saida * 100)}%`}
+          >
+            <VolumeIcon size={14} />
+          </span>
+        )}
       </span>
 
+      {menu && onSaida && (
+        <MenuVolume nome={nome} valor={saida} onMudar={onSaida} />
+      )}
+
       {/* o alto-falante desta pessoa; sem ele a sala é muda */}
-      {fluxo && !eu && <Som fluxo={fluxo} nome={nome} />}
+      {fluxo && !eu && <Som fluxo={fluxo} nome={nome} volume={saida} />}
     </li>
+  );
+}
+
+/**
+ * O volume de uma pessoa, só para quem ajusta.
+ *
+ * Não é moderação: nada é dito à sala e a outra pessoa não fica sabendo. É
+ * para o caso comum de alguém entrar com o microfone alto demais ou baixo
+ * demais e não ter como resolver do lado dela.
+ *
+ * Vai até 200% porque abaixar é fácil (o elemento de áudio faz) e **subir** é
+ * a metade que ninguém oferece — e é justamente a que resolve o participante
+ * de notebook velho que ninguém escuta.
+ */
+function MenuVolume({
+  nome,
+  valor,
+  onMudar,
+}: {
+  nome: string;
+  valor: number;
+  onMudar: (v: number) => void;
+}) {
+  const passo = (d: number) => onMudar(Math.min(2, Math.max(0, Math.round((valor + d) * 20) / 20)));
+
+  return (
+    // O clique não pode subir para o `<li>`, que alterna o menu — sem isto,
+    // mexer no deslizante fecharia o menu.
+    <div className="nv-menu-volume" onClick={(e) => e.stopPropagation()}>
+      <span className="nv-eyebrow">{nome}</span>
+
+      <div className="nv-menu-linha">
+        <button onClick={() => passo(-0.1)} aria-label="diminuir">
+          −
+        </button>
+        <output>{Math.round(valor * 100)}%</output>
+        <button onClick={() => passo(0.1)} aria-label="aumentar">
+          +
+        </button>
+      </div>
+
+      <input
+        type="range"
+        className="nv-range"
+        min={0}
+        max={2}
+        step={0.05}
+        value={valor}
+        onChange={(e) => onMudar(Number(e.target.value))}
+        aria-label={`volume de ${nome}`}
+      />
+
+      <div className="nv-menu-acoes">
+        <button
+          className={`nv-mini${valor === 0 ? " ativo" : ""}`}
+          onClick={() => onMudar(valor === 0 ? 1 : 0)}
+        >
+          {valor === 0 ? "ouvir de novo" : "silenciar para mim"}
+        </button>
+        {valor !== 1 && (
+          <button className="nv-mini" onClick={() => onMudar(1)}>
+            normal
+          </button>
+        )}
+      </div>
+
+      {valor > 1 && (
+        <p className="nv-nota">
+          Acima de 100% o som passa por um reforço. Se distorcer, é o microfone
+          da outra pessoa estourando — baixe um pouco.
+        </p>
+      )}
+    </div>
   );
 }
 

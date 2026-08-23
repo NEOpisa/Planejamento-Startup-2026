@@ -759,10 +759,14 @@
  * celular não existe ponteiro, e um botão que só aparece no hover é um botão
  * que metade das pessoas nunca encontra. Discreto resolve o incômodo visual;
  * escondido resolve o problema errado. */
-.nv-ampliar {
+.nv-tela-botoes {
   position: absolute;
   top: 10px;
   right: 10px;
+  display: flex;
+  gap: 6px;
+}
+.nv-tela-botoes button {
   display: grid;
   place-items: center;
   width: 32px;
@@ -776,13 +780,17 @@
   transition: opacity 0.18s, color 0.18s, border-color 0.18s;
   backdrop-filter: blur(6px);
 }
-.nv-tela:hover .nv-ampliar,
-.nv-ampliar:focus-visible {
+.nv-tela:hover .nv-tela-botoes button,
+.nv-tela-botoes button:focus-visible {
   opacity: 1;
 }
-.nv-ampliar:hover {
+.nv-tela-botoes button:hover {
   color: var(--accent-light);
   border-color: var(--hairline-hi);
+}
+.nv-tela-botoes button:last-child:hover {
+  color: var(--erro);
+  border-color: var(--erro);
 }
 /* Em tela cheia o vídeo ocupa tudo, e a legenda e o botão continuam
    alcançáveis — é onde a pessoa vai passar o tempo, não onde ela chegou. */
@@ -793,7 +801,7 @@
 .nv-tela:fullscreen video {
   height: 100vh;
 }
-.nv-tela:fullscreen .nv-ampliar {
+.nv-tela:fullscreen .nv-tela-botoes button {
   opacity: 1;
 }
 
@@ -827,64 +835,6 @@
 }
 
 /* ------------------------------------------------- telas compartilhadas -- */
-/*
- * A barra que diz o que está sendo mostrado e deixa entrar em cada tela.
- *
- * Ela aparece mesmo com uma tela só: é ela que responde "onde eu vejo o que
- * fulano está compartilhando?". A grade anterior empilhava tudo e não deixava
- * claro que havia o que fazer ali.
- */
-.nv-barra-telas {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--hairline);
-  background: var(--surface);
-}
-.nv-barra-telas ul {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.nv-aba-tela {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font: inherit;
-  font-size: 13px;
-  padding: 6px 13px;
-  border-radius: 999px;
-  border: 1px solid var(--hairline);
-  background: var(--raised);
-  color: var(--txt-2);
-  cursor: pointer;
-  transition: border-color 0.2s, color 0.2s, background 0.2s;
-}
-.nv-aba-tela:hover {
-  border-color: var(--hairline-hi);
-  color: var(--txt);
-}
-.nv-aba-tela.ativa {
-  background: var(--nv-corn);
-  border-color: var(--nv-corn);
-  color: #06070b;
-  font-weight: 600;
-}
-.nv-barra-telas .nv-nota {
-  margin-left: auto;
-}
-@media (max-width: 600px) {
-  .nv-barra-telas .nv-nota {
-    display: none;
-  }
-}
-
 /* "sem som" ao lado da sua própria tela: a informação que evita descobrir
    pelo outro lado que o vídeo está mudo. */
 .nv-sem-som {
@@ -1418,4 +1368,199 @@ button.nv-aviso:hover {
     radial-gradient(1100px 560px at 84% -10%, rgba(251, 113, 133, 0.13), transparent 60%),
     radial-gradient(820px 480px at -10% 12%, rgba(251, 113, 133, 0.05), transparent 55%),
     var(--bg);
+}
+
+/* --------------------------------------------------- área de telas ------- */
+
+/*
+ * A área das telas compartilhadas — **sempre presente, mesmo vazia**.
+ *
+ * A barra anterior só existia quando já havia o que mostrar, e o efeito era
+ * que ninguém sabia que a sala tinha esse lugar: a tela do outro surgia do
+ * nada no meio da conversa. Um lugar fixo ensina onde olhar antes de haver o
+ * que ver, e é isso que faz "abre a tela aí" virar uma instrução que a pessoa
+ * consegue seguir sozinha.
+ */
+.nv-area-telas {
+  flex-shrink: 0;
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface);
+}
+.nv-area-telas > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+.nv-area-telas > header .nv-mini {
+  margin-left: auto;
+}
+.nv-conta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  color: var(--txt-3);
+}
+.nv-telas-vazio {
+  /* Sem borda tracejada nem caixa: um vazio anunciado com moldura pesa mais
+     que o conteúdo que vai ocupá-lo. Uma linha de texto basta. */
+  margin: 2px 0 0;
+  max-width: 62ch;
+}
+.nv-area-telas ul {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+ * O cartão de uma tela, com prévia ao vivo.
+ *
+ * A miniatura é o ponto: uma lista de nomes obriga a abrir para descobrir o
+ * que é, e com duas telas abertas ninguém acerta de primeira. Com a imagem,
+ * "a tela do Fulano" deixa de ser rótulo e passa a ser a coisa.
+ */
+.nv-cartao-tela {
+  position: relative;
+  display: block;
+  width: 148px;
+  padding: 0;
+  border-radius: var(--r-nv-sm);
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--txt-2);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.18s, color 0.18s, transform 0.18s;
+}
+.nv-cartao-tela:hover {
+  border-color: var(--hairline-hi);
+  color: var(--txt);
+  transform: translateY(-1px);
+}
+.nv-cartao-tela.ativa {
+  border-color: var(--accent-light);
+  color: var(--txt);
+}
+/* A faixa de cima marca a que está no palco sem precisar de texto extra. */
+.nv-cartao-tela.ativa::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--accent-light);
+  z-index: 1;
+}
+.nv-cartao-tela video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #000;
+}
+.nv-cartao-tela .nome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  font-size: 12.5px;
+  /* Nome longo não pode alargar o cartão e quebrar a fileira. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nv-cartao-tela .nv-sem-som {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  margin: 0;
+}
+
+@media (max-width: 600px) {
+  .nv-cartao-tela {
+    width: 124px;
+  }
+}
+
+/* ----------------------------------------------- volume por pessoa ------- */
+
+/* A pessoa vira alvo de clique só quando há o que ajustar (não em você). */
+.nv-pessoa.ajustavel {
+  cursor: pointer;
+  position: relative;
+}
+.nv-pessoa.ajustavel:hover {
+  border-color: var(--hairline-hi);
+}
+
+/*
+ * O menu, ancorado na pessoa.
+ *
+ * Abre para cima porque a lista de gente costuma ficar na metade de baixo da
+ * tela, e um menu que nasce para baixo sai da janela justamente onde há mais
+ * participantes.
+ */
+.nv-menu-volume {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: 224px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--r-nv);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+  cursor: default;
+  text-align: left;
+}
+.nv-menu-linha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nv-menu-linha button {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--txt-2);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.nv-menu-linha button:hover {
+  border-color: var(--hairline-hi);
+  color: var(--accent-light);
+}
+.nv-menu-linha output {
+  flex: 1;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--txt);
+}
+.nv-menu-volume .nv-range {
+  margin: 0;
+}
+.nv-menu-acoes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.nv-menu-acoes .nv-mini.ativo {
+  border-color: var(--erro);
+  color: var(--erro);
 }
