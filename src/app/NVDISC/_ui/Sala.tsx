@@ -29,6 +29,7 @@ import {
   SairIcon,
   AlertaIcon,
   ExpandirIcon,
+  ImagemIcon,
 } from "@/components/icons";
 import { comBase } from "@/lib/base.mjs";
 import "../nvdisc.css";
@@ -171,6 +172,7 @@ export default function Sala({ sala }: { sala: string }) {
           aberto={chatAberto}
           onFechar={() => setChatAberto(false)}
           onEnviar={(t) => malha.current?.enviarChat(t)}
+          onImagem={(f, legenda) => void malha.current?.enviarImagem(f, legenda)}
         />
       </div>
 
@@ -586,15 +588,49 @@ function Chat({
   aberto,
   onFechar,
   onEnviar,
+  onImagem,
 }: {
   estado: EstadoMalha;
   aberto: boolean;
   onFechar: () => void;
   onEnviar: (t: string) => void;
+  onImagem: (arquivo: File, legenda: string) => void;
 }) {
   const [texto, setTexto] = useState("");
+  /** a imagem escolhida, esperando o envio junto com a legenda */
+  const [anexo, setAnexo] = useState<{ arquivo: File; previa: string } | null>(null);
+  const [arrastando, setArrastando] = useState(false);
   const fim = useRef<HTMLDivElement>(null);
   const rolagem = useRef<HTMLDivElement>(null);
+  const seletor = useRef<HTMLInputElement>(null);
+
+  /**
+   * A prévia sai de um `blob:` e precisa ser devolvida.
+   *
+   * `createObjectURL` prende o arquivo na memória até alguém revogar. Numa
+   * conversa em que se manda print atrás de print, esquecer disso é vazar a
+   * imagem inteira a cada envio.
+   */
+  function escolher(arquivo: File | null | undefined) {
+    if (!arquivo || !arquivo.type.startsWith("image/")) return;
+    setAnexo((antes) => {
+      if (antes) URL.revokeObjectURL(antes.previa);
+      return { arquivo, previa: URL.createObjectURL(arquivo) };
+    });
+  }
+
+  function largar() {
+    setAnexo((antes) => {
+      if (antes) URL.revokeObjectURL(antes.previa);
+      return null;
+    });
+  }
+
+  useEffect(() => {
+    return () => {
+      if (anexo) URL.revokeObjectURL(anexo.previa);
+    };
+  }, [anexo]);
 
   useEffect(() => {
     const el = rolagem.current;
@@ -607,12 +643,36 @@ function Chat({
 
   function enviar(e: React.FormEvent) {
     e.preventDefault();
+    if (anexo) {
+      // A legenda vai junto com a imagem, numa mensagem só: separar as duas
+      // faria a legenda chegar antes ou depois, e às vezes no meio da fala de
+      // outra pessoa.
+      onImagem(anexo.arquivo, texto);
+      largar();
+      setTexto("");
+      return;
+    }
+    if (!texto.trim()) return;
     onEnviar(texto);
     setTexto("");
   }
 
   return (
-    <aside className={`nv-chat${aberto ? " aberto" : ""}`}>
+    <aside
+      className={`nv-chat${aberto ? " aberto" : ""}${arrastando ? " arrastando" : ""}`}
+      onDragOver={(e) => {
+        // Sem o `preventDefault` o navegador abre a imagem numa aba nova e a
+        // pessoa perde a sala.
+        e.preventDefault();
+        setArrastando(true);
+      }}
+      onDragLeave={() => setArrastando(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setArrastando(false);
+        escolher(e.dataTransfer.files[0]);
+      }}
+    >
       <h2>
         Chat
         <button onClick={onFechar} aria-label="fechar o chat" className="nv-so-mobile">
@@ -643,21 +703,119 @@ function Chat({
                   })}
                 </time>
               </div>
-              <p className="texto">{m.texto}</p>
+              {m.imagem && <ImagemDoChat src={m.imagem} de={m.nome} />}
+              {m.texto && <p className="texto">{m.texto}</p>}
             </div>
           ),
         )}
         <div ref={fim} />
       </div>
 
+      {anexo && (
+        <div className="nv-anexo">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={anexo.previa} alt="" />
+          <div>
+            <strong>{anexo.arquivo.name}</strong>
+            <span className="nv-nota">
+              vai junto com o que você escrever. Imagem grande é reduzida antes
+              de sair.
+            </span>
+          </div>
+          <button type="button" onClick={largar} aria-label="tirar a imagem">
+            ×
+          </button>
+        </div>
+      )}
+
       <form onSubmit={enviar}>
+        <input
+          ref={seletor}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            escolher(e.target.files?.[0]);
+            // Zerar deixa escolher o **mesmo** arquivo de novo; sem isto o
+            // `change` não dispara na segunda vez e parece que o botão quebrou.
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          className="nv-anexar"
+          onClick={() => seletor.current?.click()}
+          title="mandar uma imagem (ou cole, ou arraste para cá)"
+          aria-label="mandar uma imagem"
+        >
+          <ImagemIcon size={16} />
+        </button>
         <input
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          placeholder="escreva algo…"
+          onPaste={(e) => {
+            // Colar print é o caminho mais usado e o único que não tem botão.
+            const arquivo = [...e.clipboardData.items]
+              .find((i) => i.type.startsWith("image/"))
+              ?.getAsFile();
+            if (arquivo) {
+              e.preventDefault();
+              escolher(arquivo);
+            }
+          }}
+          placeholder={anexo ? "uma legenda? (opcional)" : "escreva algo…"}
         />
       </form>
     </aside>
+  );
+}
+
+/**
+ * Uma imagem recebida no chat.
+ *
+ * Ela abre em tamanho cheio ao ser clicada, numa camada por cima da sala —
+ * e não numa aba nova. Aba nova tira a pessoa da chamada, e voltar dá trabalho
+ * no celular.
+ */
+function ImagemDoChat({ src, de }: { src: string; de: string }) {
+  const [cheia, setCheia] = useState(false);
+
+  // Fechar com Esc: quem abriu uma imagem sobre a sala espera isso, e sem
+  // teclado o único jeito de sair seria acertar a borda.
+  useEffect(() => {
+    if (!cheia) return;
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCheia(false);
+    };
+    window.addEventListener("keydown", tecla);
+    return () => window.removeEventListener("keydown", tecla);
+  }, [cheia]);
+
+  return (
+    <>
+      <button
+        type="button"
+        className="nv-img-chat"
+        onClick={() => setCheia(true)}
+        title="ver em tamanho cheio"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={`imagem de ${de}`} loading="lazy" />
+      </button>
+
+      {cheia && (
+        <div
+          className="nv-lightbox"
+          role="dialog"
+          aria-label={`imagem de ${de}`}
+          onClick={() => setCheia(false)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={`imagem de ${de}`} />
+          <span className="nv-nota">clique em qualquer lugar, ou Esc, para fechar</span>
+        </div>
+      )}
+    </>
   );
 }
 

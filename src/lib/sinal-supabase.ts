@@ -27,7 +27,7 @@
 
 import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
 
-import { PARA_CLIENTE, LIMITES } from "./protocolo.mjs";
+import { PARA_CLIENTE, LIMITES, limparImagem } from "./protocolo.mjs";
 
 export type Publico = {
   id: string;
@@ -174,6 +174,7 @@ export function criarSinalSupabase(
         de: payload.de,
         nome: payload.nome,
         texto: payload.texto,
+        imagem: limparImagem(payload.imagem),
         em: payload.em,
       });
     });
@@ -215,11 +216,15 @@ export function criarSinalSupabase(
     }
     if (tipo === "chat") {
       const texto = String(corpo.texto ?? "").slice(0, LIMITES.CHAT).trim();
-      if (!texto) return;
+      // Sem servidor no meio, a validação de quem recebe é a única que existe
+      // — mas validar aqui também evita gastar o envio de um pacote que o
+      // outro lado vai descartar.
+      const imagem = limparImagem(corpo.imagem);
+      if (!texto && !imagem) return;
       void canal.send({
         type: "broadcast",
         event: "chat",
-        payload: { de: g.sessao, nome: g.nome, texto, em: Date.now() },
+        payload: { de: g.sessao, nome: g.nome, texto, imagem, em: Date.now() },
       });
       return;
     }

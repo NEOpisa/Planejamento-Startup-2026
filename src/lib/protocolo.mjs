@@ -23,7 +23,7 @@ export const PARA_SERVIDOR = {
   ENTRAR: "entrar",
   /** {para, dados} — repassa sinal de WebRTC a um participante */
   SINAL: "sinal",
-  /** {texto} — mensagem de chat para a sala inteira */
+  /** {texto, imagem?} — mensagem de chat para a sala inteira */
   CHAT: "chat",
   /** {mudo, tela} — o que mudou no meu estado */
   ESTADO: "estado",
@@ -50,7 +50,7 @@ export const PARA_CLIENTE = {
   SAIU: "saiu",
   /** {de, dados} — sinal de WebRTC vindo de um participante */
   SINAL: "sinal",
-  /** {de, nome, texto, em} — mensagem de chat */
+  /** {de, nome, texto, imagem?, em} — mensagem de chat */
   CHAT: "chat",
   /** {id, mudo, tela} — estado de alguém mudou */
   ESTADO: "estado",
@@ -72,9 +72,39 @@ export const LIMITES = {
   SALA: 32,
   SESSAO: 64,
   CHAT: 2000,
+  /**
+   * Tamanho máximo de uma imagem no chat, em caracteres da `data:` URL.
+   *
+   * O número sai do transporte, não do gosto: o Realtime do Supabase corta
+   * mensagem acima de 256 KB, e a `data:` URL viaja dentro do mesmo pacote
+   * que o resto do chat. 150 mil caracteres deixam folga confortável para o
+   * envelope e ainda cabem numa captura de tela legível — o cliente reduz a
+   * imagem até caber antes de mandar.
+   *
+   * Imagem não é arquivo: não há onde guardar, e ela vive só enquanto a sala
+   * existir, como todo o resto do chat.
+   */
+  IMAGEM: 150_000,
   /** mensagens por janela de 10 s, por conexão */
   CHAT_RAJADA: 20,
 };
+
+/**
+ * Deixa passar só imagem, e só embutida.
+ *
+ * Duas checagens, e as duas importam. O tipo tem de ser de imagem, senão a
+ * mesma via serviria para mandar HTML ou SVG com script para dentro da sala
+ * de todo mundo — SVG fica de fora justamente por isso: ele é um documento
+ * que executa. E o esquema tem de ser `data:`, senão o que chega é um
+ * endereço qualquer que o navegador de quem recebe vai buscar, entregando o
+ * IP dele a quem escolheu o endereço.
+ */
+export function limparImagem(bruto) {
+  const s = String(bruto ?? "");
+  if (!s) return null;
+  if (s.length > LIMITES.IMAGEM) return null;
+  return /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(s) ? s : null;
+}
 
 /**
  * Tira de um nome o que não pode passar.

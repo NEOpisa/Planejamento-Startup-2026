@@ -134,3 +134,30 @@ export function ExpandirIcon(p: Props) {
     </Traco>
   );
 }
+
+export function ImagemIcon(p: Props) {
+  return (
+    <Traco {...p}>
+      <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+      <circle cx="8.5" cy="10" r="1.6" />
+      <path d="m3.5 17 4.8-4.6a2 2 0 0 1 2.8 0L16 17.4M14.5 15l2-1.9a2 2 0 0 1 2.8 0l1.2 1.2" />
+    </Traco>
+  );
+}
+
+export function VolumeIcon(p: Props) {
+  return (
+    <Traco {...p}>
+      <path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4v-5Z" />
+      <path d="M15.6 9.4a4 4 0 0 1 0 5.2M18.3 7a7.5 7.5 0 0 1 0 10" />
+    </Traco>
+  );
+}
+
+export function FecharIcon(p: Props) {
+  return (
+    <Traco {...p}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </Traco>
+  );
+}

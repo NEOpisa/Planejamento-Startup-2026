@@ -22,7 +22,7 @@
  * sempre esteve.
  */
 
-import { PARA_CLIENTE, PARA_SERVIDOR, LIMITES, limparNome, limparSala, limparSessao } from "./protocolo.mjs";
+import { PARA_CLIENTE, PARA_SERVIDOR, LIMITES, limparNome, limparSala, limparSessao, limparImagem } from "./protocolo.mjs";
 
 /**
  * Quanto tempo uma aba tem para voltar antes de ser dada como saída.
@@ -248,10 +248,14 @@ export function criarSinalizacao(registro) {
 
         case PARA_SERVIDOR.CHAT: {
           const texto = String(msg.texto ?? "").slice(0, LIMITES.CHAT).trim();
-          if (!texto || !podeFalar()) break;
+          const imagem = limparImagem(msg.imagem);
+          // Uma imagem sozinha é mensagem legítima; texto vazio sem imagem
+          // não é. A validação da imagem é do servidor porque o cliente é
+          // quem se quer proteger.
+          if ((!texto && !imagem) || !podeFalar()) break;
           await registro.publicar(eu.sala, {
             tipo: PARA_CLIENTE.CHAT,
-            corpo: { de: eu.id, nome: eu.nome, texto, em: Date.now() },
+            corpo: { de: eu.id, nome: eu.nome, texto, imagem, em: Date.now() },
           });
           break;
         }

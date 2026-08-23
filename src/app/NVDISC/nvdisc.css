@@ -597,6 +597,16 @@
 .nv-chat form {
   border-top: 1px solid var(--hairline);
   padding: 12px;
+  /* O botão de anexo e o campo dividem a linha; sem o `flex` o botão empurrava
+     o campo para baixo e o rodapé do chat crescia dois andares. */
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.nv-chat form input[type="text"],
+.nv-chat form input:not([type]) {
+  flex: 1;
+  min-width: 0;
 }
 .nv-chat form input {
   width: 100%;
@@ -953,4 +963,132 @@ button.nv-aviso {
 }
 button.nv-aviso:hover {
   background: rgba(245, 191, 66, 0.18);
+}
+
+/* ------------------------------------------------------- imagem no chat -- */
+
+/*
+ * O botão de anexar.
+ *
+ * Redondo e do tamanho do campo ao lado, para os dois lerem como um controle
+ * só. Ele é o caminho descoberto; quem já sabe cola com Ctrl+V, que é como
+ * print de tela realmente circula.
+ */
+.nv-anexar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  color: var(--txt-2);
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.nv-anexar:hover {
+  border-color: var(--hairline-hi);
+  color: var(--accent-light);
+}
+
+/* A sala inteira aceita a imagem arrastada; a borda tracejada é o que diz
+   isso, porque nada mais na tela sugere que dá para soltar aqui. */
+.nv-chat.arrastando {
+  outline: 2px dashed var(--accent-light);
+  outline-offset: -6px;
+}
+
+/* A prévia do que vai ser mandado, entre a conversa e o campo de texto. */
+.nv-anexo {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 1px solid var(--hairline);
+  background: var(--raised);
+}
+.nv-anexo img {
+  width: 46px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: var(--r-nv-sm);
+  border: 1px solid var(--hairline);
+}
+.nv-anexo div {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.nv-anexo strong {
+  font-size: 12.5px;
+  color: var(--txt);
+  /* Nome de arquivo é longo e não pode empurrar o botão de tirar para fora. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nv-anexo > button {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--txt-2);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.nv-anexo > button:hover {
+  color: var(--erro);
+  border-color: var(--erro);
+}
+
+/*
+ * A imagem dentro da conversa.
+ *
+ * Altura limitada: um print de monitor vertical tomaria a coluna inteira e
+ * empurraria a conversa para fora da vista. O clique abre em tamanho cheio,
+ * que é onde se lê o que estava escrito nele.
+ */
+.nv-img-chat {
+  display: block;
+  padding: 0;
+  margin: 4px 0 2px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-nv-sm);
+  background: var(--raised);
+  overflow: hidden;
+  cursor: zoom-in;
+  transition: border-color 0.18s;
+}
+.nv-img-chat:hover {
+  border-color: var(--hairline-hi);
+}
+.nv-img-chat img {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+}
+
+/* A camada de tamanho cheio, por cima de tudo. */
+.nv-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  padding: 24px;
+  background: rgba(6, 7, 11, 0.92);
+  cursor: zoom-out;
+}
+.nv-lightbox img {
+  max-width: 100%;
+  max-height: calc(100vh - 90px);
+  object-fit: contain;
+  border-radius: var(--r-nv-sm);
 }

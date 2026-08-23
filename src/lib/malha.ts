@@ -32,7 +32,7 @@
  * não renegocia nada: troca-se a faixa e pronto.
  */
 
-import { PARA_CLIENTE, PARA_SERVIDOR, limparSessao } from "./protocolo.mjs";
+import { PARA_CLIENTE, PARA_SERVIDOR, LIMITES, limparSessao } from "./protocolo.mjs";
 import { CAMINHO_SINAL } from "./base.mjs";
 import { configuracaoDoNavegador, criarSinalSupabase } from "./sinal-supabase";
 
@@ -56,6 +56,8 @@ export type Mensagem = {
   de: string;
   nome: string;
   texto: string;
+  /** uma imagem embutida, quando a mensagem carrega uma */
+  imagem?: string | null;
   em: number;
   /** foi o próprio servidor quem disse (entrou, saiu, erro) */
   sistema?: boolean;
@@ -251,6 +253,84 @@ function ajustarOpus(sdp: string, q: Qualidade): string {
     });
   }
   return sdp.replace(`a=rtpmap:${pt} opus/48000`, `a=rtpmap:${pt} opus/48000/2\r\na=fmtp:${pt} ${chaves}`);
+}
+
+/**
+ * Encolhe uma imagem até ela caber numa mensagem de chat.
+ *
+ * O teto não é estético, é do transporte: acima de `LIMITES.IMAGEM` a
+ * mensagem não passa. Em vez de recusar o arquivo e mandar a pessoa abrir um
+ * editor, a imagem é redesenhada menor e recomprimida até caber.
+ *
+ * A ordem importa. Primeiro cai a qualidade, que quase não se vê numa
+ * captura de tela; só depois cai a dimensão, que é o que de fato torna texto
+ * ilegível. Fazer o contrário entregaria uma imagem pequena e nítida onde se
+ * queria uma grande e levemente suja — e quem manda captura de tela quer ler
+ * o que está escrito nela.
+ *
+ * PNG vira JPEG no caminho: para captura de tela o PNG é várias vezes maior
+ * pelo mesmo resultado visível. GIF passa intacto, porque recomprimir mataria
+ * a animação, que costuma ser o motivo de alguém mandar um.
+ */
+async function reduzirImagem(arquivo: File): Promise<string> {
+  if (!arquivo.type.startsWith("image/")) {
+    throw new Error("isso não é uma imagem.");
+  }
+
+  const comoTexto = () =>
+    new Promise<string>((ok, falha) => {
+      const leitor = new FileReader();
+      leitor.onload = () => ok(String(leitor.result));
+      leitor.onerror = () => falha(new Error("não consegui ler o arquivo."));
+      leitor.readAsDataURL(arquivo);
+    });
+
+  // Animação não sobrevive ao `canvas`: um GIF redesenhado vira o primeiro
+  // quadro dele. Ou cabe inteiro, ou não vai.
+  if (arquivo.type === "image/gif") {
+    const bruto = await comoTexto();
+    if (bruto.length <= LIMITES.IMAGEM) return bruto;
+    throw new Error("esse GIF é grande demais para o chat — o limite é cerca de 100 KB.");
+  }
+
+  const bruto = await comoTexto();
+  if (bruto.length <= LIMITES.IMAGEM && arquivo.type !== "image/png") return bruto;
+
+  const img = await new Promise<HTMLImageElement>((ok, falha) => {
+    const i = new Image();
+    i.onload = () => ok(i);
+    i.onerror = () => falha(new Error("não consegui abrir essa imagem."));
+    i.src = bruto;
+  });
+
+  let largura = img.naturalWidth;
+  let altura = img.naturalHeight;
+  const encolher = (fator: number) => {
+    largura = Math.max(1, Math.round(largura * fator));
+    altura = Math.max(1, Math.round(altura * fator));
+  };
+  // Nenhuma tela de chat mostra mais que isto; começar acima é gastar bytes
+  // em pixels que ninguém vê.
+  const TETO = 1600;
+  if (Math.max(largura, altura) > TETO) encolher(TETO / Math.max(largura, altura));
+
+  for (let tentativa = 0; tentativa < 8; tentativa++) {
+    const tela = document.createElement("canvas");
+    tela.width = largura;
+    tela.height = altura;
+    const ctx = tela.getContext("2d");
+    if (!ctx) throw new Error("este navegador não deixou preparar a imagem.");
+    ctx.drawImage(img, 0, 0, largura, altura);
+
+    for (const q of [0.82, 0.7, 0.55, 0.42]) {
+      const saida = tela.toDataURL("image/jpeg", q);
+      if (saida.length <= LIMITES.IMAGEM) return saida;
+    }
+    // Nem na pior qualidade coube: agora sim vale perder tamanho.
+    encolher(0.75);
+  }
+
+  throw new Error("essa imagem é grande demais para o chat, mesmo reduzida.");
 }
 
 /** Uma conexão com uma pessoa. */
@@ -1355,6 +1435,7 @@ export class Malha {
             de: msg.de as string,
             nome: msg.nome as string,
             texto: msg.texto as string,
+            imagem: (msg.imagem as string | null) ?? null,
             em: msg.em as number,
           },
         ].slice(-400);
@@ -1926,6 +2007,32 @@ export class Malha {
   enviarChat(texto: string) {
     const t = texto.trim();
     if (t) this.manda(PARA_SERVIDOR.CHAT, { texto: t });
+  }
+
+  /**
+   * Manda uma imagem para a sala.
+   *
+   * Ela vai **embutida na mensagem**, e não como arquivo: não há onde guardar
+   * arquivo neste projeto, e não ter onde guardar é uma decisão, não uma
+   * falta. O chat inteiro vive enquanto a sala existir e some junto com ela;
+   * uma imagem que sobrevivesse à conversa seria a única coisa aqui que
+   * deixa rastro.
+   *
+   * O preço é o tamanho: ela viaja pelo mesmo canal do chat, que tem teto.
+   * `reduzirImagem` cuida disso antes de chegar aqui.
+   */
+  async enviarImagem(arquivo: File, legenda = "") {
+    try {
+      const imagem = await reduzirImagem(arquivo);
+      this.manda(PARA_SERVIDOR.CHAT, { texto: legenda.trim(), imagem });
+    } catch (e) {
+      this.sistema(
+        e instanceof Error && e.message
+          ? e.message
+          : "não consegui preparar essa imagem para enviar.",
+      );
+      this.avisar();
+    }
   }
 
   /** O fluxo de tela local, para a pré-visualização de quem compartilha. */
