@@ -1564,3 +1564,586 @@ button.nv-aviso:hover {
   border-color: var(--erro);
   color: var(--erro);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PERSONALIZAÇÃO E ACABAMENTO
+
+   Este bloco vem depois de tudo de propósito. Cada regra aqui é um ajuste
+   sobre uma peça que já existe acima, e escrevê-las juntas — em vez de
+   espalhadas pelo arquivo — deixa ver de uma vez o que a personalização
+   alcança e o que ela não toca.
+
+   O que ela **não** toca: as superfícies e o contraste do texto. Eles foram
+   medidos uma vez (16.8:1 no principal) e não entram na conta do gosto.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ----------------------------------------------------- as três escalas -- */
+
+/*
+ * Densidade, cantos e texto são **multiplicadores**, não conjuntos de medidas
+ * novas.
+ *
+ * A tentação é escrever três folhas de estilo, uma por densidade. Elas
+ * divergem na primeira vez que alguém ajusta um espaçamento e esquece as
+ * outras duas — e o sintoma é uma sala que fica boa no confortável e torta no
+ * compacto. Um multiplicador mexe em tudo de uma vez, e não há como esquecer.
+ */
+.nv-sala {
+  --e: 1; /* espaço */
+  --escala: 1; /* texto — escrito pelo React, porque é contínuo */
+}
+.nv-sala[data-densidade="compacto"] {
+  --e: 0.72;
+}
+.nv-sala[data-densidade="amplo"] {
+  --e: 1.34;
+}
+
+.nv-sala[data-cantos="reto"] {
+  --r-nv: 2px;
+  --r-nv-sm: 2px;
+}
+.nv-sala[data-cantos="redondo"] {
+  --r-nv: 22px;
+  --r-nv-sm: 15px;
+}
+
+/*
+ * Movimento desligado corta a transição, não o estado.
+ *
+ * `transition: none` e não `animation: none`: o que incomoda é a coisa se
+ * mexendo, e o que informa é a cor mudando. Cortar os dois deixaria o anel de
+ * fala sem servir para nada. O anel para de crescer por uma regra própria mais
+ * abaixo, que zera a escala.
+ */
+.nv-sala[data-movimento="reduzido"] *,
+.nv-sala[data-movimento="reduzido"] *::before,
+.nv-sala[data-movimento="reduzido"] *::after {
+  transition-duration: 0.001ms !important;
+  animation-duration: 0.001ms !important;
+}
+.nv-sala[data-movimento="reduzido"] .nv-anel {
+  transform: none !important;
+}
+
+/* ------------------------------------------------------------- fundos -- */
+
+/*
+ * O fundo com grade é o da central e continua sendo o padrão — é o que faz a
+ * sala parecer parte do mesmo site. Os outros dois existem para chamada longa:
+ * textura de fundo compete com uma tela compartilhada o tempo todo, e depois
+ * de uma hora isso cansa.
+ */
+.nv-fundo[data-fundo="brilho"] {
+  background:
+    radial-gradient(1100px 560px at 84% -10%, rgba(42, 77, 197, 0.16), transparent 60%),
+    radial-gradient(820px 480px at -10% 12%, rgba(100, 149, 237, 0.08), transparent 55%),
+    var(--bg);
+}
+.nv-fundo[data-fundo="liso"] {
+  background: var(--bg);
+}
+/* Com um tema de cor escolhido, o brilho segue o acento — as regras de tema
+   já cuidam disso, e aqui só é preciso garantir que o `liso` vença todas. */
+.nv-fundo[data-fundo="liso"][data-tema] {
+  background: var(--bg);
+}
+
+/* -------------------------------------------------------- texto móvel -- */
+
+/*
+ * Só o que é texto de leitura escala.
+ *
+ * Ícones, filetes e alturas de barra ficam onde estão: uma sala com tudo 15%
+ * maior não é uma sala mais legível, é a mesma sala com menos gente cabendo
+ * na tela. O que a pessoa pediu ao mexer aqui foi enxergar as palavras.
+ */
+.nv-sala .nv-nome,
+.nv-sala .nv-chat .texto,
+.nv-sala .nv-chat .quem,
+.nv-sala .nv-nota,
+.nv-sala .nv-btn,
+.nv-sala .nv-opcao,
+.nv-sala .nv-chat form input {
+  font-size: calc(var(--tam, 14px) * var(--escala));
+}
+.nv-sala .nv-chat .texto {
+  --tam: 14px;
+}
+.nv-sala .nv-chat .quem {
+  --tam: 12px;
+}
+.nv-sala .nv-nota {
+  --tam: 12px;
+}
+.nv-sala .nv-btn {
+  --tam: 13px;
+}
+.nv-sala .nv-opcao {
+  --tam: 12px;
+}
+
+/* ------------------------------------------------------ vidro no topo -- */
+
+/*
+ * Topo e controles passam a ser translúcidos.
+ *
+ * Não é enfeite: as duas barras são fixas e o conteúdo passa por baixo delas.
+ * Opacas, elas cortam a sala em três faixas que não se falam; translúcidas, a
+ * sala continua sendo uma coisa só e as barras ficam por cima dela. É o que
+ * faz uma interface parecer montada em camadas em vez de recortada.
+ *
+ * `color-mix` em vez de um rgba fixo porque a superfície vem do tema — um
+ * rgba escrito à mão aqui deixaria de acompanhar na primeira troca de paleta.
+ */
+.nv-topo,
+.nv-controles {
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  z-index: 20;
+}
+.nv-topo {
+  padding: calc(12px * var(--e)) calc(20px * var(--e));
+  gap: calc(14px * var(--e));
+}
+.nv-controles {
+  padding: calc(13px * var(--e)) calc(16px * var(--e));
+  gap: calc(10px * var(--e));
+}
+
+/* Sem `backdrop-filter` (Firefox com a opção desligada, navegador antigo) o
+   translúcido vira uma barra suja com o conteúdo aparecendo através. Melhor
+   opaco: a barra ainda funciona, só não flutua. */
+@supports not (backdrop-filter: blur(1px)) {
+  .nv-topo,
+  .nv-controles {
+    background: var(--surface);
+  }
+}
+
+/* ------------------------------------------------------- o convite ---- */
+
+/*
+ * O código da sala e o "copiar convite" viraram um botão só.
+ *
+ * Eram duas peças: uma pílula que não fazia nada e um botão ao lado. Quem quer
+ * o código quer mandá-lo para alguém — ler em voz alta é o caminho raro. Numa
+ * peça só o alvo fica grande, some um elemento da barra, e a ação principal do
+ * topo passa a ser a coisa mais óbvia dele.
+ */
+.nv-convite {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  cursor: pointer;
+  font: inherit;
+  min-width: 0;
+  transition: border-color 0.2s, background 0.2s;
+}
+.nv-convite:hover {
+  border-color: var(--hairline-hi);
+}
+.nv-convite .nv-rotulo {
+  flex: 0 0 auto;
+}
+.nv-convite .codigo {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent-light);
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nv-convite .acao {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+  padding-left: 10px;
+  border-left: 1px solid var(--hairline);
+  transition: color 0.2s;
+}
+.nv-convite:hover .acao {
+  color: var(--accent-light);
+}
+.nv-convite.copiado {
+  border-color: var(--ok);
+}
+.nv-convite.copiado .acao {
+  color: var(--ok);
+}
+/* Num celular o "copiar convite" escrito não cabe — o botão inteiro continua
+   copiando, que é o que importa. */
+@media (max-width: 620px) {
+  .nv-convite .acao,
+  .nv-convite .nv-rotulo {
+    display: none;
+  }
+}
+
+/* A reconexão precisa aparecer, e o verde de "tudo bem" não precisa. */
+.nv-estado.caiu {
+  color: var(--alerta);
+}
+
+/* --------------------------------------------------------- as pessoas -- */
+
+.nv-pessoas-grade {
+  gap: calc(22px * var(--e));
+  padding: calc(24px * var(--e));
+}
+.nv-gente {
+  gap: calc(10px * var(--e));
+}
+.nv-pessoa {
+  padding: calc(9px * var(--e)) calc(12px * var(--e));
+  gap: calc(10px * var(--e));
+}
+.nv-pessoa.grande {
+  width: calc(172px * var(--e) * 0.75 + 43px);
+  padding: calc(26px * var(--e)) calc(16px * var(--e)) calc(20px * var(--e));
+  gap: calc(14px * var(--e));
+}
+
+/*
+ * O cartão de quem está falando.
+ *
+ * O anterior acendia a borda e jogava uma sombra azul embaixo. Some com o
+ * tema: a sombra era `rgba(42, 77, 197)` escrita à mão, então continuava azul
+ * numa sala âmbar. Agora as duas coisas saem do acento, e o brilho é por
+ * dentro — uma luz que vem do próprio cartão lê como "esta pessoa está com a
+ * palavra" melhor que uma sombra externa, que lê como "este cartão está mais
+ * alto".
+ */
+.nv-pessoa.falando {
+  border-color: var(--hairline-hi);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-light) 28%, transparent),
+    0 0 24px -6px color-mix(in srgb, var(--accent-light) 30%, transparent);
+}
+
+/*
+ * A cor por pessoa.
+ *
+ * O `style` em linha escreve o gradiente, e esta regra só cuida do que ele não
+ * alcança: a letra precisa de contraste sobre uma cor que muda a cada nome. O
+ * quase-preto vence sobre toda a faixa de luminosidade que `corDaPessoa`
+ * produz (42% a 62%) — é por isso que ela prende a luz numa faixa em vez de
+ * deixar o matiz livre em tudo.
+ */
+.nv-sala[data-avatares="cor"] .nv-avatar {
+  color: #07080d;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+/* ------------------------------------------------ a régua do microfone -- */
+
+/*
+ * A barra de nível no próprio cartão, para quem ligou.
+ *
+ * Mede o nível **cru**, o mesmo que o painel de qualidade usa para regular a
+ * porta de ruído — e não o do indicador de fala, que corta embaixo. Quem olha
+ * para esta régua está perguntando "está entrando alguma coisa?", e a resposta
+ * mora justamente na parte que o indicador joga fora.
+ */
+.nv-regua {
+  display: block;
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--hairline);
+  overflow: hidden;
+  margin-top: 2px;
+}
+.nv-regua > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-light), var(--ok));
+  transition: width 0.08s linear;
+}
+.nv-pessoa:not(.grande) .nv-regua {
+  width: 46px;
+  margin-top: 0;
+}
+
+/* ------------------------------------------------------- temas novos --- */
+
+.nv[data-tema="menta"] {
+  --accent: #0f6b5e;
+  --accent-hover: #148574;
+  --accent-light: #5eead4;
+  --hairline-hi: rgba(94, 234, 212, 0.42);
+}
+.nv[data-tema="coral"] {
+  --accent: #9a4110;
+  --accent-hover: #b95218;
+  --accent-light: #fb923c;
+  --hairline-hi: rgba(251, 146, 60, 0.44);
+}
+.nv[data-tema="lilas"] {
+  --accent: #7b2d8e;
+  --accent-hover: #9639ad;
+  --accent-light: #f0abfc;
+  --hairline-hi: rgba(240, 171, 252, 0.44);
+}
+.nv-fundo[data-tema="menta"] {
+  background:
+    radial-gradient(1100px 560px at 84% -10%, rgba(94, 234, 212, 0.12), transparent 60%),
+    radial-gradient(820px 480px at -10% 12%, rgba(94, 234, 212, 0.05), transparent 55%),
+    var(--bg);
+}
+.nv-fundo[data-tema="coral"] {
+  background:
+    radial-gradient(1100px 560px at 84% -10%, rgba(251, 146, 60, 0.13), transparent 60%),
+    radial-gradient(820px 480px at -10% 12%, rgba(251, 146, 60, 0.05), transparent 55%),
+    var(--bg);
+}
+.nv-fundo[data-tema="lilas"] {
+  background:
+    radial-gradient(1100px 560px at 84% -10%, rgba(240, 171, 252, 0.14), transparent 60%),
+    radial-gradient(820px 480px at -10% 12%, rgba(240, 171, 252, 0.06), transparent 55%),
+    var(--bg);
+}
+
+/* Com a grade ligada, ela volta por cima do brilho do tema — os temas
+   redefinem o `background` inteiro e apagariam a malha. */
+.nv-fundo[data-fundo="grade"] {
+  background-image:
+    radial-gradient(1100px 560px at 84% -10%, color-mix(in srgb, var(--accent-light) 13%, transparent), transparent 60%),
+    radial-gradient(820px 480px at -10% 12%, color-mix(in srgb, var(--accent-light) 6%, transparent), transparent 55%),
+    linear-gradient(color-mix(in srgb, var(--accent-light) 3%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent-light) 3%, transparent) 1px, transparent 1px);
+  background-size: auto, auto, 44px 44px, 44px 44px;
+  background-color: var(--bg);
+}
+
+/* ------------------------------------------------------ o painel ------- */
+
+/*
+ * O painel ficou mais alto e mais organizado: cada grupo é um bloco com filete
+ * embaixo, em vez de uma pilha de campos coladas. A separação custa 1 px e é a
+ * diferença entre uma lista de opções e um formulário legível.
+ */
+.nv-painel {
+  width: 360px;
+  box-shadow: 0 40px 90px -40px rgba(0, 0, 0, 0.95);
+}
+.nv-painel .grupo {
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+.nv-painel .grupo:last-of-type {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.nv-painel .grupo .nv-nota {
+  margin-top: 8px;
+}
+@media (max-width: 420px) {
+  .nv-painel {
+    width: calc(100vw - 24px);
+  }
+}
+
+/* As pastilhas de tema em grade: com nove cores, a fila corrida virava três
+   linhas irregulares e ficava impossível comparar duas cores vizinhas. */
+.nv-temas {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+.nv-tema {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 11.5px;
+  padding: 7px 9px;
+  border-radius: var(--r-nv-sm);
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  color: var(--txt-2);
+  cursor: pointer;
+  transition: border-color 0.18s, color 0.18s;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.nv-tema:hover {
+  border-color: var(--hairline-hi);
+  color: var(--txt);
+}
+.nv-tema.ativo {
+  border-color: var(--accent-light);
+  color: var(--txt);
+}
+.nv-tema > span {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* ------------------------------------------- a área de telas, quando vazia */
+
+/*
+ * Vazia, ela é uma linha; cheia, continua sendo o que era.
+ *
+ * A explicação passou para dentro do cabeçalho, ao lado do rótulo. Ela ainda
+ * está lá para quem nunca viu a sala — e deixou de cobrar uma faixa da largura
+ * inteira para dizer, toda vez, que não há nada.
+ */
+.nv-area-telas.vazia {
+  padding: 8px 16px;
+}
+.nv-area-telas.vazia > header {
+  margin-bottom: 0;
+}
+.nv-telas-vazio {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Numa tela estreita, o rótulo "TELAS" sozinho já diz o que é o lugar. */
+@media (max-width: 720px) {
+  .nv-area-telas.vazia .nv-telas-vazio {
+    display: none;
+  }
+}
+
+/* ------------------------------------------- os cartões, dimensionados --- */
+
+/*
+ * A largura do cartão sai de **quantas pessoas há na sala**.
+ *
+ * Fixa em 172 px, ela deixava três pessoas boiando no meio de um monitor
+ * grande e espremia oito na mesma largura. Agora o espaço é dividido, com piso
+ * e teto: abaixo de 150 px a inicial some, acima de 250 px o cartão vira um
+ * outdoor com uma letra dentro.
+ *
+ * O `--n` vem do React porque é a única coisa aqui que o CSS não tem como
+ * saber sozinho. O resto — avatar, letra, nome — sai da largura por proporção,
+ * então os três crescem juntos e nunca discordam.
+ */
+.nv-pessoas-grade .nv-gente {
+  --lado: clamp(
+    150px,
+    calc((min(100vw, 1240px) - 420px) / var(--n, 4) - 22px),
+    250px
+  );
+}
+.nv-pessoas-grade .nv-pessoa.grande {
+  width: calc(var(--lado) * var(--e) * 0.35 + var(--lado) * 0.65);
+}
+.nv-pessoas-grade .nv-pessoa.grande .nv-avatar {
+  width: calc(var(--lado) * 0.46);
+  height: calc(var(--lado) * 0.46);
+  font-size: calc(var(--lado) * 0.19);
+}
+
+/* ------------------------------------- o acento chega em tudo que acende -- */
+
+/*
+ * As peças acesas seguiam o CornflowerBlue **fixo**.
+ *
+ * Escolher o tema menta pintava o rótulo, o filete e o anel de verde, e
+ * deixava azuis as três coisas que mais se olham: a pílula da opção escolhida,
+ * o botão ligado e o selo de mensagem nova. O efeito era pior que não ter tema
+ * nenhum — parecia defeito, e era. Cada uma delas passa a sair de
+ * `--accent-light`, que é o que os temas de fato trocam.
+ *
+ * O `#06070b` do texto por cima fica: ele é o quase-preto do fundo, e vence
+ * sobre os nove acentos, que são todos claros por construção.
+ */
+.nv-btn.ligado,
+.nv-opcao.ativa,
+.nv-selo {
+  background: var(--accent-light);
+  border-color: var(--accent-light);
+  color: #06070b;
+}
+.nv-btn.principal {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.nv-btn.principal:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.nv-anel {
+  border-color: var(--accent-light);
+}
+.nv-avatar {
+  background: linear-gradient(150deg, var(--accent), var(--accent-light));
+}
+.nv-chat .quem b.eu {
+  color: var(--accent-light);
+  opacity: 0.78;
+}
+
+/* ------------------------------------------- a densidade nos cartões ----- */
+
+/*
+ * A densidade tem de **caber no cartão**, e não só nas margens dele.
+ *
+ * A primeira versão mexia no espaçamento e deixava avatar e letra do mesmo
+ * tamanho, então "compacto" e "amplo" davam telas quase idênticas — o ajuste
+ * existia no painel e não existia no olho. Agora a escala entra na conta da
+ * largura, e avatar, letra e nome saem dela por proporção: os três andam
+ * juntos, que é o único jeito de não discordarem.
+ */
+.nv-pessoas-grade .nv-gente {
+  --lado: clamp(
+    132px,
+    calc(((min(100vw, 1240px) - 420px) / var(--n, 4) - 22px) * var(--e)),
+    268px
+  );
+}
+.nv-pessoas-grade .nv-pessoa.grande {
+  width: var(--lado);
+  padding: calc(var(--lado) * 0.13) calc(var(--lado) * 0.08) calc(var(--lado) * 0.1);
+  gap: calc(var(--lado) * 0.07);
+}
+
+/* ------------------------------------------------- a barra de rolagem ---- */
+
+/*
+ * O painel rola, e a barra padrão do Chrome é um bloco claro que atravessa a
+ * altura toda — num painel escuro ela é a coisa mais brilhante da tela.
+ */
+.nv-painel {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.nv-painel::-webkit-scrollbar {
+  width: 10px;
+}
+.nv-painel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.nv-painel::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.nv-painel::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent-light) 55%, transparent);
+  background-clip: content-box;
+}

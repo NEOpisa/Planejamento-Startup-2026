@@ -102,9 +102,55 @@ memória do servidor. Não há banco de dados — não porque faltou, mas porque
 guardar exigiria decidir por quanto tempo, com que segurança e sob quais regras,
 e nada disso melhora uma sala de amigos.
 
+### O áudio que sempre funciona
+
+O sintoma mais caro que esta sala já teve não é ela quebrar — é ela funcionar
+**às vezes**. A chamada fica `connected`, o chat vai e volta, as faixas
+continuam vivas, e não entra som. Nada falha, nada aparece no console, e quem
+está do outro lado conclui que o próprio microfone quebrou.
+
+O que sustenta a promessa hoje:
+
+- **Um vigia de fluxo**, de dois em dois segundos, pergunta a coisa que
+  nenhum estado de conexão responde: *está entrando pacote de áudio desta
+  pessoa?* Ele funciona porque o WebRTC não para de mandar quando alguém fica
+  mudo — silêncio também é codificado e trafega. Número parado, portanto, não
+  é sala quieta: é cano entupido.
+- **Uma escada de conserto**, do barato ao caro. Aos 6 s sem pacote, reinicia
+  o ICE (procura outro caminho de rede sem derrubar nada). Aos 16 s, refaz a
+  conexão do zero — e refaz **combinado com o outro lado**, por um recado
+  `refazer` no canal de sinalização, porque uma reconstrução unilateral chega
+  no outro como uma oferta com credenciais novas sobre uma sessão viva, que é
+  aperto de mão que o navegador nem sempre aceita. Aos 26 s, com duas
+  reconstruções sem um pacote, ele para de tentar e **diz** — a essa altura o
+  problema é caminho de rede que não existe entre as duas casas, e quem
+  resolve isso é um TURN.
+- **A seção de áudio nasce aberta**, mesmo sem microfone pronto. Quem atendia
+  sem microfone (permissão ainda sendo decidida, negada, ou o aparelho tomado
+  por outro programa) respondia `recvonly` — "eu só quero ouvir" —, e quando o
+  microfone abria depois, a faixa era pendurada num remetente que o padrão
+  manda ignorar. Ninguém ouvia essa pessoa pelo resto da chamada.
+- **Sem microfone nenhum, o app continua tentando** a cada cinco segundos.
+  Quem negou a permissão e depois liberou não precisa mais recarregar a
+  página.
+- **Um gesto solta a sala inteira.** O bloqueio de reprodução automática do
+  navegador rendia um botão "ouvir fulano" por pessoa; quem clicasse em dois e
+  parasse ficava sem ouvir o resto. Agora qualquer clique, tecla ou toque
+  destrava o motor de áudio e todas as reproduções pendentes de uma vez — e os
+  ouvintes de gesto ficam de pé, porque o bloqueio não acontece uma vez só.
+- **O papel de "educado" sai da comparação dos identificadores**, sempre. Ele
+  saía de quem chamou `abrirPar`, e havia um caminho — sinal chegando antes da
+  lista de participantes — em que os **dois** lados se achavam educados. Numa
+  colisão de ofertas os dois cediam, e a negociação ficava dependendo de o
+  acaso não juntar as duas.
+
+O teste `npm run test:navegador` provoca o defeito de propósito (a Ana para de
+mandar áudio sem fechar nada) e cobra que a sala se conserte sozinha, sem
+ninguém recarregar página.
+
 ### Qualidade
 
-O botão **Qualidade** abre cinco escolhas, que valem na hora:
+O botão **Ajustes** abre as escolhas, que valem na hora:
 
 - **Som** — `Voz` mantém cancelamento de eco e supressão de ruído (é o que
   evita microfonia em quem usa alto-falante); `Música` desliga tudo isso, vai a
@@ -133,6 +179,41 @@ alta: quando a banda aperta, o vídeo cede primeiro.
 A malha manda **uma cópia para cada pessoa**, então existe um teto de subida
 (12 Mbps) dividido pelo número de pares. Estourar a subida não degrada aos
 poucos: enfileira e trava tudo de uma vez, inclusive a voz.
+
+### A sala de cada um
+
+O botão **Ajustes → Personalização** muda a aparência da sala **só para quem
+mexe**. Nada é dito à sala, nada viaja pela sinalização, e a tela de quem está
+do outro lado não muda — é a mesma promessa que o volume por pessoa já fazia.
+Fica guardado no navegador, entre visitas.
+
+| O que | Para que serve |
+|-------|----------------|
+| Cor de acento | nove cores, todas da paleta da marca |
+| Fundo | `grade` (o da central), `brilho` (só a luz) ou `liso` |
+| Densidade | quanto ar entre as coisas; mexe no tamanho dos cartões, não só nas margens |
+| Cantos | de reto a redondo |
+| Tamanho do texto | 90% a 115%, só no texto de leitura |
+| Avatares | cor por pessoa, ou a cor da marca |
+| Régua do microfone | uma barra de nível no seu cartão, sempre visível |
+| Movimento | desliga as transições e o anel que cresce |
+
+**O que não está lá, de propósito:** contraste e superfícies. A legibilidade
+foi medida uma vez (16.8:1 no texto principal) e não é assunto de gosto —
+trocar contraste por preferência é como se produz uma interface bonita que
+ninguém consegue ler por uma hora seguida.
+
+#### A cor de cada pessoa sai do nome
+
+Não é sorteada nem escolhida: é uma conta sobre o nome, e por isso chega
+**igual em todos os navegadores** sem passar pela sinalização, é **a mesma
+amanhã**, e não custa um campo novo no protocolo. A cor vira reconhecimento em
+vez de enfeite — com cinco pessoas na barra de baixo, achar quem se procura é
+olhar uma cor, não ler cinco nomes.
+
+O matiz é livre; a saturação e a luz não são. As duas ficam presas numa faixa
+que se lê sobre o fundo escuro — matiz livre com luz livre produziria, mais
+cedo ou mais tarde, um avatar quase preto com a letra quase preta em cima.
 
 ### Onde isto pode rodar
 
@@ -249,19 +330,66 @@ existe** (é API de contexto seguro). Todo identificador do NVDISC passa por um
 estourava antes de conectar e o sintoma era entrar na sala e ficar sozinho,
 com "reconectando…" eterno no topo.
 
-**Sem TURN, alguns não vão conseguir falar.** O STUN embutido resolve na mesma
-rede e na maioria das casas, mas atrás de NAT simétrico (rede de empresa,
-algumas operadoras) a conexão direta não fecha e a pessoa entra na sala sem
-ninguém ouvi-la. Para ligar o seu:
+**Sem TURN, alguns não vão conseguir falar — e nenhum conserto no código muda
+isso.** O STUN embutido resolve na mesma rede e na maioria das casas, mas
+atrás de NAT simétrico (rede de empresa, internet de celular, boa parte do
+CGNAT que as operadoras usam) a conexão direta não fecha, e não há caminho
+nenhum entre os dois navegadores. O vigia de fluxo vai tentar, refazer a
+conexão duas vezes, e no fim dizer no chat que o áudio não achou caminho —
+dizer é tudo o que ele pode fazer, porque o caminho de fato não existe.
+
+É **a** diferença entre "às vezes funciona" e "funciona". Se a sala precisa
+funcionar sempre, isto não é opcional.
+
+#### Com um serviço pronto (Cloudflare Realtime)
+
+Duas variáveis, e nenhuma delas vai para o navegador:
 
 ```
-NEXT_PUBLIC_TURN_URL=turn:seu-servidor:3478
-NEXT_PUBLIC_TURN_USER=usuario
-NEXT_PUBLIC_TURN_SENHA=senha
+TURN_KEY_ID=...
+TURN_KEY_API_TOKEN=...
 ```
 
-São `NEXT_PUBLIC_` porque quem precisa delas é o navegador. Um TURN próprio se
-sobe com [coturn](https://github.com/coturn/coturn) num VPS pequeno.
+Saem do painel da Cloudflare, em **Realtime → TURN**. A camada gratuita cobre
+1 TB de relé por mês, o que para uma sala de amigos é ilimitado na prática:
+uma conversa de duas pessoas, quando precisa ser relayada, gasta algo como
+40 MB por hora — e a maioria das chamadas nem chega a usar o relé.
+
+Elas ficam no servidor porque serviço de TURN sério **não trabalha com senha
+fixa**: ele emite credencial de curta duração, e emitir exige um segredo. Uma
+`NEXT_PUBLIC_TURN_SENHA` é uma senha publicada no código da página — qualquer
+um que abra a sala leva o relé de banda embora junto. Quem emite é a rota
+`/api/turn`, e o que chega ao navegador é uma credencial que vale um dia.
+
+Para conferir se pegou, sem caçar log:
+
+```
+curl https://seu-endereco/api/turn?diagnostico
+```
+
+Ele responde de onde veio o TURN, quais endereços foram entregues, se a
+credencial foi emitida — e, quando não foi, o que falta configurar.
+
+#### Com um coturn próprio
+
+É a opção que mantém a promessa de "ninguém no meio do caminho", já que o relé
+é seu. Sobe num VPS pequeno com [coturn](https://github.com/coturn/coturn):
+
+```
+TURN_URL=turn:seu-servidor:3478,turn:seu-servidor:443,turns:seu-servidor:443
+TURN_USER=usuario
+TURN_SENHA=senha
+```
+
+Vários endereços separados por vírgula, e vale usar os três: `3478` é o
+caminho normal, `443` passa por firewall que só libera porta de web, e
+`turns:` vai por TLS, que é o único que atravessa rede corporativa com
+inspeção de tráfego. O ICE testa todos em paralelo e fica com o primeiro que
+fechar.
+
+As antigas `NEXT_PUBLIC_TURN_URL`, `NEXT_PUBLIC_TURN_USER` e
+`NEXT_PUBLIC_TURN_SENHA` continuam funcionando, e continuam significando uma
+senha publicada na página. Sem o prefixo é melhor.
 
 ### Uma aba só, mesmo quando ela volta
 
@@ -305,6 +433,8 @@ src/lib/registro-supabase.mjs    as salas no Supabase (sinalização em função
 src/lib/sinal-supabase.ts        a sala pelo Realtime, direto do navegador
 supabase/nvdisc.sql              a tabela, para rodar uma vez no projeto
 src/app/api/sinal/route.ts       a sinalização como função da Vercel
+src/app/api/turn/route.ts        as credenciais de TURN, emitidas no servidor
+src/lib/preferencias.ts          o que cada um ajusta na própria sala
 src/app/globals.css              o sistema visual (o do NVGHUB) + as peças daqui
 src/app/layout.tsx               só o documento: fontes e tokens
 src/app/(central)/layout.tsx     a telinha: trilhos + coluna de painéis
@@ -349,6 +479,12 @@ transceptores ao mesmo tempo (a chamada ficava `connected` e um dos dois não
 ouvia nada); um `AudioContext` por participante, que estourava o limite do
 Chrome e picotava o som; e a conexão fantasma que fazia a pessoa se ver duas
 vezes ao entrar.
+
+Ele guarda também o vigia de fluxo, e este é o único bloco que **provoca** o
+defeito em vez de esperar por ele: a Ana para de mandar áudio sem fechar nada,
+e o teste cobra que o som volte sozinho em menos de 45 segundos. Uma asserção
+que só olhasse `connectionState` passaria com a sala muda — que é exatamente
+como o defeito viveu tanto tempo.
 
 Para rodá-lo, um Chrome com depuração remota:
 

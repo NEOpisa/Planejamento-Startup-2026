@@ -14,6 +14,7 @@ import Link from "next/link";
 
 import {
   Malha,
+  aoPrimeiroGesto,
   criarReforco,
   QUALIDADE_PADRAO,
   type EstadoMalha,
@@ -35,6 +36,14 @@ import {
   FecharIcon,
 } from "@/components/icons";
 import { comBase } from "@/lib/base.mjs";
+import {
+  corDaPessoa,
+  guardarPreferencias,
+  lerPreferencias,
+  PREFERENCIAS_PADRAO,
+  TEMAS,
+  type Preferencias,
+} from "@/lib/preferencias";
 import "../nvdisc.css";
 
 const VAZIO: EstadoMalha = {
@@ -64,31 +73,26 @@ export default function Sala({ sala }: { sala: string }) {
   const [telaAberta, setTelaAberta] = useState<string | null>(null);
   const [naoLidas, setNaoLidas] = useState(0);
   /**
-   * O tema começa no padrão e é lido do `localStorage` depois de montar.
+   * As preferências começam no padrão e são lidas depois de montar.
    *
    * Ler direto no `useState` quebraria a hidratação: o servidor renderiza sem
-   * `localStorage` e chegaria a um valor diferente do que o navegador acha
-   * na primeira passada.
+   * `localStorage` e chegaria a um valor diferente do que o navegador acha na
+   * primeira passada — e o sintoma disso não é um erro, é a sala piscando de
+   * uma aparência para outra na frente de quem abriu.
    */
-  const [tema, setTema] = useState("cornflower");
+  const [prefs, setPrefs] = useState<Preferencias>(PREFERENCIAS_PADRAO);
   const malha = useRef<Malha | null>(null);
 
   useEffect(() => {
-    try {
-      const guardado = localStorage.getItem("nvdisc:tema");
-      if (guardado) setTema(guardado);
-    } catch {
-      /* navegação privativa: fica o padrão */
-    }
+    setPrefs(lerPreferencias());
   }, []);
 
-  function trocarTema(t: string) {
-    setTema(t);
-    try {
-      localStorage.setItem("nvdisc:tema", t);
-    } catch {
-      /* vale por esta sessão */
-    }
+  function ajustar(mudanca: Partial<Preferencias>) {
+    setPrefs((antes) => {
+      const depois = { ...antes, ...mudanca };
+      guardarPreferencias(depois);
+      return depois;
+    });
   }
 
   useEffect(() => {
@@ -155,7 +159,24 @@ export default function Sala({ sala }: { sala: string }) {
   if (!nome) return null;
 
   return (
-    <div className="nv nv-fundo nv-sala" data-tema={tema}>
+    /**
+     * As preferências viram atributos na raiz, e o CSS decide o resto.
+     *
+     * É mais barato e mais seguro que estilo em linha espalhado pelos
+     * componentes: um seletor que não casa deixa o padrão valendo, enquanto um
+     * `style` calculado errado escreve uma medida inválida direto no elemento.
+     * E `--escala` é uma variável só, herdada por tudo que mede em `em`.
+     */
+    <div
+      className="nv nv-fundo nv-sala"
+      data-tema={prefs.tema}
+      data-fundo={prefs.fundo}
+      data-densidade={prefs.densidade}
+      data-cantos={prefs.cantos}
+      data-movimento={prefs.movimento}
+      data-avatares={prefs.avatares}
+      style={{ "--escala": prefs.texto } as React.CSSProperties}
+    >
       <Topo
         sala={sala}
         estado={estado}
@@ -189,6 +210,7 @@ export default function Sala({ sala }: { sala: string }) {
             minhaTela={estado.tela ? malha.current?.minhaTela ?? null : null}
             estado={estado}
             nome={nome}
+            prefs={prefs}
             aberta={telaAberta}
             onAbrir={setTelaAberta}
             onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
@@ -199,6 +221,7 @@ export default function Sala({ sala }: { sala: string }) {
             <Pessoas
               estado={estado}
               nome={nome}
+              prefs={prefs}
               variante="faixa"
               onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
             />
@@ -216,12 +239,12 @@ export default function Sala({ sala }: { sala: string }) {
 
       <Controles
         estado={estado}
-        tema={tema}
+        prefs={prefs}
         onMudo={() => malha.current?.mudo(!estado.mudo)}
         onTela={() => void malha.current?.alternarTela()}
         onQualidade={(q) => void malha.current?.definirQualidade(q)}
         onMicrofone={(id) => void malha.current?.definirMicrofone(id)}
-        onTema={trocarTema}
+        onPreferencia={ajustar}
       />
     </div>
   );
@@ -260,9 +283,23 @@ function Topo({
         NV<b>DISC</b>
       </Link>
 
-      <span className="codigo">{sala}</span>
-      <button className="nv-mini" onClick={copiar}>
-        {copiado ? "link copiado" : "copiar convite"}
+      {/**
+        * O código e o convite viraram **uma peça só**.
+        *
+        * Eram dois: uma pílula com o código, que não fazia nada, e um botão
+        * "copiar convite" ao lado. Quem quer o código quer mandá-lo para
+        * alguém — ler em voz alta é o caminho raro. Juntando, o alvo fica
+        * maior, some um elemento da barra, e a ação principal do topo passa a
+        * ser a coisa mais óbvia nele.
+        */}
+      <button
+        className={`nv-convite${copiado ? " copiado" : ""}`}
+        onClick={copiar}
+        title="copiar o link desta sala"
+      >
+        <span className="nv-rotulo">sala</span>
+        <span className="codigo">{sala}</span>
+        <span className="acao">{copiado ? "copiado ✓" : "copiar convite"}</span>
       </button>
 
       <div className="direita">
@@ -270,7 +307,7 @@ function Topo({
           chat
           {naoLidas > 0 && <span className="nv-selo">{naoLidas > 9 ? "9+" : naoLidas}</span>}
         </button>
-        <div className="nv-estado">
+        <div className={`nv-estado${estado.ligado ? "" : " caiu"}`}>
           <span className={`nv-ponto${estado.ligado ? "" : " off"}`} aria-hidden />
           {estado.ligado ? `${estado.participantes.length + 1} na sala` : "reconectando…"}
         </div>
@@ -337,13 +374,46 @@ function Som({
     const el = ref.current;
     if (!el) return;
     el.srcObject = fluxo;
+    let vivo = true;
+
     // O navegador pode recusar tocar sozinho: a permissão de reprodução
     // automática se perde na navegação entre a entrada e a sala. Recusa não é
-    // erro — é um caso a tratar, com um botão que o usuário clica.
-    el.play().then(
-      () => setBloqueado(false),
-      () => setBloqueado(true),
-    );
+    // erro — é um caso a tratar.
+    const tocar = () => {
+      el.play().then(
+        () => vivo && setBloqueado(false),
+        () => vivo && setBloqueado(true),
+      );
+    };
+    tocar();
+
+    /**
+     * Qualquer gesto na página tenta de novo.
+     *
+     * O botão "ouvir fulano" continua ali como último recurso, e ele sozinho
+     * não bastava: são tantos botões quantas pessoas na sala, cada um
+     * liberando uma voz só. Quem clicasse em dois e parasse — que é o que
+     * qualquer pessoa faz — ficaria sem ouvir o resto e sem entender por quê.
+     * Registrado aqui, o primeiro clique em qualquer canto solta a sala
+     * inteira, junto com o motor de áudio.
+     */
+    const soltar = aoPrimeiroGesto(tocar);
+
+    /**
+     * E uma última rede: um `<audio>` pode parar depois de já estar tocando.
+     * Acontece quando o aparelho de saída troca no meio (fone que sai da
+     * base, HDMI que desliga) — o elemento pausa e não avisa ninguém. Uma
+     * conferência a cada três segundos é barata e fecha esse buraco.
+     */
+    const conferir = setInterval(() => {
+      if (el.paused && el.srcObject) tocar();
+    }, 3000);
+
+    return () => {
+      vivo = false;
+      soltar();
+      clearInterval(conferir);
+    };
   }, [fluxo]);
 
   return (
@@ -378,6 +448,7 @@ function Palco({
   minhaTela,
   estado,
   nome,
+  prefs,
   aberta,
   onAbrir,
   onVolume,
@@ -386,6 +457,7 @@ function Palco({
   minhaTela: MediaStream | null;
   estado: EstadoMalha;
   nome: string;
+  prefs: Preferencias;
   aberta: string | null;
   onAbrir: (id: string | null) => void;
   onVolume: (id: string, v: number) => void;
@@ -435,7 +507,13 @@ function Palco({
         // nada, e deixar o meio da tela vazio enquanto os participantes se
         // espremem numa faixa de 60 px embaixo é desperdiçar a tela inteira
         // para dizer que não há nada nela.
-        <Pessoas estado={estado} nome={nome} variante="grade" onVolume={onVolume} />
+        <Pessoas
+          estado={estado}
+          nome={nome}
+          prefs={prefs}
+          variante="grade"
+          onVolume={onVolume}
+        />
       )}
     </>
   );
@@ -460,10 +538,28 @@ function AreaDeTelas({
   onAbrir: (id: string | null) => void;
 }) {
   return (
-    <section className="nv-area-telas" aria-label="Telas compartilhadas">
+    /**
+      * Vazia, a área inteira cabe numa linha.
+      *
+      * Ela tinha um cabeçalho e um parágrafo de duas linhas explicando que não
+      * havia nada — uma faixa da largura da tela para anunciar um vazio, todo
+      * santo dia, para quem já sabe. O lugar fixo continua ensinando onde
+      * olhar; só parou de cobrar 80 px por isso.
+      */
+    <section
+      className={`nv-area-telas${telas.length === 0 ? " vazia" : ""}`}
+      aria-label="Telas compartilhadas"
+    >
       <header>
         <span className="nv-eyebrow">Telas</span>
         {telas.length > 0 && <span className="nv-conta">{telas.length}</span>}
+        {telas.length === 0 && (
+          <span className="nv-nota nv-telas-vazio">
+            {chegando
+              ? `${chegando} começou a compartilhar; a imagem aparece aqui em instantes.`
+              : "ninguém está compartilhando — quando alguém abrir uma tela, ela aparece aqui"}
+          </span>
+        )}
         {atual && (
           <button className="nv-mini" onClick={() => onAbrir(null)}>
             fechar a tela
@@ -471,13 +567,7 @@ function AreaDeTelas({
         )}
       </header>
 
-      {telas.length === 0 ? (
-        <p className="nv-nota nv-telas-vazio">
-          {chegando
-            ? `${chegando} começou a compartilhar; a imagem aparece aqui em instantes.`
-            : "Ninguém está compartilhando. Quando alguém abrir uma tela, ela aparece aqui — é só clicar para assistir."}
-        </p>
-      ) : (
+      {telas.length === 0 ? null : (
         <ul>
           {telas.map((t) => (
             <li key={t.id}>
@@ -582,11 +672,13 @@ function Tela({
 function Pessoas({
   estado,
   nome,
+  prefs,
   variante,
   onVolume,
 }: {
   estado: EstadoMalha;
   nome: string;
+  prefs: Preferencias;
   variante: "grade" | "faixa";
   onVolume: (id: string, v: number) => void;
 }) {
@@ -596,9 +688,11 @@ function Pessoas({
       <Pessoa
         nome={nome}
         volume={estado.meuVolume}
+        nivel={prefs.medidor ? estado.meuNivel : undefined}
         mudo={estado.mudo}
         tela={estado.tela}
         grande={grade}
+        colorido={prefs.avatares === "cor"}
         eu
       />
       {estado.participantes.map((p) => (
@@ -611,12 +705,23 @@ function Pessoas({
           conexao={p.conexao}
           fluxo={p.audio}
           grande={grade}
+          colorido={prefs.avatares === "cor"}
           saida={estado.volumes[p.id] ?? 1}
           onSaida={(v) => onVolume(p.id, v)}
         />
       ))}
     </>
   );
+
+  /**
+   * Quanta gente há, para o CSS poder dimensionar os cartões.
+   *
+   * Cartão de tamanho fixo deixa três pessoas boiando no meio de uma tela de
+   * 1440 px e espreme oito na mesma largura. Com o número aqui, a largura vira
+   * uma conta: divide o espaço, com um piso e um teto para não virar selo nem
+   * outdoor.
+   */
+  const quantos = estado.participantes.length + 1;
 
   if (!grade) {
     return (
@@ -628,7 +733,9 @@ function Pessoas({
 
   return (
     <section className="nv-pessoas-grade">
-      <ul className="nv-gente">{gente}</ul>
+      <ul className="nv-gente" style={{ "--n": quantos } as React.CSSProperties}>
+        {gente}
+      </ul>
       {estado.participantes.length === 0 && (
         <p className="nv-nota nv-vazio">
           Só você por aqui. Mande o link do{" "}
@@ -643,23 +750,28 @@ function Pessoas({
 function Pessoa({
   nome,
   volume,
+  nivel,
   mudo,
   tela,
   eu,
   conexao,
   fluxo,
   grande,
+  colorido,
   saida = 1,
   onSaida,
 }: {
   nome: string;
   volume: number;
+  /** o nível cru, para a régua de quem pediu para vê-la; ausente = sem régua */
+  nivel?: number;
   mudo: boolean;
   tela: boolean;
   eu?: boolean;
   conexao?: Participante["conexao"];
   fluxo?: MediaStream;
   grande?: boolean;
+  colorido?: boolean;
   /** o volume com que **eu** ouço esta pessoa: 0 a 2 */
   saida?: number;
   onSaida?: (v: number) => void;
@@ -696,6 +808,7 @@ function Pessoa({
     conexao && conexao !== "connected" && conexao !== "aguardando" ? conexao : null;
 
   const ajustavel = !eu && !!onSaida;
+  const cor = useMemo(() => corDaPessoa(nome), [nome]);
 
   return (
     <li
@@ -706,13 +819,25 @@ function Pessoa({
       onClick={ajustavel ? () => setMenu((v) => !v) : undefined}
       title={ajustavel ? "clique para ajustar o volume desta pessoa" : undefined}
     >
-      <span className="nv-avatar">
+      {/**
+        * A cor sai do nome, e por isso é a mesma em todos os navegadores sem
+        * passar pela sinalização. Com os avatares em `neutro`, o `style` não
+        * é escrito e o CSS volta ao gradiente da marca — nenhum dos dois
+        * caminhos depende do outro estar certo.
+        */}
+      <span
+        className="nv-avatar"
+        style={colorido ? { background: cor.fundo } : undefined}
+      >
         {nome.slice(0, 1).toUpperCase()}
         {falando && (
           <span
             aria-hidden
             className="nv-anel"
-            style={{ transform: `scale(${1 + volume * 0.3})` }}
+            style={{
+              transform: `scale(${1 + volume * 0.3})`,
+              ...(colorido ? { borderColor: cor.anel } : {}),
+            }}
           />
         )}
       </span>
@@ -721,6 +846,14 @@ function Pessoa({
         {nome}
         {eu && <span>(você)</span>}
       </span>
+
+      {/* A régua só existe para quem pediu para vê-la, e só no próprio
+          cartão: o nível cru de outra pessoa não é medido aqui. */}
+      {nivel !== undefined && (
+        <span className="nv-regua" aria-hidden>
+          <span style={{ width: `${Math.min(100, nivel * 320)}%` }} />
+        </span>
+      )}
 
       <span className="nv-icones">
         {mudo && (
@@ -1075,20 +1208,20 @@ function ImagemDoChat({ src, de }: { src: string; de: string }) {
 
 function Controles({
   estado,
-  tema,
+  prefs,
   onMudo,
   onTela,
   onQualidade,
   onMicrofone,
-  onTema,
+  onPreferencia,
 }: {
   estado: EstadoMalha;
-  tema: string;
+  prefs: Preferencias;
   onMudo: () => void;
   onTela: () => void;
   onQualidade: (q: Partial<Qualidade>) => void;
   onMicrofone: (id: string | null) => void;
-  onTema: (t: string) => void;
+  onPreferencia: (p: Partial<Preferencias>) => void;
 }) {
   const [aberto, setAberto] = useState(false);
 
@@ -1098,12 +1231,12 @@ function Controles({
         <PainelQualidade
           q={estado.qualidade}
           estado={estado}
-          tema={tema}
+          prefs={prefs}
           microfones={estado.microfones}
           microfoneId={estado.microfoneId}
           onQualidade={onQualidade}
           onMicrofone={onMicrofone}
-          onTema={onTema}
+          onPreferencia={onPreferencia}
           onFechar={() => setAberto(false)}
         />
       )}
@@ -1150,22 +1283,22 @@ function Controles({
 function PainelQualidade({
   q,
   estado,
-  tema,
+  prefs,
   microfones,
   microfoneId,
   onQualidade,
   onMicrofone,
-  onTema,
+  onPreferencia,
   onFechar,
 }: {
   q: Qualidade;
   estado: EstadoMalha;
-  tema: string;
+  prefs: Preferencias;
   microfones: { id: string; nome: string }[];
   microfoneId: string | null;
   onQualidade: (q: Partial<Qualidade>) => void;
   onMicrofone: (id: string | null) => void;
-  onTema: (t: string) => void;
+  onPreferencia: (p: Partial<Preferencias>) => void;
   onFechar: () => void;
 }) {
   const [aba, setAba] = useState<"transmissao" | "microfone" | "tema">("microfone");
@@ -1210,7 +1343,7 @@ function PainelQualidade({
         />
       )}
       {aba === "transmissao" && <AbaTransmissao q={q} onQualidade={onQualidade} />}
-      {aba === "tema" && <AbaTema tema={tema} onTema={onTema} />}
+      {aba === "tema" && <AbaTema prefs={prefs} onPreferencia={onPreferencia} />}
     </div>
   );
 }
@@ -1481,23 +1614,24 @@ function AbaTransmissao({
 // -------------------------------------------------- aba: personalização --
 
 /**
- * Os temas.
+ * A aba de personalização.
  *
- * Todos saem da paleta da marca — não são cores inventadas aqui. O que muda é
- * o acento e o brilho do fundo; as superfícies continuam as mesmas, porque é
- * delas que vem a legibilidade, e trocar o contraste do texto por gosto é
- * como se produz uma interface bonita que ninguém consegue ler.
+ * Tudo aqui vale **só para quem mexe**, e a nota no rodapé diz isso — sem ela
+ * a primeira pergunta de qualquer um é se o outro lado está vendo a mesma
+ * coisa, e a segunda é se dá para mudar a sala dos outros.
+ *
+ * O que **não** está aqui, de propósito: contraste e superfícies. A
+ * legibilidade foi medida uma vez (16.8:1 no texto principal) e não é assunto
+ * de gosto — trocar contraste por preferência é como se produz uma interface
+ * bonita que ninguém consegue ler por uma hora seguida.
  */
-const TEMAS = [
-  { v: "cornflower", r: "Cornflower", cor: "#6495ed" },
-  { v: "ambar", r: "Âmbar", cor: "#f4b74a" },
-  { v: "esmeralda", r: "Esmeralda", cor: "#3ef08a" },
-  { v: "gelo", r: "Gelo", cor: "#67e8f9" },
-  { v: "violeta", r: "Violeta", cor: "#a78bfa" },
-  { v: "carmim", r: "Carmim", cor: "#fb7185" },
-] as const;
-
-function AbaTema({ tema, onTema }: { tema: string; onTema: (t: string) => void }) {
+function AbaTema({
+  prefs,
+  onPreferencia,
+}: {
+  prefs: Preferencias;
+  onPreferencia: (p: Partial<Preferencias>) => void;
+}) {
   return (
     <>
       <div className="grupo">
@@ -1506,9 +1640,9 @@ function AbaTema({ tema, onTema }: { tema: string; onTema: (t: string) => void }
           {TEMAS.map((t) => (
             <button
               key={t.v}
-              className={`nv-tema${tema === t.v ? " ativo" : ""}`}
-              onClick={() => onTema(t.v)}
-              aria-pressed={tema === t.v}
+              className={`nv-tema${prefs.tema === t.v ? " ativo" : ""}`}
+              onClick={() => onPreferencia({ tema: t.v })}
+              aria-pressed={prefs.tema === t.v}
               title={t.r}
             >
               <span style={{ background: t.cor }} aria-hidden />
@@ -1516,10 +1650,120 @@ function AbaTema({ tema, onTema }: { tema: string; onTema: (t: string) => void }
             </button>
           ))}
         </div>
-        <p className="nv-nota" style={{ marginTop: 10 }}>
-          Vale só para você, neste navegador — a sala de quem está do outro
-          lado não muda. Fica guardado entre visitas.
+      </div>
+
+      <div className="grupo">
+        <Escolha
+          titulo="Fundo"
+          valor={prefs.fundo}
+          opcoes={[
+            { v: "grade", r: "Grade" },
+            { v: "brilho", r: "Brilho" },
+            { v: "liso", r: "Liso" },
+          ]}
+          onEscolher={(v) => onPreferencia({ fundo: v as Preferencias["fundo"] })}
+        />
+        <p className="nv-nota">
+          {prefs.fundo === "grade"
+            ? "A malha e os dois brilhos da central — o mesmo fundo do resto do site."
+            : prefs.fundo === "brilho"
+              ? "Só a luz, sem a malha. Menos textura competindo com uma tela compartilhada."
+              : "Quase-preto puro. É o que menos disputa atenção numa chamada longa."}
         </p>
+      </div>
+
+      <div className="grupo">
+        <Escolha
+          titulo="Densidade"
+          valor={prefs.densidade}
+          opcoes={[
+            { v: "compacto", r: "Compacto" },
+            { v: "confortavel", r: "Confortável" },
+            { v: "amplo", r: "Amplo" },
+          ]}
+          onEscolher={(v) => onPreferencia({ densidade: v as Preferencias["densidade"] })}
+        />
+        <p className="nv-nota">
+          Quanto ar entre as coisas. No compacto cabe mais gente na tela sem
+          rolar; no amplo, cada cartão respira.
+        </p>
+      </div>
+
+      <div className="grupo">
+        <Escolha
+          titulo="Cantos"
+          valor={prefs.cantos}
+          opcoes={[
+            { v: "reto", r: "Reto" },
+            { v: "suave", r: "Suave" },
+            { v: "redondo", r: "Redondo" },
+          ]}
+          onEscolher={(v) => onPreferencia({ cantos: v as Preferencias["cantos"] })}
+        />
+      </div>
+
+      <div className="grupo">
+        <Deslizante
+          titulo="Tamanho do texto"
+          valor={Math.round(prefs.texto * 100)}
+          min={90}
+          max={115}
+          passo={5}
+          formatar={(v) => `${v}%`}
+          onMudar={(v) => onPreferencia({ texto: v / 100 })}
+          nota="Vale para a sala inteira — nomes, chat e painéis crescem juntos."
+        />
+      </div>
+
+      <div className="grupo">
+        <Escolha
+          titulo="Avatares"
+          valor={prefs.avatares}
+          opcoes={[
+            { v: "cor", r: "Cor por pessoa" },
+            { v: "neutro", r: "Cor da marca" },
+          ]}
+          onEscolher={(v) => onPreferencia({ avatares: v as Preferencias["avatares"] })}
+        />
+        <p className="nv-nota">
+          A cor sai do nome, por uma conta que todo navegador faz igual — então
+          todo mundo vê a mesma cor na mesma pessoa, hoje e amanhã. Quem quiser
+          outra troca de nome.
+        </p>
+      </div>
+
+      <div className="grupo">
+        <Chave
+          titulo="Régua do meu microfone"
+          ligado={prefs.medidor}
+          onMudar={(v) => onPreferencia({ medidor: v })}
+          nota="Uma barra de nível no seu cartão, sempre visível. Responde de relance a pergunta que aparece toda vez que a sala fica quieta: eles não estão falando, ou eu que não estou sendo ouvido?"
+        />
+      </div>
+
+      <div className="grupo">
+        <Chave
+          titulo="Movimento"
+          ligado={prefs.movimento === "completo"}
+          onMudar={(v) => onPreferencia({ movimento: v ? "completo" : "reduzido" })}
+          nota="Desligado, as transições somem e o anel de fala para de crescer — fica só a mudança de cor. Se o seu sistema já pede menos movimento, isto já está valendo."
+        />
+      </div>
+
+      <div className="rodape">
+        <p className="nv-nota">
+          Tudo desta aba vale{" "}
+          <strong style={{ color: "var(--txt-2)" }}>só para você</strong>, neste
+          navegador. A sala de quem está do outro lado não muda, e ninguém é
+          avisado. Fica guardado entre visitas.
+        </p>
+        <button
+          className="nv-mini"
+          style={{ marginTop: 10 }}
+          onClick={() => onPreferencia(PREFERENCIAS_PADRAO)}
+        >
+          voltar ao padrão
+        </button>
       </div>
     </>
   );
