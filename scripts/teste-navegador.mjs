@@ -307,9 +307,19 @@ try {
 
   await abas[0].aba.js(`[...document.querySelectorAll("button")].find(b => /Compartilhar tela/.test(b.textContent))?.click(), true`);
   await esperar(2500);
+  // A tela chega como **cartão** na área fixa, e só vira palco quando quem
+  // assiste clica. O teste procurava direto pelo palco (`.nv-tela`) e por isso
+  // falhava com o vídeo chegando perfeitamente do outro lado — a asserção é
+  // que envelheceu junto com a interface, não a chamada.
+  ok(
+    await abas[1].aba.js(`document.querySelectorAll(".nv-cartao-tela").length === 1`),
+    "a tela compartilhada aparece do outro lado",
+  );
+  await abas[1].aba.js(`document.querySelector(".nv-cartao-tela")?.click(), true`);
+  await esperar(600);
   ok(
     await abas[1].aba.js(`document.querySelectorAll(".nv-tela").length === 1`),
-    "a tela compartilhada aparece do outro lado",
+    "e abre no palco ao clicar",
   );
 
   // microfone mudo: a partir daqui, som que chegar é o da tela
@@ -352,7 +362,7 @@ try {
   // É `replaceTrack`, então não deveria renegociar nada nem interromper o
   // som — e "não deveria" é exatamente o tipo de frase que merece um teste.
   await abas[0].aba.js(`(() => {
-    [...document.querySelectorAll("button")].find(b => /Qualidade/.test(b.textContent))?.click();
+    [...document.querySelectorAll("button")].find(b => /Ajustes/.test(b.textContent))?.click();
     return true;
   })()`);
   await esperar(400);
@@ -380,6 +390,70 @@ try {
     depois?.audios >= 1 && depois?.faixas >= 1,
     "e a faixa continua ligada ao elemento de áudio",
     `audios ${depois?.audios}, faixas ${depois?.faixas}`,
+  );
+
+  // ── o vigia de fluxo ───────────────────────────────────────────────
+  //
+  // O defeito que este bloco guarda é o mais caro que a sala tem, porque ele
+  // não parece defeito: a chamada continua `connected`, o chat continua indo,
+  // as faixas continuam `live`, e simplesmente **para de entrar som**. Nenhum
+  // erro, nenhum aviso, e a pessoa do outro lado achando que o microfone dela
+  // quebrou.
+  //
+  // Aqui ele é provocado de propósito — a Ana para de mandar áudio sem fechar
+  // nada — e o que se cobra é que a sala se conserte **sozinha**, sem ninguém
+  // recarregar página nenhuma.
+
+  console.log("\no vigia de fluxo");
+
+  const pacotesDe = (aba) =>
+    aba.js(`(async () => {
+      const pc = window.__pcs.find((p) => p.connectionState === "connected");
+      if (!pc) return -1;
+      let n = 0;
+      (await pc.getStats()).forEach((s) => {
+        if (s.type === "inbound-rtp" && s.kind === "audio") n += s.packetsReceived || 0;
+      });
+      return n;
+    })()`);
+
+  const antesDaQueda = await pacotesDe(abas[1].aba);
+
+  // A faixa sai do remetente sem que nada seja fechado: é o retrato de uma
+  // negociação que deu errado sem avisar, e é justamente o que nenhum
+  // `connectionState` consegue enxergar.
+  const cortou = await abas[0].aba.js(`(async () => {
+    const pc = window.__pcs.find((p) => p.connectionState === "connected");
+    if (!pc) return false;
+    const s = pc.getSenders().find((x) => x.track && x.track.kind === "audio");
+    if (!s) return false;
+    await s.replaceTrack(null);
+    return true;
+  })()`);
+  ok(cortou, "deu para cortar o áudio da Ana sem fechar a conexão");
+
+  await esperar(4000);
+  const durante = await pacotesDe(abas[1].aba);
+  const parou = durante - antesDaQueda;
+  ok(parou < 60, "o som parou mesmo de entrar na Bia", `ainda entraram ${parou} pacotes`);
+
+  // A escada do vigia: 6 s para reiniciar o ICE, 16 s para refazer a conexão
+  // com o outro lado. Quarenta e cinco segundos dá folga para as duas.
+  console.log("  esperando a sala se consertar sozinha (até 45 s)…");
+  let voltou = 0;
+  const ateVoltar = Date.now() + 45_000;
+  while (Date.now() < ateVoltar) {
+    await esperar(2000);
+    const agora = await pacotesDe(abas[1].aba);
+    if (agora > durante + 100) {
+      voltou = agora - durante;
+      break;
+    }
+  }
+  ok(voltou > 100, "o som voltou sozinho, sem ninguém recarregar", `voltaram ${voltou} pacotes`);
+  ok(
+    await abas[1].aba.js(`(() => { const el = document.querySelector("audio"); return !!el && !el.paused; })()`),
+    "e o elemento de áudio continua tocando",
   );
 
   // ── a entrada pelo formulário, em modo de desenvolvimento ──────────
@@ -492,14 +566,17 @@ try {
   let temCaixa = false;
   for (let i = 0; i < 15 && !temCaixa; i += 1) {
     temCaixa = await abas[0].aba
-      .js(`!!document.querySelector("aside input")`)
+      .js(`!!document.querySelector("aside input:not([type=file])")`)
       .catch(() => false);
     if (!temCaixa) await esperar(1000);
   }
   ok(temCaixa, "a caixa do chat está na tela", await abas[0].aba.js("location.pathname").catch(() => "?"));
   if (temCaixa) {
   await abas[0].aba.js(`(() => {
-    const campo = document.querySelector("aside input");
+    // O primeiro input do chat é o seletor de imagem, escondido — e escrever
+    // no value de um input de arquivo lança. O teste morria aí, depois de
+    // tudo o mais já ter passado.
+    const campo = document.querySelector("aside input:not([type=file])");
     const setter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype, "value").set;
     setter.call(campo, "oi da Ana");

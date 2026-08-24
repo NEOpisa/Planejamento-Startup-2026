@@ -138,8 +138,23 @@ function servidores(): RTCIceServer[] {
   const lista: RTCIceServer[] = [
     { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
   ];
-  const turn = process.env.NEXT_PUBLIC_TURN_URL;
-  if (turn) {
+  /**
+   * Mais de um endereço, separados por vírgula — e vale a pena usar isso.
+   *
+   * O mesmo TURN costuma atender em três portas, e elas não são
+   * intercambiáveis: `turn:…:3478` é o caminho normal; `turn:…:443` passa por
+   * firewall que só libera porta de web; e `turns:…:443` vai por TLS, que é o
+   * único que atravessa rede corporativa com inspeção de tráfego. Anunciar os
+   * três custa nada — o ICE testa todos em paralelo e fica com o que fechar
+   * primeiro — e cobre redes que um só não cobriria.
+   *
+   *     NEXT_PUBLIC_TURN_URL=turn:casa:3478,turn:casa:443,turns:casa:443
+   */
+  const turn = (process.env.NEXT_PUBLIC_TURN_URL ?? "")
+    .split(",")
+    .map((u) => u.trim())
+    .filter(Boolean);
+  if (turn.length > 0) {
     lista.push({
       urls: turn,
       username: process.env.NEXT_PUBLIC_TURN_USER,
@@ -462,6 +477,26 @@ type Par = {
    */
   fila: Promise<void>;
   medidor?: Medidor;
+
+  // ------------------------------------------------- vigia deste par --
+
+  /**
+   * Quantos pacotes de áudio já chegaram desta pessoa, e desde quando esse
+   * número parou de crescer.
+   *
+   * É a única pergunta que importa de verdade — "está entrando som?" — e a
+   * única que nada mais neste arquivo sabia responder. `connectionState`
+   * diz que o cano existe; `packetsReceived` diz que passa água por ele.
+   */
+  pacotes: number;
+  /** quando o número parou de crescer; 0 = está crescendo */
+  parouEm: number;
+  /** já reiniciei o ICE por causa deste silêncio? */
+  reiniciei: boolean;
+  /** quantas vezes esta conexão já foi refeita do zero */
+  refeita: number;
+  /** desde quando está `disconnected`; 0 = não está */
+  caiuEm: number;
 };
 
 /** Mede o quanto uma faixa de áudio está soando, para o indicador de fala. */
@@ -501,7 +536,19 @@ let contextoUnico: AudioContext | null = null;
  */
 const GESTOS = ["pointerdown", "keydown", "touchend"] as const;
 
-let destravando = false;
+/**
+ * O que ainda espera um gesto do usuário.
+ *
+ * Não é só o `AudioContext`. Cada `<audio>` que o navegador recusou tocar
+ * está na mesma situação, e antes cada um tinha o seu próprio botão — "ouvir
+ * fulano", um por pessoa. Numa sala de cinco isso é cinco cliques para ouvir
+ * a conversa, e quem não clicar em todos vai jurar que fulano está mudo.
+ *
+ * Com a lista aqui, **um** gesto em qualquer lugar da página solta tudo de
+ * uma vez: o motor de áudio e todas as reproduções pendentes.
+ */
+const pendencias = new Set<() => void>();
+let ouvindoGestos = false;
 
 /**
  * Espera um gesto para soltar o áudio.
@@ -527,33 +574,58 @@ let destravando = false;
  * `resume()` sem gesto não lança — fica pendente. Não dá para descobrir se
  * deu certo pelo `catch`; o que vale é o `state` depois.
  */
-function destravarAudio() {
-  if (destravando || typeof window === "undefined") return;
-  destravando = true;
+function tentarSoltar() {
+  const c = contextoUnico;
+  if (c && c.state !== "running") {
+    void c.resume().catch(() => {
+      /* ainda sem permissão: o próximo gesto tenta de novo */
+    });
+  }
+  for (const f of [...pendencias]) {
+    try {
+      f();
+    } catch {
+      /* a próxima tentativa cuida */
+    }
+  }
+}
 
-  const soltar = () => {
-    for (const ev of GESTOS) window.removeEventListener(ev, tentar);
-    document.removeEventListener("visibilitychange", tentar);
-    destravando = false;
-  };
-
-  const tentar = () => {
-    const c = contextoUnico;
-    if (!c) return soltar();
-    void c.resume().then(
-      () => {
-        if (c.state === "running") soltar();
-      },
-      () => {
-        /* ainda sem permissão: o próximo gesto tenta de novo */
-      },
-    );
-  };
-
-  for (const ev of GESTOS) window.addEventListener(ev, tentar, { passive: true });
+/**
+ * Fica ouvindo gestos **para sempre**, e isto é de propósito.
+ *
+ * A versão anterior soltava os tratadores assim que o contexto voltava a
+ * rodar, e com isso tratava o bloqueio como um acidente que acontece uma vez.
+ * Ele acontece muitas: o navegador suspende o contexto quando a aba dorme,
+ * um `<audio>` novo nasce bloqueado a cada pessoa que entra, e um dispositivo
+ * de saída que troca no meio pode parar a reprodução de novo. Três ouvintes
+ * passivos custam nada perto de uma sala que emudece na segunda vez.
+ */
+function ligarGestos() {
+  if (ouvindoGestos || typeof window === "undefined") return;
+  ouvindoGestos = true;
+  for (const ev of GESTOS) window.addEventListener(ev, tentarSoltar, { passive: true });
   // Voltar para a aba também é hora de tentar: o navegador suspende o
   // contexto quando ela perde o foco, e aí não há gesto nenhum a esperar.
-  document.addEventListener("visibilitychange", tentar);
+  document.addEventListener("visibilitychange", tentarSoltar);
+}
+
+/**
+ * Registra algo para ser tentado de novo no próximo gesto do usuário.
+ *
+ * Devolve como cancelar o registro — quem chama tem de cancelar ao
+ * desmontar, senão a lista cresce com reproduções de elementos que já não
+ * existem.
+ */
+export function aoPrimeiroGesto(f: () => void): () => void {
+  pendencias.add(f);
+  ligarGestos();
+  return () => {
+    pendencias.delete(f);
+  };
+}
+
+function destravarAudio() {
+  ligarGestos();
 }
 
 function contextoDeAudio(): AudioContext {
@@ -941,6 +1013,22 @@ export class Malha {
   private mudaDesde = 0;
   /** já tentei reabrir por causa deste silêncio? */
   private tenteiRecuperar = false;
+  /** o vigia de fluxo: confere de dois em dois segundos se entra som */
+  private vigia?: ReturnType<typeof setInterval>;
+  /** quando tentei abrir o microfone pela última vez estando sem nenhum */
+  private ultimaTentativaMic = 0;
+  /** já avisei que a conexão com esta pessoa não fecha? */
+  private avisados = new Set<string>();
+  /**
+   * Por onde a voz pode passar.
+   *
+   * Começa com o que dá para saber sem perguntar a ninguém (o STUN embutido e
+   * um TURN de senha fixa, se houver) e é substituído pela resposta de
+   * `/api/turn` assim que ela chega. Nunca fica vazio: uma sala que espera
+   * uma requisição para poder abrir é uma sala que não abre quando a
+   * requisição falha.
+   */
+  private ice: RTCIceServer[] = servidores();
 
   private estado: EstadoMalha = {
     voceId: null,
@@ -1078,13 +1166,31 @@ export class Malha {
     await this.trocarVoz();
   }
 
-  /** Troca a faixa de voz em todas as conexões abertas, sem renegociar nada. */
+  /**
+   * Troca a faixa de voz em todas as conexões abertas.
+   *
+   * Trocar a faixa não renegocia nada — mas **abrir a direção sim**, e é por
+   * isso que o passo da direção está aqui. Um transceptor que nasceu
+   * `recvonly` (quem atende sem microfone pronto) engole `replaceTrack` sem
+   * reclamar e continua não mandando nada: o remetente tem faixa, a conexão
+   * está `connected`, e o outro lado não ouve. Corrigir a direção dispara a
+   * renegociação que faz a voz finalmente sair.
+   *
+   * Sem faixa nenhuma, o remetente é esvaziado em vez de ficar segurando uma
+   * faixa morta — um microfone que acabou de ser desconectado continuaria
+   * "enviando" silêncio, e o vigia de fluxo do outro lado leria isso como
+   * conexão saudável.
+   */
   private async trocarVoz() {
     const voz = this.vozParaEnviar();
-    if (!voz) return;
     for (const par of this.pares.values()) {
+      const canal = this.audioDe(par);
+      if (!canal) continue;
       try {
-        await this.senderDeAudio(par)?.replaceTrack(voz);
+        await canal.sender.replaceTrack(voz);
+        if (voz && canal.transceptor && canal.transceptor.direction !== "sendrecv") {
+          canal.transceptor.direction = "sendrecv";
+        }
       } catch {
         /* conexão indo embora */
       }
@@ -1105,17 +1211,19 @@ export class Malha {
    * havia a quem entregá-la. O vídeo ia, o som não, e nada no console dizia
    * por quê.
    */
-  private senderDeAudio(par: Par): RTCRtpSender | null {
-    if (par.audioSender) return par.audioSender;
+  private audioDe(par: Par): { sender: RTCRtpSender; transceptor: RTCRtpTransceiver | null } | null {
     for (const t of par.pc.getTransceivers()) {
       const ehAudio =
         t.sender.track?.kind === "audio" || t.receiver.track?.kind === "audio";
       if (ehAudio) {
         par.audioSender = t.sender;
-        return t.sender;
+        return { sender: t.sender, transceptor: t };
       }
     }
-    return null;
+    // O transceptor não foi achado, mas o remetente guardado ainda serve para
+    // trocar a faixa: é o que existe antes de a negociação pendurar o
+    // receptor do outro lado.
+    return par.audioSender ? { sender: par.audioSender, transceptor: null } : null;
   }
 
   private acha(id: string) {
@@ -1142,6 +1250,10 @@ export class Malha {
     this.sala = sala;
     this.nome = nome;
     this.sessao = idDaAba();
+    // Começa agora e é esperado lá embaixo: o navegador leva bem mais tempo
+    // decidindo sobre o microfone do que o servidor leva para emitir uma
+    // credencial, então em paralelo isto sai de graça.
+    const ice = this.carregarIce();
     try {
       // O microfone é pedido **antes** de conectar. Se a permissão for negada,
       // é melhor descobrir agora do que depois de estar na sala mudo sem saber
@@ -1182,8 +1294,44 @@ export class Malha {
       return;
     }
 
+    // As credenciais têm de estar prontas **antes** da primeira conexão: um
+    // par criado com a lista velha ficaria sem TURN até alguém refazê-lo, e
+    // essa pessoa é justamente a que mais precisa dele.
+    await ice;
     this.abrirSinalizacao();
     this.laçoDeVolume();
+    this.vigiarFluxos();
+  }
+
+  /**
+   * Pergunta ao servidor por onde a voz pode passar.
+   *
+   * O TURN de verdade emite credencial de curta duração, e emiti-la exige um
+   * segredo que não pode ir para o navegador — daí a resposta vir de uma rota
+   * em vez de uma variável `NEXT_PUBLIC_`. Ver `src/app/api/turn/route.ts`.
+   *
+   * **Falhar aqui não pode impedir a sala de abrir.** Sem TURN a chamada
+   * ainda fecha na maioria das redes, e trocar "algumas pessoas não são
+   * ouvidas" por "ninguém entra" seria um péssimo negócio. Daí o prazo curto
+   * e o silêncio no `catch`: o que sobra é a lista que já estava aqui.
+   */
+  private async carregarIce(): Promise<void> {
+    try {
+      const corte = AbortSignal.timeout(4000);
+      const r = await fetch("/api/turn", { signal: corte, cache: "no-store" });
+      if (!r.ok) return;
+      const corpo = (await r.json()) as { iceServers?: RTCIceServer[]; aviso?: string };
+      if (Array.isArray(corpo.iceServers) && corpo.iceServers.length > 0) {
+        this.ice = corpo.iceServers;
+      }
+      // No console, e não no chat: é recado para quem hospeda, e ninguém numa
+      // conversa precisa ler sobre configuração de servidor. Quem está na sala
+      // só ouve falar disso se o áudio de fato não fechar — e aí o vigia de
+      // fluxo diz, com o nome da pessoa e tudo.
+      if (corpo.aviso) console.warn("NVDISC/TURN:", corpo.aviso);
+    } catch {
+      /* sem resposta: vale o que já estava na lista */
+    }
   }
 
   /**
@@ -1474,6 +1622,9 @@ export class Malha {
    */
   private async recuperarCaptura() {
     if (this.recuperando || this.fechando) return;
+    // Nunca houve microfone (permissão negada, dispositivo tomado na entrada)
+    // é diferente de ter perdido um: muda o que se pode dizer no fim.
+    const tinha = !!this.meuFluxo;
     this.recuperando = true;
     try {
       const novo = await this.abrirMicrofone();
@@ -1484,12 +1635,23 @@ export class Malha {
       this.meuMedidor = criarMedidor(novo);
       this.vigiarCaptura();
       this.estado.capturaAviso = null;
+      // Quem entrou sem microfone tem na tela o erro que explica isso. Ele
+      // deixa de ser verdade no instante em que a captura abre, e um erro que
+      // sobrevive à própria causa manda a pessoa recarregar uma página que já
+      // está funcionando.
+      if (!tinha) this.estado.erro = null;
       await this.refazerCadeia();
       await this.listarMicrofones();
+      if (!tinha) this.sistema("o microfone abriu — pode falar.");
     } catch {
-      this.estado.capturaAviso =
-        "perdi o microfone e não consegui reabrir. Escolha outro na lista, " +
-        "ou recarregue a página.";
+      // Sem microfone desde o começo, o vigia vai continuar tentando sozinho
+      // e o erro de entrada já está na tela. Escrever "perdi o microfone" aqui
+      // seria acusar uma perda que não houve, e piscando a cada cinco segundos.
+      if (tinha) {
+        this.estado.capturaAviso =
+          "perdi o microfone e não consegui reabrir. Escolha outro na lista, " +
+          "ou recarregue a página.";
+      }
     } finally {
       this.recuperando = false;
       this.avisar();
@@ -1645,7 +1807,11 @@ export class Malha {
       case PARA_CLIENTE.SINAL:
         await this.sinalRecebido(
           msg.de as string,
-          msg.dados as { descricao?: RTCSessionDescriptionInit; candidato?: RTCIceCandidateInit },
+          msg.dados as {
+            descricao?: RTCSessionDescriptionInit;
+            candidato?: RTCIceCandidateInit;
+            refazer?: boolean;
+          },
         );
         break;
 
@@ -1702,7 +1868,7 @@ export class Malha {
       return existente;
     }
 
-    const pc = new RTCPeerConnection({ iceServers: servidores() });
+    const pc = new RTCPeerConnection({ iceServers: this.ice });
     const par: Par = {
       pc,
       // O papel de "educado" sai da comparação dos identificadores: os dois
@@ -1713,13 +1879,27 @@ export class Malha {
       // estava aqui, e importa: numa colisão o lado educado descarta a
       // **própria** oferta. Sendo ele quem atende, a oferta preservada é
       // sempre a de quem liga — a única que carrega os transceptores.
-      educado: !euLigo,
+      //
+      // O papel sai da **comparação dos identificadores**, e não do `euLigo`
+      // que chegou por parâmetro. Os dois quase sempre coincidem, e o "quase"
+      // era um defeito: quando um sinal cria o par antes de a lista de
+      // participantes chegar, `abrirPar` recebe `euLigo = false` mesmo do
+      // lado que liga — e aí os **dois** lados se achavam educados. Numa
+      // colisão os dois cediam, cada um descartava a própria oferta, e a
+      // negociação ficava dependendo de o acaso não juntar as duas. Pela
+      // comparação, os papéis são sempre opostos, venha a chamada de onde vier.
+      educado: !this.euLigoPara(outroId),
       fazendoOferta: false,
       ignorandoOferta: false,
       videoSender: null,
       audioSender: null,
       candidatosPendentes: [],
       fila: Promise.resolve(),
+      pacotes: 0,
+      parouEm: 0,
+      reiniciei: false,
+      refeita: 0,
+      caiuEm: 0,
     };
     this.pares.set(outroId, par);
 
@@ -1756,9 +1936,20 @@ export class Malha {
       // Um `MediaStream` novo a cada faixa, e não `addTrack` no que já existe:
       // o React reconhece mudança por identidade, e um objeto alterado por
       // dentro não faria o `<audio>` religar no fluxo certo.
+      /**
+       * As faixas mortas saem junto.
+       *
+       * Uma conexão refeita entrega faixas novas, e as antigas ficariam no
+       * fluxo — mortas, e **na frente**. Quem lê o fluxo lê a primeira faixa:
+       * o medidor mediria zero para sempre, e o reforço de volume acima de
+       * 100% tocaria silêncio. Duas maneiras diferentes de a pessoa sumir do
+       * áudio sem nada falhar.
+       */
       const juntar = (atual: MediaStream | undefined) =>
         new MediaStream([
-          ...(atual?.getTracks() ?? []).filter((t) => t.id !== ev.track.id),
+          ...(atual?.getTracks() ?? []).filter(
+            (t) => t.id !== ev.track.id && t.readyState === "live",
+          ),
           ev.track,
         ]);
 
@@ -1902,8 +2093,33 @@ export class Malha {
    */
   private async sinalRecebido(
     de: string,
-    dados: { descricao?: RTCSessionDescriptionInit; candidato?: RTCIceCandidateInit },
+    dados: {
+      descricao?: RTCSessionDescriptionInit;
+      candidato?: RTCIceCandidateInit;
+      refazer?: boolean;
+    },
   ) {
+    /**
+     * O outro lado está refazendo esta conexão do zero.
+     *
+     * Sem este recado, quem refaz refaz **sozinho**: nasce com credenciais de
+     * ICE e impressão de DTLS novas e manda uma oferta para um lado que ainda
+     * acha a conexão dele perfeitamente boa — e do ponto de vista dele está,
+     * porque o que quebrou foi o outro sentido. Aplicar essa oferta sobre uma
+     * sessão viva pede ao navegador um aperto de mão que ele nem sempre
+     * aceita, e o resultado é uma reconstrução que falha justamente quando é
+     * mais necessária.
+     *
+     * Combinado, os dois jogam fora ao mesmo tempo e começam limpos. Quem
+     * pediu é quem oferece; este lado só atende, e por isso não responde com
+     * outro `refazer` — dois lados se pedindo reconstrução em resposta um ao
+     * outro não teriam fim.
+     */
+    if (dados.refazer) {
+      this.descartarPar(de);
+      if (!this.fechando) await this.abrirPar(de, false);
+      return;
+    }
     const par = this.pares.get(de) ?? (await this.abrirPar(de, false));
     par.fila = par.fila.then(() => this.aplicarSinal(par, de, dados)).catch(() => {});
     await par.fila;
@@ -2011,9 +2227,23 @@ export class Malha {
 
     for (const t of par.pc.getTransceivers()) {
       const tipo = t.receiver.track?.kind;
-      if (tipo === "audio" && !t.sender.track && mic) {
+      if (tipo === "audio") {
         par.audioSender = t.sender;
-        await t.sender.replaceTrack(mic);
+        if (!t.sender.track && mic) await t.sender.replaceTrack(mic);
+        /**
+         * A direção é aberta **mesmo sem microfone pronto**.
+         *
+         * Era condicionada a ter faixa, e essa condição custava a voz de quem
+         * entrasse com o microfone ainda sendo decidido pelo navegador, ou
+         * negado, ou tomado por outro programa. A resposta saía dizendo
+         * `recvonly` — "eu só quero ouvir" —, e quando o microfone finalmente
+         * abria, `replaceTrack` o pendurava num remetente que o padrão manda
+         * ignorar. Ninguém ouvia essa pessoa pelo resto da chamada, sem um
+         * erro em lugar nenhum.
+         *
+         * Aberta desde já, a faixa que chega depois entra por `trocarVoz` e
+         * sai na hora.
+         */
         t.direction = "sendrecv";
       }
       if (tipo === "video" && !par.videoSender) {
@@ -2027,6 +2257,7 @@ export class Malha {
   private fecharPar(id: string) {
     const par = this.pares.get(id);
     if (!par) return;
+    this.avisados.delete(id);
     par.medidor?.parar();
     try {
       par.pc.close();
@@ -2346,6 +2577,199 @@ export class Malha {
     this.quadro = requestAnimationFrame(passo);
   }
 
+  // --------------------------------------------------- o vigia de fluxo --
+
+  /**
+   * Confere, de dois em dois segundos, se **entra som de cada pessoa**.
+   *
+   * Todo o resto deste arquivo pergunta se a conexão existe. Existir e passar
+   * áudio são coisas diferentes, e é entre as duas que mora quase todo
+   * "às vezes funciona": uma negociação que terminou com uma seção de áudio
+   * meia-boca, um caminho de rede que fechou e parou de passar, um lado que
+   * ficou `recvonly` sem ninguém notar. Em todos, a sala fica bonita na tela
+   * e muda no ouvido.
+   *
+   * A escada é de propósito, do barato ao caro: reiniciar o ICE resolve
+   * caminho de rede sem derrubar nada; refazer a conexão resolve negociação
+   * torta e custa um segundo de corte; falar com o usuário é o último passo,
+   * quando as duas primeiras não deram jeito e o problema está fora do
+   * alcance do código.
+   */
+  private vigiarFluxos() {
+    if (this.vigia) clearInterval(this.vigia);
+    this.vigia = setInterval(() => void this.conferirFluxos(), 2000);
+  }
+
+  /**
+   * Quantos pacotes de áudio já chegaram nesta conexão.
+   *
+   * Serve como sinal de vida porque o WebRTC **não para de mandar quando a
+   * pessoa fica muda**: uma faixa desligada vira silêncio codificado, e os
+   * pacotes continuam chegando. Número parado, portanto, não quer dizer "sala
+   * quieta" — quer dizer cano entupido.
+   *
+   * `-1` é "não deu para medir": navegador sem `getStats` utilizável, ou
+   * conexão fechando. Quem chama trata como "não sei" e não como "parou".
+   */
+  private async pacotesDeAudio(pc: RTCPeerConnection): Promise<number> {
+    try {
+      const relatorio = await pc.getStats();
+      let total = -1;
+      relatorio.forEach((item) => {
+        const s = item as { type?: string; kind?: string; packetsReceived?: number };
+        if (s.type === "inbound-rtp" && s.kind === "audio") {
+          total = Math.max(0, total) + (s.packetsReceived ?? 0);
+        }
+      });
+      return total;
+    } catch {
+      return -1;
+    }
+  }
+
+  private async conferirFluxos() {
+    if (this.fechando) return;
+    const agora = Date.now();
+
+    /**
+     * Sem microfone nenhum, tentar de novo.
+     *
+     * Quem negou a permissão e depois liberou, ou entrou com o fone tomado
+     * por outro programa, ficava mudo **para sempre**: a recuperação de
+     * captura só roda quando existe uma faixa para vigiar, e ali não existe
+     * nenhuma. Uma tentativa a cada cinco segundos custa nada e é a diferença
+     * entre "arrumei no navegador e voltou" e "tive de recarregar a página".
+     */
+    if (!this.meuFluxo && !this.recuperando && agora - this.ultimaTentativaMic > 5000) {
+      this.ultimaTentativaMic = agora;
+      void this.recuperarCaptura();
+    }
+
+    for (const [id, par] of [...this.pares.entries()]) {
+      const estado = par.pc.connectionState;
+
+      /**
+       * `disconnected` é o estado ambíguo do WebRTC: pode voltar sozinho em
+       * dois segundos, e pode ficar assim até o fim da chamada. Só o `failed`
+       * tinha tratamento, e há redes em que a conexão nunca chega lá — ela
+       * fica pendurada no meio, com a sala achando que ainda está tudo bem.
+       */
+      if (estado === "disconnected") {
+        if (!par.caiuEm) par.caiuEm = agora;
+        else if (agora - par.caiuEm > 4000) {
+          par.caiuEm = agora; // uma tentativa a cada quatro segundos, não mais
+          try {
+            par.pc.restartIce();
+          } catch {
+            /* conexão já indo embora */
+          }
+        }
+        continue;
+      }
+      par.caiuEm = 0;
+      if (estado !== "connected") continue;
+
+      const recebidos = await this.pacotesDeAudio(par.pc);
+      if (recebidos < 0) continue;
+
+      if (recebidos > par.pacotes) {
+        par.pacotes = recebidos;
+        par.parouEm = 0;
+        par.reiniciei = false;
+        // Voltou a entrar som: o aviso deixa de valer, e um novo silêncio
+        // mais adiante merece ser dito de novo.
+        this.avisados.delete(id);
+        continue;
+      }
+      if (!par.parouEm) {
+        par.parouEm = agora;
+        continue;
+      }
+
+      const parado = agora - par.parouEm;
+
+      // Primeiro degrau: o caminho de rede. Reiniciar o ICE procura outro sem
+      // derrubar a conexão nem interromper quem já está ouvindo.
+      if (parado > 6000 && !par.reiniciei) {
+        par.reiniciei = true;
+        try {
+          par.pc.restartIce();
+        } catch {
+          /* segue para o degrau seguinte */
+        }
+        continue;
+      }
+
+      // Segundo degrau: a negociação. Refazer a conexão do zero é o que
+      // conserta uma sessão que terminou sem seção de áudio de verdade — o
+      // caso que nenhum reinício de ICE alcança, porque a rede está ótima e o
+      // que está torto é o acordo.
+      if (parado > 16000 && par.refeita < 2) {
+        par.refeita += 1;
+        await this.refazerPar(id);
+        continue;
+      }
+
+      // Terceiro degrau: dizer. Duas reconstruções sem um pacote de áudio não
+      // é mais defeito de código — é caminho de rede que não existe entre
+      // estes dois navegadores, e quem resolve isso é um TURN.
+      if (parado > 26000 && !this.avisados.has(id)) {
+        this.avisados.add(id);
+        const p = this.acha(id);
+        this.sistema(
+          `não está entrando som de ${p?.nome ?? "alguém"} — os dois navegadores ` +
+            "se veem, mas o áudio não acha caminho entre as duas redes. É o caso " +
+            "que precisa de um servidor TURN (ver o README).",
+        );
+        this.avisar();
+      }
+    }
+  }
+
+  /**
+   * Refaz uma conexão do zero.
+   *
+   * Sempre no papel de **quem liga**, seja qual for o papel normal deste lado.
+   * Uma conexão recém-nascida não tem transceptor nenhum, e quem só atende
+   * fica esperando uma oferta que o outro lado não tem motivo para mandar —
+   * ele acha que a conexão dele está ótima, e do ponto de vista dele está.
+   * Quem refaz é quem oferece.
+   *
+   * O papel de educado continua saindo da comparação dos identificadores
+   * dentro de `abrirPar`, então a regra de desempate segue valendo dos dois
+   * lados.
+   */
+  private async refazerPar(id: string) {
+    const antes = this.pares.get(id);
+    const refeita = antes?.refeita ?? 1;
+    // O recado vai **antes** de fechar: os dois transportes entregam na ordem
+    // em que se manda, então ele chega na frente da oferta que vem logo a
+    // seguir, e o outro lado já está limpo quando ela bate.
+    this.manda(PARA_SERVIDOR.SINAL, { para: id, dados: { refazer: true } });
+    this.descartarPar(id);
+    if (this.fechando) return;
+    const novo = await this.abrirPar(id, true);
+    novo.refeita = refeita;
+  }
+
+  /**
+   * Joga fora a conexão com alguém, e a mídia que veio por ela.
+   *
+   * A mídia sai junto de propósito. Deixá-la ali faria a pessoa aparecer com
+   * som e vídeo congelados enquanto a conexão nova se refaz — e, pior, o
+   * `<audio>` continuaria preso a um fluxo morto depois que a nova chegasse.
+   */
+  private descartarPar(id: string) {
+    this.fecharPar(id);
+    const p = this.acha(id);
+    if (!p) return;
+    p.audio = undefined;
+    p.video = undefined;
+    p.volume = 0;
+    p.conexao = "aguardando";
+    this.avisar();
+  }
+
   /**
    * O microfone está mesmo captando?
    *
@@ -2432,6 +2856,7 @@ export class Malha {
     // esperar a carência antes de tirar você da lista dos outros.
     this.manda(PARA_SERVIDOR.SAIR);
     cancelAnimationFrame(this.quadro);
+    if (this.vigia) clearInterval(this.vigia);
     if (this.apurar) clearTimeout(this.apurar);
     if (this.pingTimer) clearInterval(this.pingTimer);
     if (this.religar) clearTimeout(this.religar);
