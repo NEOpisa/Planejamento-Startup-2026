@@ -8,6 +8,7 @@
     "start": "NODE_ENV=production node server.mjs",
     "test": "node scripts/teste.mjs",
     "test:navegador": "node scripts/teste-navegador.mjs",
+    "test:ferramentas": "node scripts/teste-ferramentas.mjs",
     "cert": "node scripts/certificado.mjs",
     "test:instancias": "node scripts/teste-instancias.mjs"
   },

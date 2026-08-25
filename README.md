@@ -1,26 +1,38 @@
-# Planejamento Neovanguard
+# NVDISC
 
-Central de ferramentas internas da Neovanguard (Next.js + React).
+Sala de voz, tela e texto da Neovanguard (Next.js + React). Sem conta e sem
+cadastro: um nome, um código, e quem digitar o mesmo código cai na mesma sala.
 
-O visual é o **mesmo sistema do site público** (NVGHUB, `neovanguard.com.br`):
-tokens MediumBlue/CornflowerBlue, a "telinha" de trilhos com a coluna de
-painéis no meio, e as mesmas peças — painel, cartão, pílula, faixa de números.
-Uma ferramenta interna com paleta própria pareceria de outra empresa; quem
-abre a calculadora depois do site tem de sentir que continua na mesma casa.
+O visual é o **mesmo sistema do site público** (NVGHUB, `neovanguard.com.br`),
+seguido à risca: os tokens, a escala tipográfica e as peças — painel, porta,
+cartão, pílula, trilho — são os do `shell.css` de lá, sem uma cor ou um
+tamanho inventado aqui. Space Grotesk no display, Plus Jakarta Sans no corpo,
+IBM Plex Mono nos rótulos. Uma ferramenta da casa com paleta própria pareceria
+de outra empresa.
 
 ## Telas
 
 | Rota | O que é |
 |------|---------|
-| `/` | Home com atalhos pras ferramentas |
-| `/calculadora` (→ `/calculadora.html`) | Calculadora de precificação (uso interno, offline, single-file) |
-| `/plano` | Plano de captação do primeiro cliente |
-| `/NVDISC` | Sala de voz, tela e texto — sem conta, sem cadastro |
+| `/` | Redireciona para `/NVDISC` |
+| `/NVDISC` | A porta: a tela de escolher para onde ir, com o formulário de entrada |
+| `/NVDISC/sala/[código]` | A sala — voz, tela, chat e as ferramentas |
 
-A home e o plano vivem dentro da telinha (grupo de rotas `(central)`); o
-NVDISC fica **fora** dela, com a tela inteira. Uma sala de voz cercada por dois
-trilhos de navegação perderia o vídeo para um menu que ninguém abre no meio de
-uma chamada.
+A porta vive dentro da telinha de trilhos do NVGHUB; a **sala** fica fora
+dela, com a tela inteira. Uma chamada cercada por dois trilhos de navegação
+perderia o vídeo para um menu que ninguém abre no meio de uma conversa.
+
+O prefixo `/NVDISC` continua existindo mesmo sendo isto a única coisa que
+mora aqui: o caminho da sinalização (`/NVDISC/sinal`) depende dele, e é lido
+pelo servidor, pelo cliente e pelo teste.
+
+### A porta é uma escolha, não um login
+
+Ela lista os destinos da casa, e marca os que ainda não abriram em vez de
+escondê-los. Quem chega pela primeira vez quer saber o tamanho da casa — um
+destino apagado da tela não conta essa história, e um que parece pronto e não
+abre é pior. A lista mora em `src/lib/navegacao.ts`, num lugar só, lida pelo
+trilho, pela barra do telefone e pela própria porta.
 
 ## Rodar
 
@@ -32,6 +44,7 @@ npm start       # produção
 
 npm test              # o servidor do NVDISC: salas, chat, limites
 npm run test:navegador  # a chamada de verdade, em dois Chrome
+npm run test:ferramentas # a permissão do quadro, em duas abas
 npm run test:instancias  # o arranjo da Vercel: duas instâncias, uma sala
 npm run cert          # certificado local, para chamar a turma pela rede
 ```
@@ -74,14 +87,14 @@ Quando não vem, a sala diz isso no chat na hora. É melhor saber ao apertar o
 botão do que descobrir pelo outro lado avisando que o vídeo está mudo dez
 minutos depois.
 
-### A central passou a ter servidor próprio
+### O NVDISC tem servidor próprio
 
-Ela vivia com `next start`, que basta para páginas. O NVDISC precisa de uma
+Ele vivia com `next start`, que basta para páginas. O NVDISC precisa de uma
 conexão **que fica de pé** para apresentar as pessoas de uma sala umas às
 outras, e isso `next start` não oferece — função serverless nasce e morre a cada
 requisição, e não há onde guardar quem está em qual sala.
 
-Daí o `server.mjs`: um processo só, servindo a home, o plano, a calculadora e o
+Daí o `server.mjs`: um processo só, servindo a porta, a sala e o
 NVDISC, com o WebSocket da sinalização em `/NVDISC/sinal` no mesmo servidor
 HTTP. O custo é uma linha no `package.json`; o ganho é o NVDISC ser uma rota da
 central como qualquer outra, e não um segundo serviço para subir com um segundo
@@ -304,6 +317,57 @@ o que fazer se ainda estiverem só na memória da instância.
 Se as páginas estiverem na Vercel e a sinalização não subir por lá, a sala
 diz isso na cara em vez de ficar em "reconectando…" para sempre.
 
+## As ferramentas da sala
+
+Cinco, no botão **Ferramentas** da barra de baixo: um **quadro** para
+desenhar, um **bloco de notas**, uma **fila de fala**, uma **enquete** e um
+**temporizador**. Elas abrem numa gaveta ao lado do chat, e nunca no palco —
+quem abre o quadro quer desenhar *enquanto* conversa; uma ferramenta que
+cobre o vídeo interrompe justamente a conversa que ela deveria ajudar.
+
+Tudo viaja pelo mesmo canal de sinalização do chat, numa mensagem
+(`PARA_SERVIDOR.FERRAMENTA`) cujo corpo **o servidor não lê**. Ele confere
+três coisas e repassa: o tamanho, o ritmo e a origem. É o mesmo tratamento
+que ele dá ao sinal do WebRTC, e tem o mesmo ganho — acrescentar uma sexta
+ferramenta não encosta no servidor.
+
+### A regra da permissão
+
+Quadro e notas têm **dono**: quem pegou. Todo mundo na sala **vê** ao vivo,
+sem pedir nada a ninguém — ver é grátis, e um quadro que os outros não
+enxergassem não teria por que ser compartilhado. **Mexer** é que pede licença:
+quem quiser desenhar por cima manda um pedido, o dono libera ou não, e pode
+revogar depois. Enquanto ninguém pegou, a ferramenta é livre.
+
+Isto **não é segurança**. A sala é pública, quem tem o código entra, e um
+cliente modificado ignoraria a regra. É etiqueta: evita que o desenho de
+alguém seja rabiscado por engano, que é o que acontece de verdade num quadro
+aberto a oito pessoas. Onde há segurança de fato é na **origem** — `de` é
+carimbado pelo servidor e nunca aceito do cliente, então ninguém consegue
+anunciar uma permissão em nome do dono. Há teste para isso.
+
+Fila, enquete e temporizador não têm dono, porque não fazia sentido ter: a mão
+levantada é de quem a levanta, o voto é de quem vota, e o temporizador é um
+relógio — trancá-lo daria mais discussão do que o problema que evitaria.
+
+### Três decisões que não são óbvias
+
+- **O quadro viaja de 0 a 1, não em pixels.** A tela de cada um tem um
+  tamanho, e um traço em pixels desenhado num monitor de 27" chega cortado
+  pela metade num notebook — sem erro nenhum, que é o pior tipo.
+- **Um traço vai em lotes de 60 ms**, e não um pacote por ponto. Um ponteiro
+  entrega até 240 eventos por segundo; um a um, três segundos de rabisco
+  estourariam o teto de rajada e o traço apareceria truncado do outro lado.
+  As rajadas do chat e das ferramentas são orçamentos **separados**, senão
+  desenhar por um segundo emudeceria a pessoa no chat.
+- **O temporizador manda quanto falta, não quando acaba.** Os relógios de
+  duas máquinas divergem em segundos, às vezes em minutos, e um instante
+  absoluto chegaria ao outro lado já vencido.
+
+Quem chega no meio pergunta (`oi`) e os donos respondem com o retrato do que
+está aberto — é o que faz entrar numa conversa em andamento mostrar o quadro
+que já estava lá, em vez de uma folha em branco.
+
 ### Antes de chamar a turma
 
 **HTTPS não é opcional fora do `localhost`.** Navegador só entrega microfone e
@@ -341,39 +405,10 @@ dizer é tudo o que ele pode fazer, porque o caminho de fato não existe.
 É **a** diferença entre "às vezes funciona" e "funciona". Se a sala precisa
 funcionar sempre, isto não é opcional.
 
-#### Com um serviço pronto (Cloudflare Realtime)
-
-Duas variáveis, e nenhuma delas vai para o navegador:
-
-```
-TURN_KEY_ID=...
-TURN_KEY_API_TOKEN=...
-```
-
-Saem do painel da Cloudflare, em **Realtime → TURN**. A camada gratuita cobre
-1 TB de relé por mês, o que para uma sala de amigos é ilimitado na prática:
-uma conversa de duas pessoas, quando precisa ser relayada, gasta algo como
-40 MB por hora — e a maioria das chamadas nem chega a usar o relé.
-
-Elas ficam no servidor porque serviço de TURN sério **não trabalha com senha
-fixa**: ele emite credencial de curta duração, e emitir exige um segredo. Uma
-`NEXT_PUBLIC_TURN_SENHA` é uma senha publicada no código da página — qualquer
-um que abra a sala leva o relé de banda embora junto. Quem emite é a rota
-`/api/turn`, e o que chega ao navegador é uma credencial que vale um dia.
-
-Para conferir se pegou, sem caçar log:
-
-```
-curl https://seu-endereco/api/turn?diagnostico
-```
-
-Ele responde de onde veio o TURN, quais endereços foram entregues, se a
-credencial foi emitida — e, quando não foi, o que falta configurar.
-
 #### Com um coturn próprio
 
-É a opção que mantém a promessa de "ninguém no meio do caminho", já que o relé
-é seu. Sobe num VPS pequeno com [coturn](https://github.com/coturn/coturn):
+É o caminho que mantém a promessa de "ninguém no meio do caminho", já que o
+relé é seu. Sobe num VPS pequeno com [coturn](https://github.com/coturn/coturn):
 
 ```
 TURN_URL=turn:seu-servidor:3478,turn:seu-servidor:443,turns:seu-servidor:443
@@ -390,6 +425,15 @@ fechar.
 As antigas `NEXT_PUBLIC_TURN_URL`, `NEXT_PUBLIC_TURN_USER` e
 `NEXT_PUBLIC_TURN_SENHA` continuam funcionando, e continuam significando uma
 senha publicada na página. Sem o prefixo é melhor.
+
+Para conferir se pegou, sem caçar log:
+
+```
+curl https://seu-endereco/api/turn?diagnostico
+```
+
+Ele responde de onde veio o TURN, quais endereços foram entregues, se há
+credencial — e, quando não há, o que falta configurar.
 
 ### Uma aba só, mesmo quando ela volta
 
@@ -437,18 +481,16 @@ src/app/api/turn/route.ts        as credenciais de TURN, emitidas no servidor
 src/lib/preferencias.ts          o que cada um ajusta na própria sala
 src/app/globals.css              o sistema visual (o do NVGHUB) + as peças daqui
 src/app/layout.tsx               só o documento: fontes e tokens
-src/app/(central)/layout.tsx     a telinha: trilhos + coluna de painéis
-src/app/(central)/page.tsx       a home que escolhe a ferramenta
-src/app/(central)/plano/         o plano de captação
 src/components/shell/            trilhos, barra mobile e rodapé
 src/lib/navegacao.ts             os destinos — um lugar só para os três menus
-public/calculadora.html          a calculadora (arquivo único, abre offline)
 src/lib/base.mjs                 onde o NVDISC mora (/NVDISC) — um ponto de verdade
 src/lib/protocolo.mjs            as mensagens — um arquivo, lido pelos dois lados
 src/lib/malha.ts                 as conexões WebRTC, a qualidade, o indicador de fala
-src/app/NVDISC/page.tsx          a entrada (nome + código)
-src/app/NVDISC/nvdisc.css        o visual da sala, nos tokens da central
+src/app/NVDISC/page.tsx          a porta: escolher o destino + entrar na sala
+src/app/NVDISC/nvdisc.css        o visual da sala, nos tokens do NVGHUB
 src/app/NVDISC/_ui/Sala.tsx      a sala
+src/app/NVDISC/_ui/Ferramentas.tsx  o painel: quadro, notas, fila, enquete, tempo
+src/lib/ferramentas.ts           o estado das ferramentas e a regra da permissão
 scripts/teste*.mjs               os dois testes
 scripts/sonda.js                 o que o teste avalia dentro da página
 ```
@@ -462,7 +504,10 @@ caçando um "por que ninguém entra na sala".
 ### Os testes
 
 O `npm test` sobe o processo inteiro numa porta livre e conversa com ele por
-WebSocket. O `npm run test:navegador` abre **dois Chrome headless com microfone
+WebSocket. O `npm run test:ferramentas` abre duas abas na mesma sala e percorre
+o aperto de mão da permissão inteiro — a Ana pega o quadro, a Bia vê o cadeado,
+pede, é liberada, desenha, e o traço aparece na tela da Ana. Nenhum desses
+passos dá erro quando quebra: o sintoma é uma sala que parece funcionar. O `npm run test:navegador` abre **dois Chrome headless com microfone
 falso**, põe os dois na mesma sala e confere o que só um navegador pode
 responder — inclusive a qualidade negociada: taxa do Opus, FEC, DTX, prioridade
 de rede, taxa de amostragem do microfone.

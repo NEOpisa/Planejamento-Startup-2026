@@ -1,18 +1,17 @@
 /**
- * Servidor da central.
+ * Servidor do NVDISC.
  *
- * Um processo só: o Next serve **tudo** — a home que escolhe entre as
- * ferramentas, o plano, a calculadora e o NVDISC — e, no mesmo servidor HTTP,
- * um WebSocket em `/NVDISC/sinal` faz a sinalização do WebRTC.
+ * Um processo só: o Next serve as páginas — a porta e a sala — e, no mesmo
+ * servidor HTTP, um WebSocket em `/NVDISC/sinal` faz a sinalização do WebRTC.
  *
- * Por que a central passou a ter servidor próprio
- * ----------------------------------------------
- * Ela vivia com `next start`, que basta para páginas. O NVDISC precisa de uma
+ * Por que o NVDISC tem servidor próprio
+ * ------------------------------------
+ * Ele vivia com `next start`, que basta para páginas. O NVDISC precisa de uma
  * conexão **que fica de pé** para apresentar as pessoas de uma sala umas às
  * outras, e isso `next start` não oferece. O custo é uma linha no
- * `package.json`; o ganho é o NVDISC ser uma rota da central como qualquer
- * outra, e não um segundo serviço para subir e um segundo endereço para
- * lembrar.
+ * `package.json`; o ganho é páginas e sinalização subirem juntas, sem um
+ * segundo serviço para manter no ar nem um segundo endereço para lembrar de
+ * configurar em cada ambiente.
  *
  * Por que servidor próprio, e não o `next start`
  * ---------------------------------------------

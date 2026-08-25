@@ -179,6 +179,26 @@ export function criarSinalSupabase(
       });
     });
 
+    c.on("broadcast", { event: "ferramenta" }, ({ payload }) => {
+      // Mesmo endereçamento por conteúdo do sinal: sem servidor no meio, a
+      // sala inteira recebe e cada um descarta o que não é seu. `para` vazio
+      // é recado para todos; preenchido, é para uma pessoa só.
+      if (payload?.para && payload.para !== g.sessao) return;
+      // O próprio remetente não se escuta: com `self: true` o Supabase
+      // devolve o que a gente manda, e um traço aplicado duas vezes na tela
+      // de quem desenhou apagaria a borracha e duplicaria o desfazer.
+      if (payload?.de === g.sessao) return;
+      g.recebeu({
+        tipo: PARA_CLIENTE.FERRAMENTA,
+        de: payload.de,
+        nome: payload.nome,
+        f: payload.f,
+        a: payload.a,
+        dados: payload.dados,
+        em: payload.em,
+      });
+    });
+
     c.subscribe((estado) => {
       if (estado === "SUBSCRIBED") {
         const lotada = roster().filter((p) => p.id !== g.sessao).length >= LIMITES.POR_SALA;
@@ -225,6 +245,22 @@ export function criarSinalSupabase(
         type: "broadcast",
         event: "chat",
         payload: { de: g.sessao, nome: g.nome, texto, imagem, em: Date.now() },
+      });
+      return;
+    }
+    if (tipo === "ferramenta") {
+      const f = String(corpo.f ?? "").slice(0, 24);
+      const a = String(corpo.a ?? "").slice(0, 24);
+      if (!f || !a) return;
+      const dados = corpo.dados ?? null;
+      // O mesmo teto que o servidor aplica. Aqui ele não protege a sala de
+      // ninguém — protege o envio de virar um pacote que o Realtime recusa
+      // inteiro, o que apareceria como um traço que simplesmente não chega.
+      if (JSON.stringify(dados ?? null).length > LIMITES.FERRAMENTA) return;
+      void canal.send({
+        type: "broadcast",
+        event: "ferramenta",
+        payload: { de: g.sessao, nome: g.nome, f, a, dados, para: corpo.para ?? "", em: Date.now() },
       });
       return;
     }

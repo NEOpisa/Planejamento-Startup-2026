@@ -1140,112 +1140,11 @@ body.menu-aberto {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   PEÇAS DESTA CENTRAL
-
-   O que o site público não tem: a grade de ferramentas da home e as
-   peças do plano de captação (chips, orçamento de horas, roteiros,
-   decisões). Tudo escrito nos tokens de cima — nada aqui inventa cor,
-   raio ou tipografia própria.
+/* ═══ PEÇAS QUE SÓ O NVDISC TEM ═══════════════════════════════════
+   O que sobrou depois que a central saiu: o chip de rótulo e o ar
+   entre dois painéis encostados. Escritos nos tokens de cima — nada
+   aqui inventa cor, raio ou tipografia própria.
    ═══════════════════════════════════════════════════════════════════ */
-
-/* ── a linha de "abrir" no pé de um cartão-ferramenta ── */
-.card-go {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 16px;
-    font-family: var(--ff-mono);
-    font-size: 0.78rem;
-    letter-spacing: 0.06em;
-    color: var(--tx);
-}
-.card-go svg {
-    width: 13px;
-    height: 13px;
-    transition: transform 240ms var(--ease);
-}
-a.card:hover .card-go {
-    color: var(--nv-corn);
-}
-a.card:hover .card-go svg {
-    transform: translate(3px, -3px);
-}
-/* o cartão-ferramenta é um link: precisa de altura própria para a linha
-   de "abrir" descer até o pé, senão ela flutua no meio do texto */
-a.card {
-    display: flex;
-    flex-direction: column;
-    text-decoration: none;
-}
-a.card .card-d {
-    flex: 1;
-}
-
-/* ── metadados de documento (de/para/data), sob o título ── */
-.meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 26px;
-    margin: 26px 0 0;
-    padding-top: 18px;
-    border-top: 1px solid var(--line);
-    font-family: var(--ff-mono);
-    font-size: 0.72rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--tx-3);
-}
-.meta b {
-    color: var(--tx-2);
-    font-weight: 500;
-}
-
-/* ── voltar para a central ── */
-.voltar {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--ff-mono);
-    font-size: 0.74rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--tx-3);
-    text-decoration: none;
-    transition: color 200ms var(--ease);
-}
-.voltar:hover {
-    color: var(--nv-corn);
-}
-
-/* ── destaque com rótulo (o "por que funciona" do plano) ── */
-.callout {
-    margin: 4px 0 0;
-    padding: 20px 22px;
-    border-radius: var(--r-sm);
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-left: 3px solid var(--nv-corn);
-}
-.callout > span {
-    display: block;
-    margin-bottom: 10px;
-    font-family: var(--ff-mono);
-    font-size: 0.7rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--nv-corn);
-}
-.callout p {
-    margin: 0;
-    font-size: 0.96rem;
-    line-height: 1.62;
-    color: var(--tx-2);
-}
-.callout strong {
-    color: var(--tx);
-    font-weight: 600;
-}
 
 /* ── chips de restrição: valor em destaque, rótulo apagado ── */
 .chips {
@@ -1269,174 +1168,200 @@ a.card .card-d {
     font-weight: 600;
 }
 
-/* ── listas de prosa marcada: uma linha por item, filete entre elas ── */
-.lista {
-    list-style: none;
-    margin: 18px 0 0;
-    padding: 0;
-}
-.lista li {
-    position: relative;
-    padding: 13px 0 13px 28px;
-    border-top: 1px solid var(--line);
-    font-size: 0.96rem;
-    line-height: 1.6;
-    color: var(--tx-2);
-}
-.lista li:first-child {
-    border-top: 0;
-}
-.lista li::before {
-    content: "→";
-    position: absolute;
-    left: 0;
-    font-family: var(--ff-mono);
-    font-size: 0.85rem;
-    color: var(--nv-corn);
-}
-.lista--marcos li::before {
-    content: "◇";
-}
-.lista b {
-    color: var(--tx);
-    font-weight: 600;
-}
-.lista .horas {
-    font-family: var(--ff-mono);
-    font-size: 0.72rem;
-    letter-spacing: 0.06em;
-    color: var(--tx-3);
-    margin-left: 6px;
-}
-
-/* ── decisões: a mesma lista, numerada, porque a ordem é a pauta ── */
-.decide {
-    list-style: none;
-    counter-reset: d;
-    margin: 18px 0 0;
-    padding: 0;
-}
-.decide li {
-    counter-increment: d;
-    position: relative;
-    padding: 15px 0 15px 46px;
-    border-top: 1px solid var(--line);
-    font-size: 0.96rem;
-    line-height: 1.6;
-    color: var(--tx-2);
-}
-.decide li:first-child {
-    border-top: 0;
-}
-.decide li::before {
-    content: counter(d, decimal-leading-zero);
-    position: absolute;
-    left: 0;
-    top: 15px;
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 9px;
-    border: 1px solid var(--line-strong);
-    font-family: var(--ff-mono);
-    font-size: 0.7rem;
-    color: var(--nv-corn);
-}
-.decide b {
-    color: var(--tx);
-    font-weight: 600;
-}
-
-/* ── orçamento de horas: barra por frente de trabalho ── */
-.barras {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    margin-top: 18px;
-}
-.barra {
-    display: grid;
-    grid-template-columns: 150px minmax(0, 1fr) 56px;
-    align-items: center;
-    gap: 14px;
-}
-.barra > span:first-child {
-    font-size: 0.92rem;
-    color: var(--tx-2);
-}
-.barra .trilha {
-    position: relative;
-    height: 8px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.07);
-    overflow: hidden;
-}
-.barra .trilha i {
-    position: absolute;
-    inset: 0 auto 0 0;
-    border-radius: 999px;
-    background: linear-gradient(90deg, var(--nv-blue-mid), var(--nv-corn));
-}
-.barra .horas {
-    font-family: var(--ff-mono);
-    font-size: 0.78rem;
-    color: var(--nv-corn);
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-}
-
-/* ── roteiro pronto: cabeça em monoespaçada, corpo em prosa ── */
-.script {
-    border-radius: var(--r-sm);
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    overflow: hidden;
-}
-.script + .script {
-    margin-top: 12px;
-}
-.script > h3 {
-    margin: 0;
-    padding: 13px 18px;
-    border-bottom: 1px solid var(--line);
-    background: rgba(100, 149, 237, 0.06);
-    font-family: var(--ff-mono);
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--nv-corn);
-}
-.script > p {
-    margin: 0;
-    padding: 18px;
-    font-size: 0.95rem;
-    line-height: 1.66;
-    color: var(--tx-2);
-}
-/* o que é para trocar antes de mandar aparece apagado, não em colchete */
-.script em {
-    font-style: normal;
-    color: var(--tx-3);
-    border-bottom: 1px dashed var(--line-strong);
-}
-
 /* ── um painel encostado no outro precisa de ar entre os títulos ── */
 .panel > .sec-head + .cards,
-.panel > .sec-head + .steps {
+.panel > .sec-head + .portas {
     margin-top: 0;
 }
 .panel h3 + p {
     margin-top: 10px;
 }
 
-@media (max-width: 560px) {
-    .barra {
-        grid-template-columns: 106px minmax(0, 1fr) 48px;
-        gap: 10px;
+/* ═══ A PORTA DO NVDISC ═══════════════════════════════════════════
+   A tela de escolha. Ela é montada com as peças do sistema — painel,
+   porta, cartão, pílula — e o que está aqui é só o que não existia
+   lá: o formulário de entrada, a grade das portas e a marca do que
+   ainda não abriu.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.entrada {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 30px;
+    padding: clamp(20px, 2.4vw, 28px);
+    border-radius: var(--r-sm);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+}
+.entrada-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.entrada-campo label {
+    font-family: var(--ff-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+}
+.entrada-campo input {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--line-strong);
+    background: var(--ink);
+    color: var(--tx);
+    font-family: var(--ff-body);
+    font-size: 1.02rem;
+    transition: border-color 200ms var(--ease);
+}
+.entrada-campo input:focus {
+    outline: none;
+    border-color: var(--nv-corn);
+}
+.entrada-campo input::placeholder {
+    color: var(--tx-3);
+    opacity: 0.7;
+}
+.entrada-linha {
+    display: flex;
+    gap: 10px;
+}
+.entrada-linha input {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--ff-mono);
+    letter-spacing: 0.02em;
+}
+/* A pílula já define fonte, cor e borda; aqui só se impede que o rótulo
+   de um botão estreito quebre em duas linhas.
+
+   O que estava escrito aqui antes era `border: none; font: inherit`, para
+   "limpar o estilo do agente de usuário" — e limpava junto a borda da
+   `.pill--ghost` e a fonte de display de todas elas, porque esta regra vem
+   depois no arquivo. O botão "sortear" ficava sendo texto solto. */
+.entrada button {
+    white-space: nowrap;
+}
+.entrada-ir {
+    justify-content: center;
+    margin-top: 4px;
+    padding-block: 15px;
+    font-size: 1.02rem;
+}
+.entrada-ir:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.entrada-nota {
+    margin: 16px 0 0;
+    max-width: 62ch;
+    font-size: 0.92rem;
+    line-height: 1.62;
+    color: var(--tx-3);
+}
+
+/* ── a grade das portas ── */
+/* Duas colunas fixas, e não `auto-fit`: são quatro portas, e o encaixe
+   automático punha três em cima e uma sozinha embaixo — o que faz a quarta
+   parecer um rodapé em vez de um destino. Duas por duas dão o mesmo peso às
+   quatro, que é o ponto de uma tela de escolha. */
+.portas {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--gap);
+    margin-top: 26px;
+}
+@media (max-width: 720px) {
+    .portas {
+        grid-template-columns: minmax(0, 1fr);
     }
-    .meta {
-        gap: 6px 18px;
+}
+/* Segunda porta em diante fora do azul cheio: quatro blocos do mesmo
+   azul saturado lado a lado viram uma parede, e nenhum deles chama mais
+   atenção que o outro — que é o oposto do que uma tela de escolha
+   precisa fazer. */
+.portas .door:nth-child(2) {
+    background: var(--nv-blue-deep);
+}
+
+/* O que ainda não abriu: mesma forma, sem o convite.
+   Ela continua legível e continua contando o que vai ser — o que ela não
+   faz é fingir que responde ao clique. */
+.door--breve {
+    background: var(--panel-2);
+    border: 1px dashed var(--line-strong);
+    color: var(--tx-2);
+    cursor: default;
+}
+.door--breve:hover {
+    transform: none;
+    filter: none;
+}
+.door--breve h3 {
+    color: var(--tx);
+}
+.door--breve p {
+    color: var(--tx-3);
+}
+.door--breve .door-flag {
+    background: rgba(244, 183, 74, 0.16);
+    color: var(--nv-gold);
+}
+.door--breve .door-cta {
+    color: var(--tx-3);
+}
+
+/* ── a lista de ferramentas no trilho direito ── */
+.rferr {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+}
+.rferr li {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding-left: 11px;
+    border-left: 2px solid var(--nv-blue-mid);
+}
+.rferr b {
+    font-family: var(--ff-display);
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--tx);
+}
+.rferr span {
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--tx-3);
+}
+
+/* No menu do telefone, os destinos por vir são texto, não link. */
+.rlink.is-breve {
+    justify-content: space-between;
+    color: var(--tx-3);
+    cursor: default;
+}
+.rlink.is-breve em {
+    font-family: var(--ff-mono);
+    font-size: 0.66rem;
+    font-style: normal;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--nv-gold);
+}
+
+@media (max-width: 620px) {
+    .entrada-linha {
+        flex-direction: column;
+    }
+    .entrada-linha .pill {
+        justify-content: center;
     }
 }

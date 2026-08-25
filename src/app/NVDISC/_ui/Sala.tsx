@@ -34,6 +34,7 @@ import {
   ImagemIcon,
   VolumeIcon,
   FecharIcon,
+  FerramentasIcon,
 } from "@/components/icons";
 import { comBase } from "@/lib/base.mjs";
 import {
@@ -44,6 +45,8 @@ import {
   TEMAS,
   type Preferencias,
 } from "@/lib/preferencias";
+import PainelFerramentas from "./Ferramentas";
+import { Ferramentas, type EstadoFerramentas, type IdFerramenta } from "@/lib/ferramentas";
 import "../nvdisc.css";
 
 const VAZIO: EstadoMalha = {
@@ -83,6 +86,19 @@ export default function Sala({ sala }: { sala: string }) {
   const [prefs, setPrefs] = useState<Preferencias>(PREFERENCIAS_PADRAO);
   const malha = useRef<Malha | null>(null);
 
+  /**
+   * As ferramentas moram ao lado da malha, não dentro dela.
+   *
+   * O estado da malha é redesenhado a cada mudança — e o quadro muda dezenas
+   * de vezes por segundo enquanto alguém desenha. Fundir os dois faria a
+   * grade de vídeos e a lista de participantes repintarem a cada movimento
+   * do lápis, com a chamada em cima.
+   */
+  const ferr = useRef<Ferramentas | null>(null);
+  const [estadoF, setEstadoF] = useState<EstadoFerramentas | null>(null);
+  const [ferrAberta, setFerrAberta] = useState<IdFerramenta | null>(null);
+  const [ferrVisivel, setFerrVisivel] = useState(false);
+
   useEffect(() => {
     setPrefs(lerPreferencias());
   }, []);
@@ -107,6 +123,9 @@ export default function Sala({ sala }: { sala: string }) {
 
     const m = new Malha(setEstado);
     malha.current = m;
+    const fe = new Ferramentas(m, setEstadoF);
+    ferr.current = fe;
+    setEstadoF(fe.estado());
     void m.entrar(sala, guardado);
     // Sair de verdade ao fechar a aba: sem isto o participante fica de fantasma
     // na lista dos outros até a varredura do servidor derrubá-lo.
@@ -114,9 +133,28 @@ export default function Sala({ sala }: { sala: string }) {
     window.addEventListener("pagehide", aoFechar);
     return () => {
       window.removeEventListener("pagehide", aoFechar);
+      fe.encerrar();
+      ferr.current = null;
       m.sair();
     };
   }, [sala]);
+
+  /**
+   * Quem eu sou, e quem mais está aqui.
+   *
+   * O identificador só existe depois do `bemvindo`, e é ele que dispara o
+   * "cheguei" das ferramentas — o recado que faz os donos mandarem o retrato
+   * do quadro e das notas. Sem isto, entrar numa conversa em andamento
+   * mostraria uma folha em branco que todos os outros veem cheia.
+   */
+  useEffect(() => {
+    if (estado.voceId && nome) ferr.current?.souEu(estado.voceId, nome);
+  }, [estado.voceId, nome]);
+
+  useEffect(() => {
+    if (!estado.voceId) return;
+    ferr.current?.sincronizar([estado.voceId, ...estado.participantes.map((p) => p.id)]);
+  }, [estado.voceId, estado.participantes]);
 
   const compartilhando = useMemo(
     () => estado.participantes.filter((p) => p.tela && p.video),
@@ -235,11 +273,25 @@ export default function Sala({ sala }: { sala: string }) {
           onEnviar={(t) => malha.current?.enviarChat(t)}
           onImagem={(f, legenda) => void malha.current?.enviarImagem(f, legenda)}
         />
+
+        {ferrVisivel && estadoF && (
+          <PainelFerramentas
+            motor={ferr.current}
+            f={estadoF}
+            aberta={ferrAberta}
+            eu={estado.voceId}
+            onAbrir={setFerrAberta}
+            onFechar={() => setFerrVisivel(false)}
+          />
+        )}
       </div>
 
       <Controles
         estado={estado}
         prefs={prefs}
+        ferramentas={ferrVisivel}
+        pedidos={estadoF?.pedidos.length ?? 0}
+        onFerramentas={() => setFerrVisivel((v) => !v)}
         onMudo={() => malha.current?.mudo(!estado.mudo)}
         onTela={() => void malha.current?.alternarTela()}
         onQualidade={(q) => void malha.current?.definirQualidade(q)}
@@ -1209,6 +1261,9 @@ function ImagemDoChat({ src, de }: { src: string; de: string }) {
 function Controles({
   estado,
   prefs,
+  ferramentas,
+  pedidos,
+  onFerramentas,
   onMudo,
   onTela,
   onQualidade,
@@ -1217,6 +1272,10 @@ function Controles({
 }: {
   estado: EstadoMalha;
   prefs: Preferencias;
+  ferramentas: boolean;
+  /** pedidos de licença esperando resposta — o distintivo do botão */
+  pedidos: number;
+  onFerramentas: () => void;
   onMudo: () => void;
   onTela: () => void;
   onQualidade: (q: Partial<Qualidade>) => void;
@@ -1250,6 +1309,15 @@ function Controles({
       <button className={`nv-btn${estado.tela ? " ligado" : ""}`} onClick={onTela}>
         {estado.tela ? <PararIcon /> : <TelaIcon />}
         {estado.tela ? "Parar de compartilhar" : "Compartilhar tela"}
+      </button>
+
+      <button
+        className={`nv-btn${ferramentas ? " ligado" : ""}`}
+        onClick={onFerramentas}
+      >
+        <FerramentasIcon />
+        Ferramentas
+        {pedidos > 0 && <span className="nv-distintivo">{pedidos}</span>}
       </button>
 
       <button

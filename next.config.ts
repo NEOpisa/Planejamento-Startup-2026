@@ -25,8 +25,17 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: "/NVDISC/sinal", destination: "/api/sinal" }];
   },
+  /**
+   * A raiz é o NVDISC, e o NVDISC é a única coisa que mora aqui.
+   *
+   * A ferramenta continua servida de `/NVDISC` porque esse prefixo está no
+   * caminho da sinalização, que é lido pelo servidor, pelo cliente e pelo
+   * teste. Mudar a raiz para poupar sete caracteres na URL custaria três
+   * arquivos e uma classe de defeito que não dá erro — a página carrega
+   * bonita e ninguém entra na sala.
+   */
   async redirects() {
-    return [{ source: "/calculadora", destination: "/calculadora.html", permanent: false }];
+    return [{ source: "/", destination: "/NVDISC", permanent: false }];
   },
 };
 

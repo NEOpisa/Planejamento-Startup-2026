@@ -126,6 +126,27 @@ export type EstadoMalha = {
 type Ouvinte = (e: EstadoMalha) => void;
 
 /**
+ * Uma mensagem das ferramentas da sala, já com a origem carimbada.
+ *
+ * A malha **não interpreta** nada disto: ela entrega. Quadro, notas, enquete
+ * e temporizador vivem em `ferramentas.ts`, e é lá que `f` e `a` querem dizer
+ * alguma coisa. Aqui isto é só carga, como o sinal do WebRTC é carga para o
+ * servidor — pelo mesmo motivo, e com o mesmo ganho: acrescentar uma
+ * ferramenta não encosta neste arquivo.
+ */
+export type MsgFerramenta = {
+  /** quem mandou — o identificador da aba, o mesmo da lista de participantes */
+  de: string;
+  nome: string;
+  /** qual ferramenta */
+  f: string;
+  /** que ação, dentro dela */
+  a: string;
+  dados: unknown;
+  em: number;
+};
+
+/**
  * Servidores de descoberta.
  *
  * O STUN só descobre o próprio endereço público — resolve a maioria das casas.
@@ -997,6 +1018,16 @@ export class Malha {
   private quadro = 0;
   private pingTimer?: ReturnType<typeof setInterval>;
   private ouvinte: Ouvinte;
+  /**
+   * Quem escuta as ferramentas.
+   *
+   * É um gancho à parte, e não mais um campo do `EstadoMalha`, porque o
+   * ritmo é outro: o estado da malha é redesenhado pelo React a cada
+   * mudança, e um traço do quadro chega dezenas de vezes por segundo.
+   * Passar traço por `EstadoMalha` faria a sala inteira — vídeos, lista,
+   * chat — repintar a cada movimento do lápis.
+   */
+  aoFerramenta: ((m: MsgFerramenta) => void) | null = null;
   private fechando = false;
   /** guardados para poder reentrar depois de uma queda */
   private sala = "";
@@ -1830,6 +1861,17 @@ export class Malha {
         this.avisar();
         break;
 
+      case PARA_CLIENTE.FERRAMENTA:
+        this.aoFerramenta?.({
+          de: msg.de as string,
+          nome: msg.nome as string,
+          f: msg.f as string,
+          a: msg.a as string,
+          dados: msg.dados,
+          em: (msg.em as number) ?? Date.now(),
+        });
+        break;
+
       case PARA_CLIENTE.ESTADO: {
         const p = this.acha(msg.id as string);
         if (p) {
@@ -2476,6 +2518,17 @@ export class Malha {
     this.estado.tela = false;
     this.manda(PARA_SERVIDOR.ESTADO, { mudo: this.estado.mudo, tela: false });
     this.avisar();
+  }
+
+  /**
+   * Manda um recado das ferramentas.
+   *
+   * `para` vazio é para a sala inteira; preenchido, é para uma pessoa só — o
+   * caminho de "concedido" chegar a quem pediu sem os outros processarem o
+   * que não lhes diz respeito.
+   */
+  mandarFerramenta(f: string, a: string, dados: unknown = null, para = "") {
+    this.manda(PARA_SERVIDOR.FERRAMENTA, { f, a, dados, para });
   }
 
   enviarChat(texto: string) {

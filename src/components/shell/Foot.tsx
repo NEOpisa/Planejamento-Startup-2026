@@ -8,13 +8,19 @@ export default function Foot() {
     <footer className="foot">
       <span>© {new Date().getFullYear()} Neovanguard</span>
       <nav aria-label="Rodapé">
-        {NAV.map((r) => (
-          <Link key={r.href} href={r.href}>
-            {r.label}
-          </Link>
-        ))}
+        {NAV.map((r) =>
+          r.externo ? (
+            <a key={r.href} href={r.href} target="_blank" rel="noopener noreferrer">
+              {r.label}
+            </a>
+          ) : (
+            <Link key={r.href} href={r.href}>
+              {r.label}
+            </Link>
+          ),
+        )}
       </nav>
-      <span>Documento interno</span>
+      <span>Nada é gravado</span>
     </footer>
   );
 }

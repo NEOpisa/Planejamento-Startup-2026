@@ -6,10 +6,10 @@ import "./globals.css";
 /**
  * A raiz é só o documento: fontes, tokens e nada mais.
  *
- * A "telinha" de trilhos que o NVGHUB usa vive em `(central)/layout.tsx`, um
- * degrau abaixo — porque o NVDISC precisa da tela inteira. Uma sala de voz com
- * dois trilhos de navegação em volta perderia o vídeo para o menu, e um menu
- * no meio de uma chamada não serve a ninguém.
+ * A "telinha" de trilhos do NVGHUB é montada **pela porta** (`NVDISC/page.tsx`)
+ * e não aqui, porque a sala precisa da tela inteira. Uma chamada com dois
+ * trilhos de navegação em volta perderia o vídeo para o menu, e um menu no
+ * meio de uma conversa não serve a ninguém.
  */
 
 const jakarta = Plus_Jakarta_Sans({
@@ -41,9 +41,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Neovanguard · Central de ferramentas",
+  title: "NVDISC · sala de voz da Neovanguard",
   description:
-    "Central de ferramentas internas da Neovanguard — calculadora de precificação, plano de captação e sala de voz.",
+    "Voz, tela e texto numa sala, com quadro, notas, fila de fala, enquete e temporizador ao lado. Sem conta e sem cadastro: um nome, um código, e quem digitar o mesmo código cai na mesma sala.",
   robots: { index: false, follow: false },
 };
 

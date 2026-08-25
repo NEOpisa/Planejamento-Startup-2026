@@ -27,6 +27,16 @@ export const PARA_SERVIDOR = {
   CHAT: "chat",
   /** {mudo, tela} — o que mudou no meu estado */
   ESTADO: "estado",
+  /**
+   * {f, a, ...} — uma mensagem das ferramentas da sala
+   *
+   * O servidor **não lê o corpo**. Ele confere o tamanho, carimba de quem
+   * veio e repassa para a sala — exatamente o que já faz com o sinal do
+   * WebRTC. Quem entende de quadro, enquete e temporizador é o navegador;
+   * pôr essa lógica no servidor obrigaria a subir uma versão nova dele para
+   * acrescentar uma ferramenta, e a sala continuaria sem saber desenhar.
+   */
+  FERRAMENTA: "ferramenta",
   /** sem corpo — mantém a conexão viva atrás de proxies */
   PING: "ping",
   /**
@@ -54,6 +64,8 @@ export const PARA_CLIENTE = {
   CHAT: "chat",
   /** {id, mudo, tela} — estado de alguém mudou */
   ESTADO: "estado",
+  /** {de, nome, f, a, ...} — ferramenta da sala, com a origem carimbada */
+  FERRAMENTA: "ferramenta",
   /** {motivo} — não deu para entrar */
   ERRO: "erro",
   PONG: "pong",
@@ -87,6 +99,28 @@ export const LIMITES = {
   IMAGEM: 150_000,
   /** mensagens por janela de 10 s, por conexão */
   CHAT_RAJADA: 20,
+  /**
+   * Tamanho máximo de uma mensagem de ferramenta, em caracteres do JSON.
+   *
+   * Oito mil cabem um traço inteiro do quadro com folga (uma rabiscada longa
+   * dá umas 300 coordenadas), o texto de uma enquete, ou um bloco de notas de
+   * página cheia. O que **não** cabe é imagem — e é de propósito: imagem tem
+   * caminho próprio no chat, com validação própria.
+   */
+  FERRAMENTA: 8_000,
+  /**
+   * Mensagens de ferramenta por janela de 10 s, por conexão.
+   *
+   * É muito mais folgado que o do chat, e tem de ser: quem desenha manda um
+   * lote de pontos a cada 60 ms enquanto o dedo está na tela. Com o teto do
+   * chat (20), a primeira rabiscada de um segundo já seria cortada no meio —
+   * e o traço apareceria truncado na tela dos outros, sem erro nenhum.
+   *
+   * O teto continua existindo porque a sala é pública. Duzentos e quarenta
+   * numa janela de dez segundos é o dobro do que a mão de uma pessoa produz
+   * desenhando sem parar, e um décimo do que uma aba automatizada tentaria.
+   */
+  FERRAMENTA_RAJADA: 240,
 };
 
 /**

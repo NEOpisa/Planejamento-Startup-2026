@@ -103,7 +103,7 @@ export function criarSinalizacao(registro) {
 
   /** Cada conexão nova passa por aqui. `ws` é um WebSocket de servidor. */
   function aoConectar(ws) {
-    /** @type {{sala: string, id: string, nome: string, conexao: string, chatEm: number[], deliberado: boolean} | null} */
+    /** @type {{sala: string, id: string, nome: string, conexao: string, chatEm: number[], ferrEm: number[], deliberado: boolean} | null} */
     let eu = null;
 
     async function entrar(dados) {
@@ -167,15 +167,24 @@ export function criarSinalizacao(registro) {
           exceto: id,
         });
       }
-      return { sala, id, nome, conexao, chatEm: [], deliberado: false };
+      return { sala, id, nome, conexao, chatEm: [], ferrEm: [], deliberado: false };
     }
 
-    /** Rajada de chat: janela deslizante de 10 s por conexão. */
-    function podeFalar() {
+    /**
+     * Rajada: janela deslizante de 10 s por conexão.
+     *
+     * Duas janelas separadas, e não uma só, porque as duas coisas têm ritmos
+     * incomparáveis: o chat é uma frase de vez em quando, o quadro é um lote
+     * de pontos a cada 60 ms enquanto a mão anda. Somados num orçamento único,
+     * desenhar um segundo emudeceria a pessoa no chat — e ela não teria como
+     * adivinhar por quê.
+     */
+    function podeMandar(janela, teto) {
       const agora = Date.now();
-      eu.chatEm = eu.chatEm.filter((t) => agora - t < 10_000);
-      if (eu.chatEm.length >= LIMITES.CHAT_RAJADA) return false;
-      eu.chatEm.push(agora);
+      const viva = eu[janela].filter((t) => agora - t < 10_000);
+      eu[janela] = viva;
+      if (viva.length >= teto) return false;
+      viva.push(agora);
       return true;
     }
 
@@ -252,10 +261,38 @@ export function criarSinalizacao(registro) {
           // Uma imagem sozinha é mensagem legítima; texto vazio sem imagem
           // não é. A validação da imagem é do servidor porque o cliente é
           // quem se quer proteger.
-          if ((!texto && !imagem) || !podeFalar()) break;
+          if ((!texto && !imagem) || !podeMandar("chatEm", LIMITES.CHAT_RAJADA)) break;
           await registro.publicar(eu.sala, {
             tipo: PARA_CLIENTE.CHAT,
             corpo: { de: eu.id, nome: eu.nome, texto, imagem, em: Date.now() },
+          });
+          break;
+        }
+
+        case PARA_SERVIDOR.FERRAMENTA: {
+          // O servidor não sabe o que é um traço, um voto ou um pedido de
+          // permissão, e não precisa saber: o corpo é assunto entre os
+          // navegadores. O que ele garante são as três coisas que só ele
+          // pode garantir — o **tamanho**, o **ritmo** e a **origem**.
+          //
+          // A origem é a que mais importa. `de` é carimbado aqui e nunca
+          // aceito do cliente: com ele vindo de fora, qualquer um na sala
+          // mandaria um "o dono do quadro concedeu permissão a mim" assinado
+          // com o nome do dono, e a permissão inteira viraria enfeite.
+          const f = String(msg.f ?? "").slice(0, 24);
+          const a = String(msg.a ?? "").slice(0, 24);
+          if (!f || !a) break;
+          const dados = msg.dados ?? null;
+          if (JSON.stringify(dados ?? null).length > LIMITES.FERRAMENTA) break;
+          if (!podeMandar("ferrEm", LIMITES.FERRAMENTA_RAJADA)) break;
+          // `para` vazio é recado para a sala inteira; preenchido, é para uma
+          // pessoa só — é assim que "concedido" chega a quem pediu sem os
+          // outros precisarem processar o que não lhes diz respeito.
+          const para = String(msg.para ?? "");
+          await registro.publicar(eu.sala, {
+            tipo: PARA_CLIENTE.FERRAMENTA,
+            corpo: { de: eu.id, nome: eu.nome, f, a, dados, em: Date.now() },
+            ...(para ? { paraId: para } : { exceto: eu.id }),
           });
           break;
         }

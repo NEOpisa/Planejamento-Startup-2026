@@ -1,10 +1,10 @@
 /**
  * Onde o NVDISC vive dentro desta central.
  *
- * Aqui ele **não** é um app separado atrás de um prefixo: é uma rota deste
- * mesmo Next, ao lado da calculadora e do plano. Por isso não há `basePath` na
- * configuração — `basePath` moveria a central inteira, e a home que escolhe
- * entre as ferramentas deixaria de responder em `/`.
+ * Ele é a única coisa que mora neste Next, e mesmo assim continua atrás de um
+ * prefixo em vez de na raiz. Não é herança esquecida: o caminho da
+ * sinalização (`/NVDISC/sinal`) depende dele, a raiz redireciona para cá, e
+ * mudar isso para poupar sete caracteres na URL custaria três arquivos.
  *
  * O que este arquivo guarda é só o **começo da rota**, e ele existe por um
  * motivo específico: o WebSocket da sinalização precisa morar debaixo do mesmo
