@@ -218,6 +218,9 @@ try {
     b.click(); return "ok";
   })()`);
   const texto = (p) => p.js(`(document.querySelector(".nv-ferr")?.innerText || "").replace(/\\n+/g, " | ")`);
+  /** O que está no palco — o quadro mora lá desde que virou uma aba. */
+  const palco = (p) => p.js(`(document.querySelector(".nv-palco")?.innerText || "").replace(/\\n+/g, " | ")`);
+  const tracosNoPalco = (p) => p.js(`document.querySelectorAll(".nv-tela--quadro canvas").length`);
 
   ok((await a.js(`document.body.innerText.includes("2 na sala")`)) === true, "as duas abas se veem na sala");
 
@@ -225,6 +228,10 @@ try {
   await clicar(a, "Quadro"); await espera(600);
   await clicar(a, "Pegar quadro"); await espera(1500);
   ok((await texto(a)).includes("Fechar e liberar"), "Ana pega o quadro e vira dona");
+
+  // O quadro é uma aba do palco, e não mais um canvas dentro da gaveta.
+  await clicar(a, "Abrir o quadro no palco"); await espera(1200);
+  ok((await tracosNoPalco(a)) === 1, "o quadro ocupa o palco da Ana");
 
   await clicar(b, "Ferramentas"); await espera(500);
   await clicar(b, "Quadro"); await espera(1200);
@@ -241,9 +248,12 @@ try {
   const tb2 = await texto(b);
   ok(!tb2.includes("Pedir para mexer"), "concedida a licença, o cadeado some para Bia");
 
-  // E o desenho atravessa: a Bia desenha, a Ana recebe.
+  // E o desenho atravessa: a Bia abre o quadro no palco, desenha, a Ana recebe.
+  await clicar(b, "Abrir o quadro no palco"); await espera(1200);
+  ok((await tracosNoPalco(b)) === 1, "o quadro ocupa o palco da Bia também");
+
   await b.js(`(() => {
-    const c = document.querySelector(".nv-quadro-tela canvas");
+    const c = document.querySelector(".nv-tela--quadro canvas");
     const r = c.getBoundingClientRect();
     const ev = (t, x, y) => c.dispatchEvent(new PointerEvent(t, {
       clientX: r.left + x, clientY: r.top + y, bubbles: true, pointerId: 1,
@@ -255,7 +265,10 @@ try {
     return "desenhei";
   })()`);
   await espera(2000);
-  ok((await texto(a)).includes("Rabisque aqui") === false, "o traço da Bia chega ao quadro da Ana");
+  ok(
+    (await palco(a)).includes("Rabisque aqui") === false,
+    "o traço da Bia chega ao quadro da Ana",
+  );
 } catch (erro) {
   passos.push(`  ✗ o teste estourou: ${erro?.message ?? erro}`);
 } finally {

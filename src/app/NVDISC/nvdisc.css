@@ -425,7 +425,7 @@
   min-height: 0;
   display: grid;
   gap: 12px;
-  padding: 14px;
+  padding: calc(14px * var(--e));
 }
 .nv-telas.uma {
   grid-template-columns: 1fr;
@@ -571,6 +571,16 @@
   border-color: var(--hairline-hi);
 }
 
+/* Na tela grande o chat é uma coluna que dá para fechar — e o botão da
+   barra de baixo é quem a fecha. Antes ela era permanente: 320 px reservados
+   para "nada dito ainda" enquanto o palco se espremia, e o único botão de
+   chat que existia estava escondido atrás de `nv-so-mobile`. */
+@media (min-width: 1024px) {
+  .nv-chat:not(.aberto) {
+    display: none;
+  }
+}
+
 @media (max-width: 1023px) {
   .nv-chat {
     position: fixed;
@@ -587,9 +597,6 @@
   }
 }
 @media (min-width: 1024px) {
-  .nv-so-mobile {
-    display: none;
-  }
 }
 
 /* ---------------------------------------------------------- controles -- */
@@ -1328,19 +1335,22 @@ button.nv-aviso:hover {
  * que ver, e é isso que faz "abre a tela aí" virar uma instrução que a pessoa
  * consegue seguir sozinha.
  */
+/* Uma linha só: rótulo, abas, e a saída. O que eram 145 px de altura
+   permanentes viraram ~86 — e o palco ficou com a diferença. */
 .nv-area-telas {
   flex-shrink: 0;
-  padding: 10px 16px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
   border-bottom: 1px solid var(--hairline);
   background: var(--surface);
 }
-.nv-area-telas > header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 9px;
+.nv-area-telas > .nv-eyebrow {
+  flex-shrink: 0;
 }
-.nv-area-telas > header .nv-mini {
+.nv-abas-sair {
+  flex-shrink: 0;
   margin-left: auto;
 }
 .nv-conta {
@@ -1358,13 +1368,17 @@ button.nv-aviso:hover {
   margin: 2px 0 0;
   max-width: 62ch;
 }
+/* Rola na horizontal em vez de quebrar linha: quebrar faria a barra crescer
+   para baixo e comer o palco justamente quando há mais o que ver nele. */
 .nv-area-telas ul {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 2px 0;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 /*
@@ -1377,7 +1391,8 @@ button.nv-aviso:hover {
 .nv-cartao-tela {
   position: relative;
   display: block;
-  width: 148px;
+  flex-shrink: 0;
+  width: 124px;
   padding: 0;
   border-radius: var(--r-nv-sm);
   border: 1px solid var(--hairline);
@@ -1405,29 +1420,44 @@ button.nv-aviso:hover {
   background: var(--accent-light);
   z-index: 1;
 }
-.nv-cartao-tela video {
+.nv-cartao-tela video,
+.nv-cartao-tela .nv-mini-quadro {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
   background: #000;
 }
+/* O nome vai **sobre** a prévia, não embaixo dela.
+   Embaixo, ele somava 30 px de altura a cada cartão — e a barra inteira
+   existe para caber numa linha. Sobre a prévia, o gradiente garante que ele
+   se lê tanto num vídeo claro quanto num quadro escuro. */
 .nv-cartao-tela .nome {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 9px;
-  font-size: 12.5px;
+  gap: 5px;
+  padding: 12px 8px 6px;
+  background: linear-gradient(to top, rgba(6, 7, 11, 0.92), transparent);
+  font-size: 11.5px;
   /* Nome longo não pode alargar o cartão e quebrar a fileira. */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.nv-cartao-tela .nome svg {
+  flex-shrink: 0;
+}
 .nv-cartao-tela .nv-sem-som {
   position: absolute;
-  top: 7px;
-  right: 7px;
+  top: 5px;
+  right: 5px;
   margin: 0;
+  padding: 2px 6px;
+  font-size: 9px;
 }
 
 @media (max-width: 600px) {
@@ -1954,24 +1984,16 @@ button.nv-aviso:hover {
  * está lá para quem nunca viu a sala — e deixou de cobrar uma faixa da largura
  * inteira para dizer, toda vez, que não há nada.
  */
-.nv-area-telas.vazia {
-  padding: 8px 16px;
-}
-.nv-area-telas.vazia > header {
-  margin-bottom: 0;
-}
 .nv-telas-vazio {
   margin: 0;
   min-width: 0;
+  flex-shrink: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 /* Numa tela estreita, o rótulo "TELAS" sozinho já diz o que é o lugar. */
 @media (max-width: 720px) {
-  .nv-area-telas.vazia .nv-telas-vazio {
-    display: none;
-  }
 }
 
 /* ------------------------------------------- os cartões, dimensionados --- */
@@ -2105,13 +2127,19 @@ button.nv-aviso:hover {
    que ela deveria ajudar.
    ═══════════════════════════════════════════════════════════════════ */
 
+/* A gaveta fica à ESQUERDA, e o chat à direita.
+   Não é simetria: o quadro passou a ocupar o palco, e as ferramentas
+   viraram a lateral de um programa de desenho — que é onde todo mundo já
+   sabe procurá-las. E ela emagreceu de 340 para 300 px, porque a tela do
+   quadro saiu de dentro dela: o que sobrou são controles, e controle não
+   precisa de largura, precisa de altura. */
 .nv-ferr {
-  width: 340px;
+  width: 300px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-left: 1px solid var(--hairline);
+  border-right: 1px solid var(--hairline);
   background: var(--surface);
 }
 
@@ -2300,47 +2328,19 @@ button.nv-aviso:hover {
   text-align: center;
 }
 
-/* ── o quadro ── */
+/* ── o quadro: aqui só os controles; a tela está no palco ── */
 .nv-quadro {
   display: flex;
   flex-direction: column;
-  gap: 11px;
-  flex: 1;
-  min-height: 0;
+  gap: 12px;
 }
-.nv-quadro-tela {
-  position: relative;
-  flex: 1;
-  min-height: 220px;
-  border-radius: var(--r-nv);
-  border: 1px solid var(--hairline);
-  background: #0a0c12;
-  overflow: hidden;
-}
-.nv-quadro-tela canvas {
-  /* `touch-action: none` é o que faz desenhar com o dedo funcionar: sem
-     ele o navegador entende o arrasto como rolagem e o traço não sai. */
-  touch-action: none;
-  cursor: crosshair;
-  display: block;
-}
-.nv-quadro-tela canvas.so-ver {
-  cursor: default;
-}
-.nv-quadro-vazio {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--txt-3);
-  pointer-events: none;
+.nv-quadro-ir {
+  justify-content: center;
 }
 .nv-quadro-barra {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 .nv-cores {
   display: flex;
@@ -2369,6 +2369,15 @@ button.nv-aviso:hover {
 }
 .nv-grossura input {
   flex: 1;
+  min-width: 0;
+}
+/* O número não diz nada; o círculo diz tudo, inclusive comparado ao traço
+   que já está na tela. */
+.nv-amostra {
+  flex-shrink: 0;
+  display: block;
+  border-radius: 50%;
+  transition: width 120ms ease, height 120ms ease;
 }
 .nv-quadro-acoes {
   display: flex;
@@ -2574,13 +2583,147 @@ button.nv-aviso:hover {
   white-space: nowrap;
 }
 
+/* ── o quadro ocupando o palco ── */
+
+/* Fundo próprio, um degrau acima do preto do vídeo: um quadro de desenho
+   que é preto puro parece uma tela que não carregou. */
+.nv-tela--quadro {
+  background:
+    radial-gradient(900px 500px at 50% 0%, rgba(42, 77, 197, 0.1), transparent 62%),
+    #0a0c12;
+}
+.nv-tela--quadro canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* `touch-action: none` é o que faz desenhar com o dedo funcionar: sem ele
+     o navegador entende o arrasto como rolagem e o traço não sai. */
+  touch-action: none;
+  cursor: crosshair;
+}
+.nv-tela--quadro canvas.so-ver {
+  cursor: default;
+}
+.nv-quadro-vazio {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0 12%;
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--txt-3);
+  pointer-events: none;
+}
+.nv-tela--quadro figcaption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── a prévia do quadro no cartão da aba ── */
+.nv-mini-quadro {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #0a0c12;
+}
+.nv-mini-quadro canvas {
+  display: block;
+}
+.nv-mini-quadro span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+/* O cartão do quadro é o único fixo da fileira; a lasca de cor à esquerda o
+   separa das telas de gente sem precisar de um rótulo dizendo isso. */
+.nv-cartao-tela.quadro {
+  border-left: 2px solid var(--accent-light);
+}
+
 /* ── telas estreitas: a gaveta vira tela cheia, como o chat ── */
+/* Duas gavetas abertas numa tela de notebook deixam o palco com menos
+   largura que cada uma delas — e o palco é o motivo de a sala existir.
+   Abaixo de 1180 px a das ferramentas passa a flutuar por cima, em vez de
+   disputar a largura. */
+@media (max-width: 1180px) {
+  .nv-ferr {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 30;
+    border-right: 1px solid var(--hairline);
+    box-shadow: 24px 0 48px -24px rgba(0, 0, 0, 0.7);
+  }
+  .nv-corpo {
+    position: relative;
+  }
+}
+
 @media (max-width: 900px) {
   .nv-ferr {
     position: fixed;
     inset: 0;
     z-index: 40;
     width: auto;
-    border-left: 0;
+    border-right: 0;
+    box-shadow: none;
   }
+}
+
+/* ── as outras ferramentas, no pé do painel ──────────────────────────
+   A gaveta encolheu quando a tela do quadro saiu dela, e o que sobrava
+   embaixo era vazio. Estes atalhos ocupam esse pé com a única coisa que
+   se quer ali: chegar na ferramenta seguinte sem voltar ao menu. */
+.nv-ferr-atalhos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+.nv-ferr-atalhos .nv-rotulo {
+  width: 100%;
+  margin-bottom: 2px;
+}
+.nv-ferr-atalho {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--txt-2);
+  font-family: var(--ff-body);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.18s, color 0.18s;
+}
+.nv-ferr-atalho:hover {
+  border-color: var(--hairline-hi);
+  color: var(--txt);
+}
+.nv-ferr-atalho svg {
+  flex-shrink: 0;
+}
+.nv-ferr-atalho .nv-ponto {
+  width: 5px;
+  height: 5px;
+}
+
+/* O corpo do painel passa a empurrar os atalhos para o pé. */
+.nv-ferr-corpo {
+  justify-content: flex-start;
 }

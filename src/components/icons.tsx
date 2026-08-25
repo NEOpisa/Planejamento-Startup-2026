@@ -260,3 +260,13 @@ export function DesfazerIcon(p: Props) {
     </Traco>
   );
 }
+
+/** O chat: um balão de fala. */
+export function ChatIcon(p: Props) {
+  return (
+    <Traco size={18} {...p}>
+      <path d="M20.5 12.4a7.6 7.6 0 0 1-8.2 7.5l-5 1.6 1.5-4.2a7.6 7.6 0 1 1 11.7-4.9Z" />
+      <path d="M9 11h6M9 14.5h3.5" />
+    </Traco>
+  );
+}

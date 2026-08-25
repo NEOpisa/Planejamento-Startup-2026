@@ -20,14 +20,12 @@ import {
   type EstadoFerramentas,
   type Ferramentas as Motor,
   type IdFerramenta,
-  type Traco,
 } from "@/lib/ferramentas";
+import { BarraQuadro, type Pincel } from "./Quadro";
 import {
   CadeadoIcon,
-  DesfazerIcon,
   EnqueteIcon,
   FecharIcon,
-  LimparIcon,
   MaoIcon,
   NotasIcon,
   QuadroIcon,
@@ -47,6 +45,10 @@ export default function PainelFerramentas({
   f,
   aberta,
   eu,
+  pincel,
+  onPincel,
+  quadroNoPalco,
+  onAbrirQuadroNoPalco,
   onAbrir,
   onFechar,
 }: {
@@ -55,6 +57,10 @@ export default function PainelFerramentas({
   /** qual ferramenta está na tela; `null` é o menu */
   aberta: IdFerramenta | null;
   eu: string | null;
+  pincel: Pincel;
+  onPincel: (p: Pincel) => void;
+  quadroNoPalco: boolean;
+  onAbrirQuadroNoPalco: () => void;
   onAbrir: (id: IdFerramenta | null) => void;
   onFechar: () => void;
 }) {
@@ -86,11 +92,27 @@ export default function PainelFerramentas({
       {aberta && item && (
         <div className="nv-ferr-corpo">
           <Cabecalho f={f} id={aberta} motor={motor} eu={eu} />
-          {aberta === "quadro" && <Quadro f={f} motor={motor} eu={eu} />}
+          {aberta === "quadro" && (
+            <Quadro
+              f={f}
+              motor={motor}
+              eu={eu}
+              pincel={pincel}
+              onPincel={onPincel}
+              noPalco={quadroNoPalco}
+              onAbrirPalco={onAbrirQuadroNoPalco}
+            />
+          )}
           {aberta === "notas" && <Notas f={f} motor={motor} />}
           {aberta === "mao" && <Fila f={f} motor={motor} eu={eu} />}
           {aberta === "enquete" && <Enquete f={f} motor={motor} eu={eu} />}
           {aberta === "tempo" && <Tempo f={f} motor={motor} />}
+
+          {/* As outras ferramentas continuam à mão, embaixo.
+              Sem isto, trocar de ferramenta é sempre dois cliques — voltar ao
+              menu e escolher —, e a metade de baixo do painel fica vazia
+              justamente porque a tela do quadro saiu daqui. */}
+          <Atalhos f={f} atual={aberta} onAbrir={onAbrir} />
         </div>
       )}
     </aside>
@@ -140,6 +162,41 @@ function Menu({
         );
       })}
     </div>
+  );
+}
+
+/**
+ * As outras ferramentas, em linha compacta.
+ *
+ * É o mesmo menu, sem a descrição e sem o ícone grande: quem já está dentro
+ * de uma ferramenta não precisa que lhe expliquem as outras de novo — precisa
+ * chegar nelas.
+ */
+function Atalhos({
+  f,
+  atual,
+  onAbrir,
+}: {
+  f: EstadoFerramentas;
+  atual: IdFerramenta;
+  onAbrir: (id: IdFerramenta) => void;
+}) {
+  const outras = CATALOGO.filter((c) => c.id !== atual);
+  return (
+    <nav className="nv-ferr-atalhos" aria-label="Outras ferramentas">
+      <span className="nv-rotulo">Outras</span>
+      {outras.map((c) => {
+        const Icone = ICONE[c.id];
+        const dono = f.donos[c.id];
+        return (
+          <button key={c.id} className="nv-ferr-atalho" onClick={() => onAbrir(c.id)}>
+            <Icone size={15} />
+            {c.titulo}
+            {dono && <i className="nv-ponto" title={`aberta por ${dono.nome}`} />}
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -247,184 +304,54 @@ function Pedidos({ f, motor }: { f: EstadoFerramentas; motor: Motor | null }) {
 
 // ────────────────────────────────────────────────────────────── o quadro ──
 
-const CORES = ["#6495ed", "#3ef08a", "#f4b74a", "#fb7185", "#eef1f7", "#a855f7"];
-
 /**
- * O quadro.
+ * O quadro, aqui, é só o painel de controle.
  *
- * O desenho é pintado num `<canvas>`, e **não** redesenhado pelo React a cada
- * ponto: um traço chega dezenas de vezes por segundo, e repintar a árvore
- * inteira nesse ritmo trava a chamada junto. O React manda no que está em
- * volta — cores, espessura, botões —, e o canvas se vira sozinho.
- *
- * Quem não tem licença ainda vê tudo: o `<canvas>` é o mesmo, só não escuta o
- * ponteiro. Ver de graça e mexer com licença é a regra inteira.
+ * A tela dele mora no palco, numa aba ao lado das telas compartilhadas
+ * (`Quadro.tsx`) — desenhar numa gaveta de 340 px ao lado do chat era
+ * desenhar num guardanapo. O que sobra deste lado é o que os programas de
+ * desenho põem na lateral há trinta anos: cor, espessura e as duas ações.
  */
 function Quadro({
   f,
   motor,
   eu,
+  pincel,
+  onPincel,
+  noPalco,
+  onAbrirPalco,
 }: {
   f: EstadoFerramentas;
   motor: Motor | null;
   eu: string | null;
+  pincel: Pincel;
+  onPincel: (p: Pincel) => void;
+  /** o quadro já está ocupando o palco? */
+  noPalco: boolean;
+  onAbrirPalco: () => void;
 }) {
-  const tela = useRef<HTMLCanvasElement | null>(null);
-  const caixa = useRef<HTMLDivElement | null>(null);
-  const [cor, setCor] = useState(CORES[0]);
-  const [grossura, setGrossura] = useState(3);
-  const desenhando = useRef(false);
-  const posso = f.posso.quadro;
-
-  /** Repinta tudo. Chamado quando os traços mudam e quando a caixa muda de tamanho. */
-  function pintar() {
-    const c = tela.current;
-    const ctx = c?.getContext("2d");
-    if (!c || !ctx) return;
-    ctx.clearRect(0, 0, c.width, c.height);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    for (const t of f.quadro.tracos) desenharTraco(ctx, t, c.width, c.height);
-  }
-
-  // O canvas tem dois tamanhos: o da tela (CSS) e o do buffer (pixels). Sem
-  // acertar o segundo pela densidade do monitor, o traço sai borrado em tela
-  // retina — e "borrado" num quadro de desenho parece defeito do desenho.
-  useEffect(() => {
-    const c = tela.current;
-    const cx = caixa.current;
-    if (!c || !cx) return;
-    const medir = () => {
-      const r = cx.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      c.width = Math.max(1, Math.round(r.width * dpr));
-      c.height = Math.max(1, Math.round(r.height * dpr));
-      c.style.width = `${r.width}px`;
-      c.style.height = `${r.height}px`;
-      pintar();
-    };
-    medir();
-    const ro = new ResizeObserver(medir);
-    ro.observe(cx);
-    return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(pintar);
-
-  /** Do ponteiro para o quadro: sempre de 0 a 1, nunca em pixels. */
-  function onde(e: React.PointerEvent) {
-    const r = (e.target as HTMLElement).getBoundingClientRect();
-    return {
-      x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
-      y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)),
-    };
-  }
-
-  const meus = eu ? f.quadro.tracos.filter((t) => t.de === eu).length : 0;
-
   return (
     <div className="nv-quadro">
-      <div className="nv-quadro-tela" ref={caixa}>
-        <canvas
-          ref={tela}
-          className={posso ? "" : "so-ver"}
-          onPointerDown={(e) => {
-            if (!posso) return;
-            (e.target as HTMLElement).setPointerCapture(e.pointerId);
-            const { x, y } = onde(e);
-            motor?.comecarTraco(x, y, cor, grossura);
-            desenhando.current = true;
-            pintar();
-          }}
-          onPointerMove={(e) => {
-            if (!desenhando.current) return;
-            const { x, y } = onde(e);
-            motor?.seguirTraco(x, y);
-            pintar();
-          }}
-          onPointerUp={() => {
-            if (!desenhando.current) return;
-            desenhando.current = false;
-            motor?.terminarTraco();
-          }}
-          onPointerCancel={() => {
-            if (!desenhando.current) return;
-            desenhando.current = false;
-            motor?.terminarTraco();
-          }}
-        />
-        {f.quadro.tracos.length === 0 && (
-          <p className="nv-quadro-vazio">
-            {posso ? "Rabisque aqui." : "Nada desenhado ainda."}
-          </p>
-        )}
-      </div>
+      {!noPalco && (
+        // Sem isto, quem abre "Quadro" no menu vê cor e espessura sem tela
+        // nenhuma à vista, e não tem como adivinhar que a tela está numa aba
+        // do palco atrás do painel.
+        <button className="nv-btn principal nv-quadro-ir" onClick={onAbrirPalco}>
+          <QuadroIcon size={15} />
+          Abrir o quadro no palco
+        </button>
+      )}
 
-      {posso && (
-        <div className="nv-quadro-barra">
-          <div className="nv-cores" role="group" aria-label="Cor">
-            {CORES.map((c) => (
-              <button
-                key={c}
-                className={`nv-cor${c === cor ? " on" : ""}`}
-                style={{ background: c }}
-                onClick={() => setCor(c)}
-                aria-label={`cor ${c}`}
-                aria-pressed={c === cor}
-              />
-            ))}
-          </div>
-
-          <label className="nv-grossura">
-            <span className="nv-rotulo">Traço</span>
-            <input
-              type="range"
-              min={1}
-              max={14}
-              value={grossura}
-              onChange={(e) => setGrossura(Number(e.target.value))}
-            />
-          </label>
-
-          <div className="nv-quadro-acoes">
-            <button className="nv-btn" onClick={() => motor?.desfazer()} disabled={meus === 0}>
-              <DesfazerIcon size={15} />
-              Desfazer
-            </button>
-            <button className="nv-btn perigo" onClick={() => motor?.limparQuadro()}>
-              <LimparIcon size={15} />
-              Limpar
-            </button>
-          </div>
-        </div>
+      {f.posso.quadro ? (
+        <BarraQuadro f={f} motor={motor} eu={eu} pincel={pincel} onPincel={onPincel} />
+      ) : (
+        <p className="nv-nota">
+          Você vê o quadro ao vivo no palco. Cor e espessura aparecem aqui
+          quando a licença chegar.
+        </p>
       )}
     </div>
   );
-}
-
-/** Um traço, em coordenadas de 0 a 1 esticadas para o tamanho do canvas. */
-function desenharTraco(
-  ctx: CanvasRenderingContext2D,
-  t: Traco,
-  larg: number,
-  alt: number,
-) {
-  const p = t.pontos;
-  if (p.length < 2) return;
-  ctx.strokeStyle = t.cor;
-  // A espessura acompanha a largura do quadro: um traço de 3 px desenhado num
-  // painel largo aparece como fio de cabelo num painel estreito, e os dois
-  // são a mesma linha para quem desenhou.
-  ctx.lineWidth = Math.max(1, (t.grossura * larg) / 900);
-  ctx.beginPath();
-  ctx.moveTo(p[0] * larg, p[1] * alt);
-  if (p.length === 2) {
-    // Um ponto só é um ponto: sem isto, tocar e soltar não deixa marca.
-    ctx.lineTo(p[0] * larg + 0.1, p[1] * alt);
-  }
-  for (let i = 2; i < p.length; i += 2) ctx.lineTo(p[i] * larg, p[i + 1] * alt);
-  ctx.stroke();
 }
 
 // ─────────────────────────────────────────────────────────────── as notas ──

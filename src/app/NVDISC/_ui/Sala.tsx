@@ -35,6 +35,8 @@ import {
   VolumeIcon,
   FecharIcon,
   FerramentasIcon,
+  QuadroIcon,
+  ChatIcon,
 } from "@/components/icons";
 import { comBase } from "@/lib/base.mjs";
 import {
@@ -46,7 +48,8 @@ import {
   type Preferencias,
 } from "@/lib/preferencias";
 import PainelFerramentas from "./Ferramentas";
-import { Ferramentas, type EstadoFerramentas, type IdFerramenta } from "@/lib/ferramentas";
+import { MiniaturaQuadro, QuadroPalco, PINCEL_PADRAO, type Pincel } from "./Quadro";
+import { Ferramentas, type EstadoFerramentas, type IdFerramenta, type Traco } from "@/lib/ferramentas";
 import "../nvdisc.css";
 
 const VAZIO: EstadoMalha = {
@@ -98,9 +101,27 @@ export default function Sala({ sala }: { sala: string }) {
   const [estadoF, setEstadoF] = useState<EstadoFerramentas | null>(null);
   const [ferrAberta, setFerrAberta] = useState<IdFerramenta | null>(null);
   const [ferrVisivel, setFerrVisivel] = useState(false);
+  /**
+   * Cor e espessura vivem aqui, e não no quadro.
+   *
+   * Elas são escolhidas no painel da esquerda e usadas na tela do palco —
+   * dois lugares distantes na árvore, e a única coisa que os dois precisam
+   * dividir. Guardar isso dentro de um deles obrigaria o outro a adivinhar.
+   */
+  const [pincel, setPincel] = useState<Pincel>(PINCEL_PADRAO);
 
   useEffect(() => {
     setPrefs(lerPreferencias());
+    /**
+     * O chat nasce aberto na tela grande e fechado no telefone.
+     *
+     * Não dá para decidir isto no `useState`: o servidor renderiza sem saber
+     * o tamanho da janela, e chegar a um valor diferente do que o navegador
+     * acha quebra a hidratação — a sala piscaria de uma aparência para outra
+     * na frente de quem abriu. No telefone ele é uma gaveta que cobre a
+     * conversa inteira, e cobrir a chamada ao entrar nela seria estranho.
+     */
+    setChatAberto(window.innerWidth >= 1024);
   }, []);
 
   function ajustar(mudanca: Partial<Preferencias>) {
@@ -215,12 +236,7 @@ export default function Sala({ sala }: { sala: string }) {
       data-avatares={prefs.avatares}
       style={{ "--escala": prefs.texto } as React.CSSProperties}
     >
-      <Topo
-        sala={sala}
-        estado={estado}
-        naoLidas={naoLidas}
-        onChat={() => setChatAberto((v) => !v)}
-      />
+      <Topo sala={sala} estado={estado} />
 
       {estado.erro && <div className="nv-erro">{estado.erro}</div>}
 
@@ -242,6 +258,25 @@ export default function Sala({ sala }: { sala: string }) {
       )}
 
       <div className="nv-corpo">
+        {/* A gaveta das ferramentas fica à **esquerda**, e o chat à direita.
+            Não é simetria: é que o quadro passou a ocupar o palco, e as
+            ferramentas viraram a lateral de um programa de desenho — que
+            todo mundo já sabe procurar do lado esquerdo. */}
+        {ferrVisivel && estadoF && (
+          <PainelFerramentas
+            motor={ferr.current}
+            f={estadoF}
+            aberta={ferrAberta}
+            eu={estado.voceId}
+            pincel={pincel}
+            onPincel={setPincel}
+            quadroNoPalco={telaAberta === "quadro"}
+            onAbrirQuadroNoPalco={() => setTelaAberta("quadro")}
+            onAbrir={setFerrAberta}
+            onFechar={() => setFerrVisivel(false)}
+          />
+        )}
+
         <main className="nv-palco">
           <Palco
             compartilhando={compartilhando}
@@ -252,6 +287,9 @@ export default function Sala({ sala }: { sala: string }) {
             aberta={telaAberta}
             onAbrir={setTelaAberta}
             onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
+            ferramentas={estadoF}
+            motor={ferr.current}
+            pincel={pincel}
           />
           {/* A tirinha embaixo só existe quando o palco está ocupado por uma
               tela; sem ela, as pessoas **são** o palco. */}
@@ -273,17 +311,6 @@ export default function Sala({ sala }: { sala: string }) {
           onEnviar={(t) => malha.current?.enviarChat(t)}
           onImagem={(f, legenda) => void malha.current?.enviarImagem(f, legenda)}
         />
-
-        {ferrVisivel && estadoF && (
-          <PainelFerramentas
-            motor={ferr.current}
-            f={estadoF}
-            aberta={ferrAberta}
-            eu={estado.voceId}
-            onAbrir={setFerrAberta}
-            onFechar={() => setFerrVisivel(false)}
-          />
-        )}
       </div>
 
       <Controles
@@ -292,6 +319,9 @@ export default function Sala({ sala }: { sala: string }) {
         ferramentas={ferrVisivel}
         pedidos={estadoF?.pedidos.length ?? 0}
         onFerramentas={() => setFerrVisivel((v) => !v)}
+        chat={chatAberto}
+        naoLidas={naoLidas}
+        onChat={() => setChatAberto((v) => !v)}
         onMudo={() => malha.current?.mudo(!estado.mudo)}
         onTela={() => void malha.current?.alternarTela()}
         onQualidade={(q) => void malha.current?.definirQualidade(q)}
@@ -307,13 +337,9 @@ export default function Sala({ sala }: { sala: string }) {
 function Topo({
   sala,
   estado,
-  naoLidas,
-  onChat,
 }: {
   sala: string;
   estado: EstadoMalha;
-  naoLidas: number;
-  onChat: () => void;
 }) {
   const [copiado, setCopiado] = useState(false);
 
@@ -355,10 +381,6 @@ function Topo({
       </button>
 
       <div className="direita">
-        <button className="nv-mini nv-so-mobile" onClick={onChat}>
-          chat
-          {naoLidas > 0 && <span className="nv-selo">{naoLidas > 9 ? "9+" : naoLidas}</span>}
-        </button>
         <div className={`nv-estado${estado.ligado ? "" : " caiu"}`}>
           <span className={`nv-ponto${estado.ligado ? "" : " off"}`} aria-hidden />
           {estado.ligado ? `${estado.participantes.length + 1} na sala` : "reconectando…"}
@@ -487,6 +509,22 @@ function Som({
 // --------------------------------------------------------------- palco --
 
 /**
+ * Uma aba do palco.
+ *
+ * Duas espécies com a mesma cara: a tela que alguém compartilha (um fluxo de
+ * vídeo) e o quadro (um desenho que a sala faz junto). Elas dividem o cartão,
+ * a prévia e o lugar porque, para quem usa, são a mesma coisa — algo que
+ * ocupa o meio da tela e que todo mundo olha ao mesmo tempo.
+ */
+type Aba = {
+  id: string;
+  quem: string;
+  tipo: "video" | "quadro";
+  fluxo?: MediaStream;
+  som: boolean | null;
+};
+
+/**
  * O palco e a área de telas.
  *
  * A área de telas **existe sempre**, mesmo vazia. Antes ela só aparecia quando
@@ -504,6 +542,9 @@ function Palco({
   aberta,
   onAbrir,
   onVolume,
+  ferramentas,
+  motor,
+  pincel,
 }: {
   compartilhando: Participante[];
   minhaTela: MediaStream | null;
@@ -513,6 +554,9 @@ function Palco({
   aberta: string | null;
   onAbrir: (id: string | null) => void;
   onVolume: (id: string, v: number) => void;
+  ferramentas: EstadoFerramentas | null;
+  motor: Ferramentas | null;
+  pincel: Pincel;
 }) {
   /**
    * As telas que existem agora, em ordem estável.
@@ -520,13 +564,24 @@ function Palco({
    * A sua vem primeiro porque é a que você confere ("estou mostrando o que
    * queria mostrar?"), e não porque seja a mais importante para quem assiste.
    */
-  const telas = [
+  const telas: Aba[] = [
+    /**
+     * O quadro é a primeira aba, e existe sempre.
+     *
+     * Sempre, mesmo em branco e mesmo sem dono — pelo mesmo motivo que a área
+     * de telas existe vazia: um lugar fixo ensina onde olhar antes de haver o
+     * que ver. Um quadro que só aparecesse depois de alguém desenhar seria um
+     * quadro que ninguém descobre, porque para desenhar é preciso achá-lo
+     * primeiro.
+     */
+    { id: "quadro", quem: "Quadro", tipo: "quadro", som: null },
     ...(minhaTela
-      ? [{ id: "eu", quem: "você", fluxo: minhaTela, som: estado.telaComSom }]
+      ? [{ id: "eu", quem: "você", tipo: "video" as const, fluxo: minhaTela, som: estado.telaComSom }]
       : []),
     ...compartilhando.map((p) => ({
       id: p.id,
       quem: p.nome,
+      tipo: "video" as const,
       fluxo: p.video!,
       som: null as boolean | null,
     })),
@@ -545,12 +600,22 @@ function Palco({
         telas={telas}
         atual={atual?.id ?? null}
         chegando={chegando?.nome ?? null}
+        tracos={ferramentas?.quadro.tracos ?? []}
         onAbrir={onAbrir}
       />
 
       {atual ? (
         <div className="nv-telas uma">
-          <Tela fluxo={atual.fluxo} legenda={atual.quem} onFechar={() => onAbrir(null)} />
+          {atual.tipo === "quadro" && ferramentas ? (
+            <QuadroPalco
+              f={ferramentas}
+              motor={motor}
+              pincel={pincel}
+              onFechar={() => onAbrir(null)}
+            />
+          ) : atual.fluxo ? (
+            <Tela fluxo={atual.fluxo} legenda={atual.quem} onFechar={() => onAbrir(null)} />
+          ) : null}
         </div>
       ) : (
         // **Sem tela aberta, quem ocupa o palco são as pessoas.**
@@ -582,13 +647,17 @@ function AreaDeTelas({
   telas,
   atual,
   chegando,
+  tracos,
   onAbrir,
 }: {
-  telas: { id: string; quem: string; fluxo: MediaStream; som: boolean | null }[];
+  telas: Aba[];
   atual: string | null;
   chegando: string | null;
+  tracos: Traco[];
   onAbrir: (id: string | null) => void;
 }) {
+  /** As telas de gente — o quadro é fixo e não conta para "quantas". */
+  const compartilhadas = telas.filter((t) => t.tipo === "video").length;
   return (
     /**
       * Vazia, a área inteira cabe numa linha.
@@ -598,50 +667,65 @@ function AreaDeTelas({
       * santo dia, para quem já sabe. O lugar fixo continua ensinando onde
       * olhar; só parou de cobrar 80 px por isso.
       */
-    <section
-      className={`nv-area-telas${telas.length === 0 ? " vazia" : ""}`}
-      aria-label="Telas compartilhadas"
-    >
-      <header>
-        <span className="nv-eyebrow">Telas</span>
-        {telas.length > 0 && <span className="nv-conta">{telas.length}</span>}
-        {telas.length === 0 && (
-          <span className="nv-nota nv-telas-vazio">
-            {chegando
-              ? `${chegando} começou a compartilhar; a imagem aparece aqui em instantes.`
-              : "ninguém está compartilhando — quando alguém abrir uma tela, ela aparece aqui"}
-          </span>
-        )}
-        {atual && (
-          <button className="nv-mini" onClick={() => onAbrir(null)}>
-            fechar a tela
-          </button>
-        )}
-      </header>
+    /**
+     * Uma linha só: rótulo, abas, e a saída.
+     *
+     * Antes eram duas — um cabeçalho em cima e os cartões embaixo —, e as
+     * duas juntas cobravam 145 px de altura do palco o tempo inteiro. Com o
+     * quadro sempre presente isto deixou de ser "uma área que às vezes tem
+     * coisa" e virou o que sempre foi na prática: uma barra de abas. Barra de
+     * abas tem uma linha.
+     */
+    <section className="nv-area-telas" aria-label="Telas e quadro">
+      <span className="nv-eyebrow">No palco</span>
 
-      {telas.length === 0 ? null : (
-        <ul>
-          {telas.map((t) => (
-            <li key={t.id}>
-              <button
-                type="button"
-                className={`nv-cartao-tela${t.id === atual ? " ativa" : ""}`}
-                onClick={() => onAbrir(t.id === atual ? null : t.id)}
-                aria-current={t.id === atual ? "true" : undefined}
-                title={t.id === atual ? "fechar esta tela" : `assistir a tela de ${t.quem}`}
-              >
-                <Miniatura fluxo={t.fluxo} />
-                <span className="nome">
-                  <TelaIcon size={13} />
-                  {t.quem}
-                </span>
-                {/* Só a própria captura sabe dizer se veio com som; a dos
-                    outros chega pronta e não há como perguntar. */}
-                {t.som === false && <span className="nv-sem-som">sem som</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
+      <ul>
+        {telas.map((t) => (
+          <li key={t.id}>
+            <button
+              type="button"
+              className={`nv-cartao-tela${t.id === atual ? " ativa" : ""}${
+                t.tipo === "quadro" ? " quadro" : ""
+              }`}
+              onClick={() => onAbrir(t.id === atual ? null : t.id)}
+              aria-current={t.id === atual ? "true" : undefined}
+              title={
+                t.id === atual
+                  ? "voltar às pessoas"
+                  : t.tipo === "quadro"
+                    ? "abrir o quadro"
+                    : `assistir a tela de ${t.quem}`
+              }
+            >
+              {t.tipo === "quadro" ? (
+                <MiniaturaQuadro tracos={tracos} />
+              ) : (
+                <Miniatura fluxo={t.fluxo!} />
+              )}
+              <span className="nome">
+                {t.tipo === "quadro" ? <QuadroIcon size={12} /> : <TelaIcon size={12} />}
+                {t.quem}
+              </span>
+              {/* Só a própria captura sabe dizer se veio com som; a dos
+                  outros chega pronta e não há como perguntar. */}
+              {t.som === false && <span className="nv-sem-som">sem som</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {compartilhadas === 0 && (
+        <span className="nv-nota nv-telas-vazio">
+          {chegando
+            ? `${chegando} começou a compartilhar; a imagem aparece aqui em instantes.`
+            : "ninguém está compartilhando a tela"}
+        </span>
+      )}
+
+      {atual && (
+        <button className="nv-mini nv-abas-sair" onClick={() => onAbrir(null)}>
+          voltar às pessoas
+        </button>
       )}
     </section>
   );
@@ -1112,7 +1196,7 @@ function Chat({
     >
       <h2>
         Chat
-        <button onClick={onFechar} aria-label="fechar o chat" className="nv-so-mobile">
+        <button onClick={onFechar} aria-label="fechar o chat">
           ×
         </button>
       </h2>
@@ -1264,6 +1348,9 @@ function Controles({
   ferramentas,
   pedidos,
   onFerramentas,
+  chat,
+  naoLidas,
+  onChat,
   onMudo,
   onTela,
   onQualidade,
@@ -1276,6 +1363,9 @@ function Controles({
   /** pedidos de licença esperando resposta — o distintivo do botão */
   pedidos: number;
   onFerramentas: () => void;
+  chat: boolean;
+  naoLidas: number;
+  onChat: () => void;
   onMudo: () => void;
   onTela: () => void;
   onQualidade: (q: Partial<Qualidade>) => void;
@@ -1311,6 +1401,10 @@ function Controles({
         {estado.tela ? "Parar de compartilhar" : "Compartilhar tela"}
       </button>
 
+      {/* Os dois painéis laterais, lado a lado no mesmo lugar.
+          O do chat vivia no topo e só aparecia no telefone — no desktop o
+          chat ocupava 320 px o tempo todo e não havia como fechá-lo, nem
+          botão que dissesse que aquilo era possível. */}
       <button
         className={`nv-btn${ferramentas ? " ligado" : ""}`}
         onClick={onFerramentas}
@@ -1318,6 +1412,14 @@ function Controles({
         <FerramentasIcon />
         Ferramentas
         {pedidos > 0 && <span className="nv-distintivo">{pedidos}</span>}
+      </button>
+
+      <button className={`nv-btn${chat ? " ligado" : ""}`} onClick={onChat}>
+        <ChatIcon />
+        Chat
+        {naoLidas > 0 && !chat && (
+          <span className="nv-distintivo">{naoLidas > 9 ? "9+" : naoLidas}</span>
+        )}
       </button>
 
       <button

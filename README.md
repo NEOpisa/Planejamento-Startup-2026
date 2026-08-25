@@ -321,9 +321,17 @@ diz isso na cara em vez de ficar em "reconectando…" para sempre.
 
 Cinco, no botão **Ferramentas** da barra de baixo: um **quadro** para
 desenhar, um **bloco de notas**, uma **fila de fala**, uma **enquete** e um
-**temporizador**. Elas abrem numa gaveta ao lado do chat, e nunca no palco —
-quem abre o quadro quer desenhar *enquanto* conversa; uma ferramenta que
-cobre o vídeo interrompe justamente a conversa que ela deveria ajudar.
+**temporizador**. Elas abrem numa gaveta à **esquerda** — a lateral onde todo
+programa de desenho põe as suas há trinta anos.
+
+O **quadro** é a exceção, e por isso ele é o exemplo: a tela dele não fica na
+gaveta, fica no **palco**, numa aba ao lado das telas que as pessoas
+compartilham. Desenhar num painel de 340 px ao lado do chat era desenhar num
+guardanapo — cabia o rabisco e não cabia a ideia. Para quem usa, um quadro que
+a sala inteira olha ao mesmo tempo e uma tela compartilhada são a mesma coisa,
+então eles dividem o cartão, a prévia ao vivo e o lugar. A aba do quadro
+**existe sempre**, mesmo em branco: um quadro que só aparecesse depois de
+alguém desenhar seria um quadro que ninguém descobre.
 
 Tudo viaja pelo mesmo canal de sinalização do chat, numa mensagem
 (`PARA_SERVIDOR.FERRAMENTA`) cujo corpo **o servidor não lê**. Ele confere
@@ -349,6 +357,21 @@ anunciar uma permissão em nome do dono. Há teste para isso.
 Fila, enquete e temporizador não têm dono, porque não fazia sentido ter: a mão
 levantada é de quem a levanta, o voto é de quem vota, e o temporizador é um
 relógio — trancá-lo daria mais discussão do que o problema que evitaria.
+
+### O que o layout da sala combina
+
+- **Duas gavetas, uma de cada lado**: ferramentas à esquerda, chat à direita,
+  e as duas com botão na barra de baixo. O do chat vivia no topo e só aparecia
+  no telefone — no computador a coluna do chat ocupava 320 px o tempo todo e
+  não havia como fechá-la, nem botão que dissesse que aquilo era possível.
+- **A barra de abas do palco tem uma linha.** Eram duas — cabeçalho em cima,
+  cartões embaixo —, cobrando 145 px de altura do palco o tempo inteiro. Com o
+  quadro sempre presente, aquilo deixou de ser "uma área que às vezes tem
+  coisa" e virou o que sempre foi: uma barra de abas.
+- **Abaixo de 1180 px a gaveta das ferramentas flutua** por cima do palco em
+  vez de disputar a largura com ele. Duas gavetas fixas numa tela de notebook
+  deixariam o palco com menos largura que cada uma delas — e o palco é o
+  motivo de a sala existir.
 
 ### Três decisões que não são óbvias
 
