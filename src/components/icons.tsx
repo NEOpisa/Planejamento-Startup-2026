@@ -270,3 +270,89 @@ export function ChatIcon(p: Props) {
     </Traco>
   );
 }
+
+// ─────────────────────────────────────────── os bicos de caneta do quadro ──
+//
+// Seis desenhos que **são** o que fazem: a mão livre é um rabisco, a reta é
+// uma reta. Num seletor de forma o ícone não ilustra a função — ele é a
+// única explicação que existe, porque a alternativa ("Retângulo", "Elipse")
+// não cabe numa fileira de seis botões dentro de uma coluna de 260 px.
+
+/** Mão livre: o rabisco. */
+export function MaoLivreIcon(p: Props) {
+  return (
+    <Traco size={18} {...p}>
+      <path d="M3 16c2.5 0 3-8 5.5-8S11 18 13.5 18 16 7 18.5 7 21 12 21 12" />
+    </Traco>
+  );
+}
+
+/** Reta: dois pontos e a linha entre eles. */
+export function RetaIcon(p: Props) {
+  return (
+    <Traco size={18} {...p}>
+      <path d="M6 18 18 6" />
+      <circle cx="5" cy="19" r="1.6" />
+      <circle cx="19" cy="5" r="1.6" />
+    </Traco>
+  );
+}
+
+/** Retângulo. */
+export function RetanguloIcon(p: Props) {
+  return (
+    <Traco size={18} {...p}>
+      <rect x="4" y="6" width="16" height="12" rx="1.5" />
+    </Traco>
+  );
+}
+
+/** Elipse. */
+export function ElipseIcon(p: Props) {
+  return (
+    <Traco size={18} {...p}>
+      <ellipse cx="12" cy="12" rx="8.5" ry="6.5" />
+    </Traco>
+  );
+}
+
+/** Seta: a forma de apontar para uma coisa sem falar o nome dela. */
+export function SetaIcon(p: Props) {
+  return (
+    <Traco size={18} {...p}>
+      <path d="M5 19 19 5" />
+      <path d="M12 5h7v7" />
+    </Traco>
+  );
+}
+
+/** Borracha: o bloco inclinado passando sobre a linha. */
+export function BorrachaIcon(p: Props) {
+  return (
+    <Traco size={18} {...p}>
+      <path d="m14.5 5.5 4 4a1.8 1.8 0 0 1 0 2.6l-6.4 6.4H8l-3.5-3.5a1.8 1.8 0 0 1 0-2.6l7.4-7.4a1.8 1.8 0 0 1 2.6 0Z" />
+      <path d="m9 9.5 5 5M4 20.5h16" />
+    </Traco>
+  );
+}
+
+/** Copiar: duas folhas sobrepostas. */
+export function CopiarIcon(p: Props) {
+  return (
+    <Traco size={18} {...p}>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15H4.5A1.5 1.5 0 0 1 3 13.5v-9A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5V5" />
+    </Traco>
+  );
+}
+
+/** Baixar: a seta que desce até a bandeja. */
+export function BaixarIcon(p: Props) {
+  return (
+    <Traco size={18} {...p}>
+      <path d="M12 3v12" />
+      <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+      <path d="M4 20h16" />
+    </Traco>
+  );
+}

@@ -518,6 +518,20 @@ type Par = {
   refeita: number;
   /** desde quando está `disconnected`; 0 = não está */
   caiuEm: number;
+  /**
+   * Quando esta conexão nasceu, e se ela **algum dia** chegou a `connected`.
+   *
+   * É a diferença entre "caiu" e "nunca subiu", e só a primeira tinha
+   * tratamento. Uma conexão que nasce e fica pendurada em `connecting` não
+   * passa por `disconnected` nem por `failed` em rede nenhuma: ela
+   * simplesmente **espera**, com a pessoa na lista, o sinal amarelo aceso e
+   * nenhum som. Nada neste arquivo olhava para ela.
+   */
+  nasceuEm: number;
+  /** já chegou a `connected` alguma vez? */
+  subiu: boolean;
+  /** último reinício de ICE feito por causa de conexão que não sobe */
+  insistiEm: number;
 };
 
 /** Mede o quanto uma faixa de áudio está soando, para o indicador de fala. */
@@ -1942,6 +1956,9 @@ export class Malha {
       reiniciei: false,
       refeita: 0,
       caiuEm: 0,
+      nasceuEm: Date.now(),
+      subiu: false,
+      insistiEm: 0,
     };
     this.pares.set(outroId, par);
 
@@ -2039,7 +2056,14 @@ export class Malha {
       // Os limites de taxa só valem depois que a conexão existe, e precisam
       // ser reaplicados a cada nova: um participante que chega no meio do
       // compartilhamento entraria com o padrão do navegador.
-      if (pc.connectionState === "connected") void this.aplicarQualidade();
+      if (pc.connectionState === "connected") {
+        // Marcado uma vez e nunca desmarcado: o que interessa depois é se
+        // esta conexão **já funcionou**, e não se está funcionando agora.
+        // Quem já subiu e caiu é caso do vigia de silêncio; quem nunca subiu
+        // é caso da escada de conexão, e os dois remédios são diferentes.
+        par.subiu = true;
+        void this.aplicarQualidade();
+      }
       // `failed` costuma ser NAT que não fechou. Reiniciar o ICE resolve boa
       // parte dos casos sem derrubar a chamada inteira.
       if (pc.connectionState === "failed") pc.restartIce();
@@ -2720,7 +2744,81 @@ export class Malha {
         continue;
       }
       par.caiuEm = 0;
-      if (estado !== "connected") continue;
+
+      /**
+       * A conexão que **nunca subiu**.
+       *
+       * Este era o buraco: o vigia de silêncio só olha para quem está
+       * `connected`, e a escada acima só olha para quem estava conectado e
+       * caiu. Quem entra na sala e fica pendurado em `new`, `connecting` ou
+       * `failed` não é nenhum dos dois — e é exatamente o relato mais comum:
+       * "a pessoa entrou, apareceu na lista com o triângulo amarelo, e eu
+       * não escuto ela". A sala ficava esperando para sempre um estado que
+       * não vinha, sem tentar nada e sem dizer nada.
+       *
+       * A escada é a mesma de sempre, do barato ao caro, e os prazos são
+       * mais curtos porque aqui não há nada funcionando para atrapalhar:
+       * ninguém está ouvindo nada mesmo.
+       */
+      if (estado !== "connected") {
+        // `closed` é conexão descartada de propósito; quem a fechou já sabe.
+        if (estado === "closed") continue;
+        const pendurado = agora - par.nasceuEm;
+
+        // Nove segundos é depois do prazo normal de um ICE que vai fechar
+        // (os candidatos locais e do STUN chegam em dois ou três) e antes de
+        // a pessoa desistir e recarregar a página.
+        if (pendurado > 9000 && agora - par.insistiEm > 8000) {
+          par.insistiEm = agora;
+          try {
+            par.pc.restartIce();
+          } catch {
+            /* conexão já indo embora */
+          }
+        }
+
+        // Refazer do zero conserta o caso que o reinício de ICE não alcança:
+        // a negociação que morreu no meio — uma oferta perdida, um
+        // `setRemoteDescription` que falhou — e que deixa os dois lados
+        // esperando um ao outro, cada um achando que a vez é do outro.
+        if (pendurado > 20000 && par.refeita < 2) {
+          par.refeita += 1;
+          await this.refazerPar(id);
+          continue;
+        }
+
+        // E, no fim, dizer. Duas reconstruções sem a conexão nem chegar a
+        // existir é caminho de rede que não há entre estas duas casas — o
+        // mesmo diagnóstico do outro degrau final, e o mesmo remédio, que
+        // não é de código.
+        if (pendurado > 32000 && !this.avisados.has(id)) {
+          this.avisados.add(id);
+          const p = this.acha(id);
+          const quem = p?.nome ?? "alguém";
+          // Nunca ter subido e ter caído depois de funcionar são dois
+          // diagnósticos diferentes, e o remédio de um não serve ao outro. Se
+          // a chamada já esteve de pé, a rota existia — o que se perdeu foi a
+          // rede de alguém, e mandar a pessoa configurar um TURN por causa
+          // disso é mandá-la caçar o problema errado.
+          this.sistema(
+            par.subiu
+              ? `a conexão com ${quem} caiu e não voltou. A sala continua ` +
+                  "tentando; se a internet de um dos dois oscilou, ela volta " +
+                  "sozinha em alguns segundos."
+              : `a conexão com ${quem} não fecha — vocês dois estão na sala, ` +
+                  "mas não há caminho de rede direto entre as duas. É o caso " +
+                  "que precisa de um servidor TURN (ver o README).",
+          );
+          this.avisar();
+        }
+        continue;
+      }
+
+      // Conectado: o relógio de "nunca subiu" não vale mais, e uma queda
+      // futura tem de recomeçar a contagem do zero em vez de herdar o tempo
+      // que a conexão passou de pé.
+      par.nasceuEm = agora;
+      par.insistiEm = 0;
 
       const recebidos = await this.pacotesDeAudio(par.pc);
       if (recebidos < 0) continue;

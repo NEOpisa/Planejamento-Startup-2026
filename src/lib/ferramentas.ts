@@ -401,6 +401,53 @@ export class Ferramentas {
     this.avisar();
   }
 
+  /**
+   * Apaga **um** traço meu, pelo identificador — é a borracha.
+   *
+   * `desfazer()` só alcança o último, e o erro que se quer apagar quase nunca
+   * é o último: é aquela linha torta de trinta segundos atrás, com quatro
+   * traços bons por cima. Sem borracha, consertar isso era limpar o quadro
+   * inteiro e redesenhar tudo.
+   *
+   * Ela apaga só o que é meu, e não por timidez: o `apagar` que chega pela
+   * rede é aplicado com `t.de === m.de` do outro lado, então um pedido para
+   * apagar traço alheio seria descartado em silêncio — a borracha funcionaria
+   * na minha tela e em mais nenhuma. Quem quiser limpar o dos outros usa o
+   * "Limpar", que é do dono e apaga tudo às claras.
+   */
+  apagarTraco(id: string) {
+    if (!this.e.posso.quadro) return;
+    const alvo = this.e.quadro.tracos.find((t) => t.id === id);
+    if (!alvo || alvo.de !== this.eu) return;
+    this.e.quadro.tracos = this.e.quadro.tracos.filter((t) => t.id !== id);
+    this.malha.mandarFerramenta("quadro", ACAO.ATO, { k: "apagar", id });
+    this.avisar();
+  }
+
+  /**
+   * Manda um traço inteiro de uma vez — é o que as formas usam.
+   *
+   * Uma reta, um retângulo ou uma seta não nascem ponto a ponto como a mão:
+   * eles nascem prontos quando o dedo levanta, e até lá o que existe é uma
+   * prévia local. Mandá-los pelo caminho da mão livre faria o outro lado ver
+   * cada estado intermediário da forma emendado no mesmo traço — um rabisco
+   * em leque no lugar de um retângulo.
+   */
+  tracoPronto(pontos: number[], cor: string, grossura: number) {
+    if (!this.e.posso.quadro || pontos.length < 4) return;
+    const t: Traco = { id: id24(), de: this.eu, cor, grossura, pontos, fim: true };
+    this.e.quadro.tracos = [...this.e.quadro.tracos, t];
+    this.malha.mandarFerramenta("quadro", ACAO.ATO, {
+      k: "traco",
+      id: t.id,
+      cor,
+      grossura,
+      p: pontos.map((n) => Math.round(n * 10000) / 10000),
+      fim: true,
+    });
+    this.avisar();
+  }
+
   /** Limpa tudo — só o dono, porque apaga o trabalho dos outros junto. */
   limparQuadro() {
     if (!this.souDono("quadro") && this.e.donos.quadro) return;
@@ -469,6 +516,27 @@ export class Ferramentas {
     if (!q || this.e.donos.enquete?.id !== this.eu) return;
     this.e.enquete = { ...q, aberta: false };
     this.malha.mandarFerramenta("enquete", ACAO.ATO, { k: "encerrar" });
+    this.avisar();
+  }
+
+  /**
+   * Tira a enquete da tela e devolve a ferramenta a quem quiser perguntar.
+   *
+   * Sem isto a sala tinha **uma pergunta só**: encerrada, a votação ficava
+   * ali para sempre e o formulário da próxima não voltava. Numa conversa que
+   * decide três coisas, eram duas decisões sem ferramenta.
+   *
+   * Vai como ato, e não como o `FECHAR` genérico, porque o `FECHAR` só é
+   * aplicado nas ferramentas com dono declarado (quadro e notas) — a enquete
+   * ganha dono ao ser criada, mas não está na lista, então um `fechar()` aqui
+   * limparia a **minha** tela e mais nenhuma. Desses desencontros nasce a sala
+   * em que cada um vê uma coisa.
+   */
+  largarEnquete() {
+    if (this.e.donos.enquete?.id !== this.eu) return;
+    this.e.enquete = null;
+    this.e.donos.enquete = null;
+    this.malha.mandarFerramenta("enquete", ACAO.ATO, { k: "largar" });
     this.avisar();
   }
 
@@ -708,6 +776,14 @@ export class Ferramentas {
       }
       if (k === "encerrar" && this.e.donos.enquete?.id === m.de) {
         this.e.enquete = { ...q, aberta: false };
+        this.avisar();
+      }
+      // Largar tira a pergunta da tela de todos e libera a ferramenta. Só de
+      // quem perguntou: sem esta comparação, qualquer um apagaria a votação
+      // alheia no meio dela.
+      if (k === "largar" && this.e.donos.enquete?.id === m.de) {
+        this.e.enquete = null;
+        this.e.donos.enquete = null;
         this.avisar();
       }
       return;

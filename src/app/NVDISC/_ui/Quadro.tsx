@@ -23,18 +23,102 @@ import { useEffect, useRef } from "react";
 
 import type { EstadoFerramentas, Ferramentas as Motor, Traco } from "@/lib/ferramentas";
 import {
+  BorrachaIcon,
   CadeadoIcon,
   DesfazerIcon,
+  ElipseIcon,
   FecharIcon,
   LimparIcon,
+  MaoLivreIcon,
   QuadroIcon,
+  RetaIcon,
+  RetanguloIcon,
+  SetaIcon,
 } from "@/components/icons";
 
+/**
+ * O que a mão faz, e não só com que cor.
+ *
+ * A mão livre resolve o rabisco e não resolve o resto: explicar uma caixa, uma
+ * ligação entre duas coisas, um "isto aqui" — as três coisas que mais se
+ * desenham numa conversa — sai torto à mão em tela sensível, e sai torto
+ * também no trackpad. As formas são a mesma linha de sempre, só que com os
+ * pontos calculados em vez de coletados: nada muda no protocolo, e um cliente
+ * antigo desenha um retângulo sem saber que é um retângulo.
+ *
+ * A borracha é a sexta, e é de outra natureza — não desenha, apaga. Fica aqui
+ * porque no dedo de quem usa ela é só mais um bico de caneta.
+ */
+export type Forma = "livre" | "reta" | "retangulo" | "elipse" | "seta" | "borracha";
+
 /** O pincel de quem desenha — escolhido no painel, usado no palco. */
-export type Pincel = { cor: string; grossura: number };
+export type Pincel = { cor: string; grossura: number; forma: Forma };
 
 export const CORES = ["#6495ed", "#3ef08a", "#f4b74a", "#fb7185", "#eef1f7", "#a855f7"];
-export const PINCEL_PADRAO: Pincel = { cor: CORES[0], grossura: 3 };
+export const PINCEL_PADRAO: Pincel = { cor: CORES[0], grossura: 3, forma: "livre" };
+
+/**
+ * Os pontos de uma forma, do canto onde a mão desceu até onde ela está.
+ *
+ * Tudo vira **polilinha**, que é o único desenho que o protocolo conhece. O
+ * retângulo fecha voltando ao começo; a elipse é amostrada em 48 lados (o
+ * bastante para o olho não ver o polígono numa tela de 4K); a seta vai até a
+ * ponta, desce numa barba, volta à ponta e desce na outra — voltar sobre a
+ * própria linha não custa nada e evita precisar de três traços separados,
+ * que seriam três desfazeres para apagar uma seta só.
+ *
+ * `y` é corrigido pela proporção da tela nas barbas da seta: sem isso, uma
+ * seta desenhada num palco largo chega com as barbas achatadas, porque as
+ * coordenadas são de 0 a 1 nos dois eixos e a tela não é quadrada.
+ */
+export function pontosDaForma(
+  forma: Forma,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  proporcao: number,
+): number[] {
+  if (forma === "reta") return [x0, y0, x1, y1];
+
+  if (forma === "retangulo") {
+    return [x0, y0, x1, y0, x1, y1, x0, y1, x0, y0];
+  }
+
+  if (forma === "elipse") {
+    const cx = (x0 + x1) / 2;
+    const cy = (y0 + y1) / 2;
+    const rx = Math.abs(x1 - x0) / 2;
+    const ry = Math.abs(y1 - y0) / 2;
+    const p: number[] = [];
+    const lados = 48;
+    for (let i = 0; i <= lados; i++) {
+      const a = (i / lados) * Math.PI * 2;
+      p.push(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
+    }
+    return p;
+  }
+
+  if (forma === "seta") {
+    // O comprimento da barba é proporcional ao da seta, com teto: numa seta
+    // que atravessa a tela, uma barba proporcional viraria um triângulo.
+    const dx = (x1 - x0) * proporcao;
+    const dy = y1 - y0;
+    const comp = Math.hypot(dx, dy);
+    if (comp < 1e-4) return [x0, y0, x1, y1];
+    const barba = Math.min(comp * 0.3, 0.06);
+    const ang = Math.atan2(dy, dx);
+    const b = (giro: number): [number, number] => [
+      x1 - (barba * Math.cos(ang + giro)) / proporcao,
+      y1 - barba * Math.sin(ang + giro),
+    ];
+    const [ax, ay] = b(Math.PI / 7);
+    const [bx, by] = b(-Math.PI / 7);
+    return [x0, y0, x1, y1, ax, ay, x1, y1, bx, by];
+  }
+
+  return [x0, y0, x1, y1];
+}
 
 /**
  * Um traço, em coordenadas de 0 a 1 esticadas para o tamanho do canvas.
@@ -76,6 +160,16 @@ function useTela(
   tracos: Traco[],
   tela: React.RefObject<HTMLCanvasElement | null>,
   caixa: React.RefObject<HTMLElement | null>,
+  /**
+   * A forma que está sendo arrastada agora, se houver.
+   *
+   * Ela é desenhada **por cima e de fora do estado**: uma forma só existe de
+   * verdade quando o dedo levanta, e até lá ninguém mais na sala precisa ver
+   * os quarenta retângulos intermediários do arrasto. Numa `ref`, e não num
+   * `useState`, porque ela muda a cada movimento do ponteiro — pelo estado,
+   * cada pixel de arrasto redesenharia a sala inteira.
+   */
+  previa?: React.RefObject<Traco | null>,
 ) {
   const pintar = useRef(() => {});
   pintar.current = () => {
@@ -86,6 +180,7 @@ function useTela(
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     for (const t of tracos) desenharTraco(ctx, t, c.width, c.height);
+    if (previa?.current) desenharTraco(ctx, previa.current, c.width, c.height);
   };
 
   useEffect(() => {
@@ -119,20 +214,27 @@ function useTela(
 export function QuadroPalco({
   f,
   motor,
+  eu,
   pincel,
   onFechar,
 }: {
   f: EstadoFerramentas;
   motor: Motor | null;
+  /** quem eu sou — a borracha só alcança traço meu */
+  eu: string | null;
   pincel: Pincel;
   onFechar: () => void;
 }) {
   const tela = useRef<HTMLCanvasElement | null>(null);
   const moldura = useRef<HTMLElement | null>(null);
   const desenhando = useRef(false);
-  const pintar = useTela(f.quadro.tracos, tela, moldura);
+  /** onde a forma começou, enquanto o dedo não levanta */
+  const inicio = useRef<{ x: number; y: number } | null>(null);
+  const previa = useRef<Traco | null>(null);
+  const pintar = useTela(f.quadro.tracos, tela, moldura, previa);
   const posso = f.posso.quadro;
   const dono = f.donos.quadro;
+  const forma = pincel.forma;
 
   /** Do ponteiro para o quadro: sempre de 0 a 1, nunca em pixels. */
   function onde(e: React.PointerEvent) {
@@ -140,37 +242,114 @@ export function QuadroPalco({
     return {
       x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
       y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)),
+      /** largura sobre altura — a correção que a seta precisa */
+      prop: r.height > 0 ? r.width / r.height : 1,
     };
+  }
+
+  /**
+   * A borracha: apaga os traços **meus** que passam perto do ponteiro.
+   *
+   * A conta é em pixels, e não nas coordenadas de 0 a 1, porque o quadro não
+   * é quadrado: um raio de 0,03 em `x` e em `y` seria uma elipse deitada, e a
+   * borracha pegaria mais coisa de lado do que de cima — o tipo de imprecisão
+   * que ninguém identifica e todo mundo xinga.
+   */
+  function apagarSob(x: number, y: number, larg: number, alt: number) {
+    const raio = Math.max(10, pincel.grossura * 3);
+    for (const t of f.quadro.tracos) {
+      if (t.de !== eu) continue;
+      for (let i = 0; i < t.pontos.length; i += 2) {
+        const dx = t.pontos[i] * larg - x * larg;
+        const dy = t.pontos[i + 1] * alt - y * alt;
+        if (Math.hypot(dx, dy) <= raio) {
+          motor?.apagarTraco(t.id);
+          break;
+        }
+      }
+    }
   }
 
   return (
     <figure className="nv-tela nv-tela--quadro" ref={moldura}>
       <canvas
         ref={tela}
-        className={posso ? "" : "so-ver"}
+        className={`${posso ? "" : "so-ver"}${forma === "borracha" ? " borracha" : ""}`}
         onPointerDown={(e) => {
           if (!posso) return;
           (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
           const { x, y } = onde(e);
-          motor?.comecarTraco(x, y, pincel.cor, pincel.grossura);
           desenhando.current = true;
+
+          if (forma === "borracha") {
+            const r = (e.target as HTMLElement).getBoundingClientRect();
+            apagarSob(x, y, r.width, r.height);
+            return;
+          }
+          if (forma !== "livre") {
+            inicio.current = { x, y };
+            return;
+          }
+          motor?.comecarTraco(x, y, pincel.cor, pincel.grossura);
           pintar();
         }}
         onPointerMove={(e) => {
           if (!desenhando.current) return;
-          const { x, y } = onde(e);
+          const { x, y, prop } = onde(e);
+
+          if (forma === "borracha") {
+            const r = (e.target as HTMLElement).getBoundingClientRect();
+            apagarSob(x, y, r.width, r.height);
+            return;
+          }
+          if (forma !== "livre") {
+            const i = inicio.current;
+            if (!i) return;
+            previa.current = {
+              id: "previa",
+              de: eu ?? "",
+              cor: pincel.cor,
+              grossura: pincel.grossura,
+              pontos: pontosDaForma(forma, i.x, i.y, x, y, prop),
+              fim: false,
+            };
+            pintar();
+            return;
+          }
           motor?.seguirTraco(x, y);
           pintar();
         }}
-        onPointerUp={() => {
+        onPointerUp={(e) => {
           if (!desenhando.current) return;
           desenhando.current = false;
+
+          if (forma === "borracha") return;
+          if (forma !== "livre") {
+            const i = inicio.current;
+            inicio.current = null;
+            const pronta = previa.current;
+            previa.current = null;
+            // Um toque sem arrasto não vira forma nenhuma: sem esta guarda,
+            // cada clique perdido no quadro deixaria um ponto invisível de
+            // dois pixels que só aparece no "desfazer".
+            if (i && pronta && pronta.pontos.length >= 4) {
+              const { x, y } = onde(e);
+              if (Math.hypot(x - i.x, y - i.y) > 0.005) {
+                motor?.tracoPronto(pronta.pontos, pincel.cor, pincel.grossura);
+              }
+            }
+            pintar();
+            return;
+          }
           motor?.terminarTraco();
         }}
         onPointerCancel={() => {
           if (!desenhando.current) return;
           desenhando.current = false;
-          motor?.terminarTraco();
+          inicio.current = null;
+          previa.current = null;
+          if (forma === "livre") motor?.terminarTraco();
+          pintar();
         }}
       />
 
@@ -231,7 +410,27 @@ export function MiniaturaQuadro({ tracos }: { tracos: Traco[] }) {
 
 // ───────────────────────────────────────────────────────── no painel ──
 
-/** Cor, espessura e as duas ações. Vive no painel da esquerda. */
+/**
+ * Os seis bicos de caneta, na ordem em que se usa.
+ *
+ * Mão livre primeiro porque é o padrão e o mais usado; a borracha por último
+ * porque é a única que desfaz em vez de fazer, e vizinhança de coisas
+ * parecidas é o que faz clicar errado.
+ */
+const BICOS: {
+  id: Forma;
+  nome: string;
+  Icone: (p: { size?: number }) => React.ReactElement;
+}[] = [
+  { id: "livre", nome: "Mão livre", Icone: MaoLivreIcon },
+  { id: "reta", nome: "Reta", Icone: RetaIcon },
+  { id: "seta", nome: "Seta", Icone: SetaIcon },
+  { id: "retangulo", nome: "Retângulo", Icone: RetanguloIcon },
+  { id: "elipse", nome: "Elipse", Icone: ElipseIcon },
+  { id: "borracha", nome: "Borracha — apaga traço seu", Icone: BorrachaIcon },
+];
+
+/** Bico, cor, espessura e as duas ações. Vive no painel da esquerda. */
 export function BarraQuadro({
   f,
   motor,
@@ -249,6 +448,24 @@ export function BarraQuadro({
 
   return (
     <div className="nv-quadro-barra">
+      {/* As formas vêm primeiro porque são a escolha que mais muda o
+          resultado: cor errada é um desenho de outra cor, forma errada é um
+          rabisco no lugar da caixa que se queria. */}
+      <div className="nv-formas" role="group" aria-label="Bico da caneta">
+        {BICOS.map(({ id, nome, Icone }) => (
+          <button
+            key={id}
+            className={`nv-forma${id === pincel.forma ? " on" : ""}`}
+            onClick={() => onPincel({ ...pincel, forma: id })}
+            title={nome}
+            aria-label={nome}
+            aria-pressed={id === pincel.forma}
+          >
+            <Icone size={16} />
+          </button>
+        ))}
+      </div>
+
       <div className="nv-cores" role="group" aria-label="Cor">
         {CORES.map((c) => (
           <button
@@ -263,7 +480,9 @@ export function BarraQuadro({
       </div>
 
       <label className="nv-grossura">
-        <span className="nv-rotulo">Traço</span>
+        <span className="nv-rotulo">
+          {pincel.forma === "borracha" ? "Borracha" : "Traço"}
+        </span>
         <input
           type="range"
           min={1}
@@ -294,6 +513,14 @@ export function BarraQuadro({
           Limpar
         </button>
       </div>
+
+      {pincel.forma === "borracha" && (
+        <p className="nv-nota">
+          A borracha alcança os seus {meus === 1 ? "traço" : `${meus} traços`} — o
+          desenho dos outros não. Para apagar tudo, use o Limpar, que é do dono
+          e apaga às claras.
+        </p>
+      )}
     </div>
   );
 }

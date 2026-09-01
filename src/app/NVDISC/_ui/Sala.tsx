@@ -121,7 +121,17 @@ export default function Sala({ sala }: { sala: string }) {
      * na frente de quem abriu. No telefone ele é uma gaveta que cobre a
      * conversa inteira, e cobrir a chamada ao entrar nela seria estranho.
      */
-    setChatAberto(window.innerWidth >= 1024);
+    /**
+     * Na tela grande as duas colunas nascem abertas; no telefone, fechadas.
+     *
+     * A lateral virou mobília, e mobília aparece sozinha — quem entra numa
+     * sala tem de ver o que ela oferece sem descobrir um botão antes. No
+     * telefone as duas viram gaveta em cima da conversa, e abrir uma gaveta
+     * por cima da chamada no instante de entrar nela seria estranho.
+     */
+    const largo = window.innerWidth >= 1024;
+    setChatAberto(largo);
+    setFerrVisivel(largo);
   }, []);
 
   function ajustar(mudanca: Partial<Preferencias>) {
@@ -236,61 +246,103 @@ export default function Sala({ sala }: { sala: string }) {
       data-avatares={prefs.avatares}
       style={{ "--escala": prefs.texto } as React.CSSProperties}
     >
-      <Topo sala={sala} estado={estado} />
-
-      {estado.erro && <div className="nv-erro">{estado.erro}</div>}
-
-      {/* O motor de áudio preso é o defeito mais cruel que esta sala tem: o
-          microfone está aberto, a faixa está viva, e não sai nada. Ele se
-          solta em qualquer clique — mas quem não sabe disso fica falando
-          sozinho. Um botão explícito custa pouco e fecha o assunto. */}
-      {estado.audioTravado && (
-        <button
-          className="nv-aviso"
-          onClick={() => void malha.current?.destravarSom()}
-        >
-          O navegador está segurando o áudio. Clique aqui para liberar.
-        </button>
-      )}
-
-      {estado.capturaAviso && !estado.audioTravado && (
-        <div className="nv-aviso">{estado.capturaAviso}</div>
-      )}
-
+      {/*
+        * Três colunas, como no Discord — e pelo mesmo motivo que ele tem três.
+        *
+        * A barra lateral esquerda é a **identidade e o inventário** da sala:
+        * onde você está, o que dá para fazer aqui, e quem é você. Ela é fixa
+        * porque o que ela guarda não muda com a conversa — e porque uma
+        * gaveta que aparece e some obriga a pessoa a lembrar onde as coisas
+        * estavam.
+        *
+        * O meio é a conversa: um cabeçalho que diz em que sala você está, o
+        * palco, e a pílula de controles boiando por cima dele. A pílula flutua
+        * de propósito: uma barra fixa embaixo rouba uma faixa de altura do
+        * vídeo o tempo todo, mesmo quando ninguém está mexendo em nada.
+        *
+        * A direita é o chat, que abre e fecha — a única das três que se pode
+        * dispensar sem perder nada da chamada.
+        */}
       <div className="nv-corpo">
-        {/* A gaveta das ferramentas fica à **esquerda**, e o chat à direita.
-            Não é simetria: é que o quadro passou a ocupar o palco, e as
-            ferramentas viraram a lateral de um programa de desenho — que
-            todo mundo já sabe procurar do lado esquerdo. */}
-        {ferrVisivel && estadoF && (
-          <PainelFerramentas
-            motor={ferr.current}
-            f={estadoF}
-            aberta={ferrAberta}
-            eu={estado.voceId}
-            pincel={pincel}
-            onPincel={setPincel}
-            quadroNoPalco={telaAberta === "quadro"}
-            onAbrirQuadroNoPalco={() => setTelaAberta("quadro")}
-            onAbrir={setFerrAberta}
-            onFechar={() => setFerrVisivel(false)}
-          />
-        )}
+        <Rail
+          sala={sala}
+          nome={nome}
+          estado={estado}
+          prefs={prefs}
+          f={estadoF}
+          motor={ferr.current}
+          aberta={ferrAberta}
+          onAbrir={setFerrAberta}
+          pincel={pincel}
+          onPincel={setPincel}
+          quadroNoPalco={telaAberta === "quadro"}
+          onAbrirQuadroNoPalco={() => setTelaAberta("quadro")}
+          visivel={ferrVisivel}
+          onFechar={() => setFerrVisivel(false)}
+          onMudo={() => malha.current?.mudo(!estado.mudo)}
+        />
 
         <main className="nv-palco">
-          <Palco
-            compartilhando={compartilhando}
-            minhaTela={estado.tela ? malha.current?.minhaTela ?? null : null}
+          <CabecalhoCanal
+            sala={sala}
             estado={estado}
-            nome={nome}
-            prefs={prefs}
-            aberta={telaAberta}
-            onAbrir={setTelaAberta}
-            onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
-            ferramentas={estadoF}
-            motor={ferr.current}
-            pincel={pincel}
+            rail={ferrVisivel}
+            pedidos={estadoF?.pedidos.length ?? 0}
+            onRail={() => setFerrVisivel((v) => !v)}
+            chat={chatAberto}
+            naoLidas={naoLidas}
+            onChat={() => setChatAberto((v) => !v)}
           />
+
+          {estado.erro && <div className="nv-erro">{estado.erro}</div>}
+
+          {/* O motor de áudio preso é o defeito mais cruel que esta sala tem: o
+              microfone está aberto, a faixa está viva, e não sai nada. Ele se
+              solta em qualquer clique — mas quem não sabe disso fica falando
+              sozinho. Um botão explícito custa pouco e fecha o assunto. */}
+          {estado.audioTravado && (
+            <button
+              className="nv-aviso"
+              onClick={() => void malha.current?.destravarSom()}
+            >
+              O navegador está segurando o áudio. Clique aqui para liberar.
+            </button>
+          )}
+
+          {estado.capturaAviso && !estado.audioTravado && (
+            <div className="nv-aviso">{estado.capturaAviso}</div>
+          )}
+
+          {/* A pílula flutua **dentro desta caixa**, e não do palco inteiro.
+              Ancorada no palco, ela caía por cima da tirinha de pessoas
+              sempre que alguém compartilhava a tela — e a tirinha é
+              justamente onde se olha para saber quem ainda está ali. */}
+          <div className="nv-palco-area">
+            <Palco
+              compartilhando={compartilhando}
+              minhaTela={estado.tela ? malha.current?.minhaTela ?? null : null}
+              estado={estado}
+              nome={nome}
+              prefs={prefs}
+              aberta={telaAberta}
+              onAbrir={setTelaAberta}
+              onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
+              ferramentas={estadoF}
+              motor={ferr.current}
+              pincel={pincel}
+            />
+
+            <Controles
+              estado={estado}
+              prefs={prefs}
+              onMudo={() => malha.current?.mudo(!estado.mudo)}
+              onTela={() => void malha.current?.alternarTela()}
+              onQualidade={(q) => void malha.current?.definirQualidade(q)}
+              onMicrofone={(id) => void malha.current?.definirMicrofone(id)}
+              onPreferencia={ajustar}
+            />
+          </div>
+
           {/* A tirinha embaixo só existe quando o palco está ocupado por uma
               tela; sem ela, as pessoas **são** o palco. */}
           {telaAberta && (
@@ -312,35 +364,95 @@ export default function Sala({ sala }: { sala: string }) {
           onImagem={(f, legenda) => void malha.current?.enviarImagem(f, legenda)}
         />
       </div>
-
-      <Controles
-        estado={estado}
-        prefs={prefs}
-        ferramentas={ferrVisivel}
-        pedidos={estadoF?.pedidos.length ?? 0}
-        onFerramentas={() => setFerrVisivel((v) => !v)}
-        chat={chatAberto}
-        naoLidas={naoLidas}
-        onChat={() => setChatAberto((v) => !v)}
-        onMudo={() => malha.current?.mudo(!estado.mudo)}
-        onTela={() => void malha.current?.alternarTela()}
-        onQualidade={(q) => void malha.current?.definirQualidade(q)}
-        onMicrofone={(id) => void malha.current?.definirMicrofone(id)}
-        onPreferencia={ajustar}
-      />
     </div>
   );
 }
 
-// ---------------------------------------------------------------- topo --
+// ------------------------------------------------------- barra lateral --
 
-function Topo({
+/**
+ * A coluna da esquerda: onde você está, o que dá para fazer, e quem é você.
+ *
+ * É o desenho que o Discord acertou e que vale a pena copiar: a lateral não
+ * é uma gaveta, é **mobília**. Ela guarda três coisas que não mudam com o
+ * andamento da conversa, e por isso podem morar num lugar fixo — o nome da
+ * sala e o convite no alto, a lista do que a sala oferece no meio, e o seu
+ * próprio cartão embaixo.
+ *
+ * O que ela **não** faz é ocupar o palco. Uma ferramenta aberta troca o
+ * conteúdo desta coluna, e não o do meio: quem abre o quadro quer desenhar
+ * enquanto conversa, e não em vez de conversar. Só a tela do quadro sobe ao
+ * palco, como uma aba ao lado das telas compartilhadas.
+ */
+function Rail({
   sala,
+  nome,
   estado,
+  prefs,
+  f,
+  motor,
+  aberta,
+  onAbrir,
+  pincel,
+  onPincel,
+  quadroNoPalco,
+  onAbrirQuadroNoPalco,
+  visivel,
+  onFechar,
+  onMudo,
 }: {
   sala: string;
+  nome: string;
   estado: EstadoMalha;
+  prefs: Preferencias;
+  f: EstadoFerramentas | null;
+  motor: Ferramentas | null;
+  aberta: IdFerramenta | null;
+  onAbrir: (id: IdFerramenta | null) => void;
+  pincel: Pincel;
+  onPincel: (p: Pincel) => void;
+  quadroNoPalco: boolean;
+  onAbrirQuadroNoPalco: () => void;
+  visivel: boolean;
+  onFechar: () => void;
+  onMudo: () => void;
 }) {
+  return (
+    <nav className={`nv-rail${visivel ? " aberta" : ""}`} aria-label="A sala">
+      <CabecalhoSala sala={sala} />
+
+      <div className="nv-rail-corpo">
+        {f && (
+          <PainelFerramentas
+            motor={motor}
+            f={f}
+            aberta={aberta}
+            eu={estado.voceId}
+            pincel={pincel}
+            onPincel={onPincel}
+            quadroNoPalco={quadroNoPalco}
+            onAbrirQuadroNoPalco={onAbrirQuadroNoPalco}
+            onAbrir={onAbrir}
+            onFechar={onFechar}
+          />
+        )}
+      </div>
+
+      <CartaoEu nome={nome} estado={estado} prefs={prefs} onMudo={onMudo} />
+    </nav>
+  );
+}
+
+/**
+ * O alto da lateral: a marca, o nome da sala, e o convite.
+ *
+ * O código e o convite são **uma peça só**. Eram dois — uma pílula com o
+ * código, que não fazia nada, e um botão "copiar convite" ao lado. Quem quer
+ * o código quer mandá-lo para alguém; ler em voz alta é o caminho raro.
+ * Juntando, o alvo fica maior e a ação principal passa a ser a coisa mais
+ * óbvia do canto.
+ */
+function CabecalhoSala({ sala }: { sala: string }) {
   const [copiado, setCopiado] = useState(false);
 
   async function copiar() {
@@ -356,35 +468,171 @@ function Topo({
   }
 
   return (
-    <header className="nv-topo">
+    <header className="nv-rail-topo">
       <Link href={comBase("/")} className="marca">
         NV<b>DISC</b>
       </Link>
-
-      {/**
-        * O código e o convite viraram **uma peça só**.
-        *
-        * Eram dois: uma pílula com o código, que não fazia nada, e um botão
-        * "copiar convite" ao lado. Quem quer o código quer mandá-lo para
-        * alguém — ler em voz alta é o caminho raro. Juntando, o alvo fica
-        * maior, some um elemento da barra, e a ação principal do topo passa a
-        * ser a coisa mais óbvia nele.
-        */}
       <button
         className={`nv-convite${copiado ? " copiado" : ""}`}
         onClick={copiar}
         title="copiar o link desta sala"
       >
-        <span className="nv-rotulo">sala</span>
         <span className="codigo">{sala}</span>
         <span className="acao">{copiado ? "copiado ✓" : "copiar convite"}</span>
       </button>
+    </header>
+  );
+}
 
-      <div className="direita">
-        <div className={`nv-estado${estado.ligado ? "" : " caiu"}`}>
-          <span className={`nv-ponto${estado.ligado ? "" : " off"}`} aria-hidden />
-          {estado.ligado ? `${estado.participantes.length + 1} na sala` : "reconectando…"}
-        </div>
+/**
+ * O seu cartão, no pé da lateral.
+ *
+ * O microfone aparece **duas vezes** na sala de propósito: aqui e na pílula
+ * do palco. Não é descuido — é a mesma decisão do Discord, e ela é sobre
+ * confiança, não sobre atalho. O botão da pílula é o comando; este aqui é o
+ * **estado**, no lugar onde está escrito o seu nome. Quem passa a chamada
+ * inteira em dúvida sobre se está mudo olha para o próprio nome, não para
+ * uma barra de ferramentas que pode ter sumido atrás de um menu.
+ */
+function CartaoEu({
+  nome,
+  estado,
+  prefs,
+  onMudo,
+}: {
+  nome: string;
+  estado: EstadoMalha;
+  prefs: Preferencias;
+  onMudo: () => void;
+}) {
+  const cor = useMemo(() => corDaPessoa(nome), [nome]);
+  const colorido = prefs.avatares === "cor";
+  const falando = estado.meuVolume > 0.06 && !estado.mudo;
+
+  return (
+    <footer className={`nv-eu${falando ? " falando" : ""}`}>
+      <span
+        className="nv-avatar"
+        style={colorido ? { background: cor.fundo } : undefined}
+      >
+        {nome.slice(0, 1).toUpperCase()}
+        {falando && (
+          <span
+            aria-hidden
+            className="nv-anel"
+            style={{
+              transform: `scale(${1 + estado.meuVolume * 0.3})`,
+              ...(colorido ? { borderColor: cor.anel } : {}),
+            }}
+          />
+        )}
+      </span>
+
+      <span className="nv-eu-texto">
+        <b>{nome}</b>
+        {/* O estado da conexão com o servidor mora aqui e não no topo do
+            palco: é sobre **você**, e não sobre a conversa. */}
+        <em className={estado.ligado ? "" : "caiu"}>
+          {estado.ligado
+            ? estado.mudo
+              ? "microfone desligado"
+              : "na sala"
+            : "reconectando…"}
+        </em>
+      </span>
+
+      <button
+        className={`nv-eu-botao${estado.mudo ? " perigo" : ""}`}
+        onClick={onMudo}
+        title={estado.mudo ? "ligar o microfone (M)" : "desligar o microfone (M)"}
+        aria-label={estado.mudo ? "ligar o microfone" : "desligar o microfone"}
+      >
+        {estado.mudo ? <MicOffIcon size={16} /> : <MicIcon size={16} />}
+      </button>
+    </footer>
+  );
+}
+
+// ------------------------------------------------ o cabeçalho do palco --
+
+/**
+ * A barra do alto do palco — o "# canal" do Discord.
+ *
+ * Ela responde a uma pergunta só, e a responde sem que se peça: **em que
+ * sala eu estou, e com quantas pessoas**. É o que a barra de título de uma
+ * chamada precisa dizer; o resto (convite, ajustes, o seu microfone) tem
+ * lugar próprio e não disputa espaço aqui.
+ *
+ * À direita ficam as duas gavetas — as ferramentas e o chat —, porque abrir
+ * e fechar coluna é ação de moldura, não de chamada. Elas saíram da pílula
+ * de controles justamente por isso: a pílula é o que você faz **na conversa**
+ * (falar, mostrar a tela, sair), e misturar as duas coisas fazia uma fileira
+ * de sete botões onde nenhum se destacava.
+ */
+function CabecalhoCanal({
+  sala,
+  estado,
+  rail,
+  pedidos,
+  onRail,
+  chat,
+  naoLidas,
+  onChat,
+}: {
+  sala: string;
+  estado: EstadoMalha;
+  rail: boolean;
+  pedidos: number;
+  onRail: () => void;
+  chat: boolean;
+  naoLidas: number;
+  onChat: () => void;
+}) {
+  const quantos = estado.participantes.length + 1;
+
+  return (
+    <header className="nv-canal">
+      <button
+        className={`nv-canal-botao so-estreito${rail ? " ligado" : ""}`}
+        onClick={onRail}
+        title="ferramentas da sala"
+        aria-label="Ferramentas da sala"
+      >
+        <FerramentasIcon size={16} />
+        {pedidos > 0 && <span className="nv-distintivo">{pedidos}</span>}
+      </button>
+
+      <h1 className="nv-canal-nome">
+        <span aria-hidden>#</span>
+        {sala}
+      </h1>
+
+      <span className={`nv-canal-gente${estado.ligado ? "" : " caiu"}`}>
+        <span className={`nv-ponto${estado.ligado ? "" : " off"}`} aria-hidden />
+        {estado.ligado ? `${quantos} na sala` : "reconectando…"}
+      </span>
+
+      <div className="nv-canal-acoes">
+        <button
+          className={`nv-canal-botao so-largo${rail ? " ligado" : ""}`}
+          onClick={onRail}
+          title="ferramentas da sala"
+          aria-label="Ferramentas da sala"
+        >
+          <FerramentasIcon size={16} />
+          {pedidos > 0 && <span className="nv-distintivo">{pedidos}</span>}
+        </button>
+        <button
+          className={`nv-canal-botao${chat ? " ligado" : ""}`}
+          onClick={onChat}
+          title="chat da sala"
+          aria-label="Chat da sala"
+        >
+          <ChatIcon size={16} />
+          {naoLidas > 0 && !chat && (
+            <span className="nv-distintivo">{naoLidas > 9 ? "9+" : naoLidas}</span>
+          )}
+        </button>
       </div>
     </header>
   );
@@ -610,6 +858,7 @@ function Palco({
             <QuadroPalco
               f={ferramentas}
               motor={motor}
+              eu={estado.voceId}
               pincel={pincel}
               onFechar={() => onAbrir(null)}
             />
@@ -883,6 +1132,54 @@ function Pessoas({
   );
 }
 
+/**
+ * O sinal amarelo, em português.
+ *
+ * Ele mostrava o `connectionState` cru — `connecting`, `disconnected`,
+ * `failed` —, três palavras em inglês que dizem ao usuário exatamente nada.
+ * Pior: as três apareciam com a mesma cara de alarme, e uma delas
+ * (`connecting`) é o estado **normal** dos primeiros segundos de qualquer
+ * pessoa que entra. Quem via o triângulo amarelo aceso não tinha como saber
+ * se devia esperar, recarregar, ou avisar a outra pessoa.
+ *
+ * Agora são dois tons: `esperando` é a sala trabalhando, e gira em vez de
+ * alarmar; `alerta` é a sala já tendo tentado. O texto diz o que está
+ * acontecendo e, quando há, o que a sala vai fazer sozinha a respeito — a
+ * escada do vigia em `malha.ts` está por trás de cada uma destas frases.
+ */
+function diagnostico(
+  conexao: Participante["conexao"] | undefined,
+): { tom: "esperando" | "alerta"; porque: string } | null {
+  switch (conexao) {
+    case "aguardando":
+    case "new":
+      return { tom: "esperando", porque: "chegando na sala — abrindo a conexão de voz" };
+    case "connecting":
+      return {
+        tom: "esperando",
+        porque:
+          "procurando caminho de rede até esta pessoa. Se demorar, a sala tenta " +
+          "outro caminho sozinha, e avisa aqui no chat se não achar nenhum.",
+      };
+    case "disconnected":
+      return {
+        tom: "alerta",
+        porque: "a conexão com esta pessoa caiu no meio — a sala está refazendo",
+      };
+    case "failed":
+      return {
+        tom: "alerta",
+        porque:
+          "não há caminho de rede entre vocês dois. A sala já tentou de novo; " +
+          "este é o caso que precisa de um servidor TURN.",
+      };
+    case "closed":
+      return { tom: "alerta", porque: "esta conexão foi encerrada" };
+    default:
+      return null;
+  }
+}
+
 function Pessoa({
   nome,
   volume,
@@ -940,8 +1237,7 @@ function Pessoa({
   }, [menu]);
   // Só o que der problema aparece. Um selo "conectado" em cada pessoa o tempo
   // todo é ruído — o silêncio já quer dizer que está tudo bem.
-  const problema =
-    conexao && conexao !== "connected" && conexao !== "aguardando" ? conexao : null;
+  const problema = diagnostico(conexao);
 
   const ajustavel = !eu && !!onSaida;
   const cor = useMemo(() => corDaPessoa(nome), [nome]);
@@ -1003,8 +1299,16 @@ function Pessoa({
           </span>
         )}
         {problema && (
-          <span style={{ color: "var(--alerta)" }} title={`conexão: ${problema}`}>
-            <AlertaIcon size={14} />
+          <span
+            className={`nv-diag ${problema.tom}`}
+            title={problema.porque}
+            aria-label={problema.porque}
+          >
+            {problema.tom === "esperando" ? (
+              <i className="nv-girando" aria-hidden />
+            ) : (
+              <AlertaIcon size={14} />
+            )}
           </span>
         )}
         {/* Só aparece quando saiu do normal: um ícone de volume em todo mundo
@@ -1342,15 +1646,29 @@ function ImagemDoChat({ src, de }: { src: string; de: string }) {
 
 // ------------------------------------------------------------ controles --
 
+/**
+ * A pílula de controles, boiando no pé do palco.
+ *
+ * Ela encolheu de sete botões para quatro, e isso é o conserto principal.
+ * Antes era uma barra fixa com tudo dentro — microfone, tela, ferramentas,
+ * chat, ajustes e sair —, todos do mesmo tamanho, todos com rótulo, e por
+ * isso nenhum encontrável de relance. Numa chamada de verdade, três desses
+ * botões nunca são apertados com pressa, e dois nem são sobre a chamada:
+ * abrir e fechar coluna é moldura, e foi para a moldura (o cabeçalho do
+ * palco).
+ *
+ * O que ficou é o que se aperta com pressa: **fala**, **mostra a tela**,
+ * **ajusta**, **sai**. Redondos e sem rótulo, como o Discord faz, porque
+ * quatro ícones grandes se acham no canto do olho e seis palavras não.
+ * O rótulo virou `title` e `aria-label`: quem precisa de nome, tem nome.
+ *
+ * E ela **flutua** por cima do palco em vez de ocupar uma faixa fixa: uma
+ * barra sólida embaixo cobra altura de vídeo o tempo todo, inclusive nos
+ * cinquenta minutos em que ninguém encosta nela.
+ */
 function Controles({
   estado,
   prefs,
-  ferramentas,
-  pedidos,
-  onFerramentas,
-  chat,
-  naoLidas,
-  onChat,
   onMudo,
   onTela,
   onQualidade,
@@ -1359,13 +1677,6 @@ function Controles({
 }: {
   estado: EstadoMalha;
   prefs: Preferencias;
-  ferramentas: boolean;
-  /** pedidos de licença esperando resposta — o distintivo do botão */
-  pedidos: number;
-  onFerramentas: () => void;
-  chat: boolean;
-  naoLidas: number;
-  onChat: () => void;
   onMudo: () => void;
   onTela: () => void;
   onQualidade: (q: Partial<Qualidade>) => void;
@@ -1390,50 +1701,49 @@ function Controles({
         />
       )}
 
-      <button className={`nv-btn${estado.mudo ? " perigo" : ""}`} onClick={onMudo}>
-        {estado.mudo ? <MicOffIcon /> : <MicIcon />}
-        {estado.mudo ? "Ligar microfone" : "Microfone ligado"}
-        <kbd>M</kbd>
-      </button>
+      <div className="nv-pilula">
+        <button
+          className={`nv-redondo${estado.mudo ? " perigo" : ""}`}
+          onClick={onMudo}
+          title={estado.mudo ? "ligar o microfone (M)" : "desligar o microfone (M)"}
+          aria-label={estado.mudo ? "ligar o microfone" : "desligar o microfone"}
+          aria-pressed={estado.mudo}
+        >
+          {estado.mudo ? <MicOffIcon /> : <MicIcon />}
+        </button>
 
-      <button className={`nv-btn${estado.tela ? " ligado" : ""}`} onClick={onTela}>
-        {estado.tela ? <PararIcon /> : <TelaIcon />}
-        {estado.tela ? "Parar de compartilhar" : "Compartilhar tela"}
-      </button>
+        <button
+          className={`nv-redondo${estado.tela ? " ligado" : ""}`}
+          onClick={onTela}
+          title={estado.tela ? "parar de compartilhar a tela" : "compartilhar a tela"}
+          aria-label={estado.tela ? "parar de compartilhar a tela" : "compartilhar a tela"}
+          aria-pressed={estado.tela}
+        >
+          {estado.tela ? <PararIcon /> : <TelaIcon />}
+        </button>
 
-      {/* Os dois painéis laterais, lado a lado no mesmo lugar.
-          O do chat vivia no topo e só aparecia no telefone — no desktop o
-          chat ocupava 320 px o tempo todo e não havia como fechá-lo, nem
-          botão que dissesse que aquilo era possível. */}
-      <button
-        className={`nv-btn${ferramentas ? " ligado" : ""}`}
-        onClick={onFerramentas}
-      >
-        <FerramentasIcon />
-        Ferramentas
-        {pedidos > 0 && <span className="nv-distintivo">{pedidos}</span>}
-      </button>
+        <button
+          className={`nv-redondo${aberto ? " ligado" : ""}`}
+          onClick={() => setAberto((v) => !v)}
+          title="ajustes de som, vídeo e aparência"
+          aria-label="Ajustes"
+          aria-pressed={aberto}
+        >
+          <AjustesIcon />
+        </button>
 
-      <button className={`nv-btn${chat ? " ligado" : ""}`} onClick={onChat}>
-        <ChatIcon />
-        Chat
-        {naoLidas > 0 && !chat && (
-          <span className="nv-distintivo">{naoLidas > 9 ? "9+" : naoLidas}</span>
-        )}
-      </button>
-
-      <button
-        className={`nv-btn${aberto ? " ligado" : ""}`}
-        onClick={() => setAberto((v) => !v)}
-      >
-        <AjustesIcon />
-        Ajustes
-      </button>
-
-      <Link href={comBase("/")} className="nv-btn perigo">
-        <SairIcon />
-        Sair
-      </Link>
+        {/* O de sair é o único vermelho por padrão, e fica separado dos
+            outros por uma divisória: ele é o botão que ninguém quer apertar
+            por engano no meio de uma conversa. */}
+        <Link
+          href={comBase("/")}
+          className="nv-redondo desligar"
+          title="sair da sala"
+          aria-label="Sair da sala"
+        >
+          <SairIcon />
+        </Link>
+      </div>
     </footer>
   );
 }

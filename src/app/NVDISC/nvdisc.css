@@ -217,44 +217,232 @@
   flex-direction: column;
 }
 
-.nv-topo {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--hairline);
-  background: var(--surface);
+/* ------------------------------------------------------- barra lateral --
+ *
+ * A coluna da esquerda, sempre presente na tela larga. Ela é a moldura da
+ * sala — identidade em cima, o que dá para fazer no meio, quem é você
+ * embaixo —, e é a peça que faz a sala parecer um lugar em vez de uma
+ * chamada flutuando no escuro.
+ *
+ * As três faixas são fixas e o meio rola: sem isso, um quadro com muitos
+ * traços empurraria o seu próprio cartão para fora da tela, e a informação
+ * mais consultada da sala inteira ("estou mudo?") sumiria justamente na hora
+ * de mais movimento.
+ */
+.nv-rail {
+  width: 260px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--hairline);
 }
-.nv-topo .marca {
+
+.nv-rail-topo {
+  flex-shrink: 0;
+  display: grid;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+.nv-rail-topo .marca {
   font-family: var(--ff-display);
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.04em;
   white-space: nowrap;
 }
-.nv-topo .marca b {
+.nv-rail-topo .marca b {
   color: var(--accent-light);
 }
-.nv-topo .codigo {
-  border-radius: 999px;
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--accent-light);
+/* Numa coluna de 260 px o convite deixa de ser pílula e vira bloco: o código
+   em cima, a ação embaixo. Em linha, o código de sala longo comia a palavra
+   "copiar convite" e sobrava um botão sem verbo. */
+.nv-rail-topo .nv-convite {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  border-radius: var(--r-nv-sm);
+  padding: 8px 10px;
+  width: 100%;
+}
+.nv-rail-topo .nv-convite .codigo {
+  max-width: 100%;
+  font-size: 14px;
+}
+.nv-rail-topo .nv-convite .acao {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.nv-rail-corpo {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── o seu cartão, no pé ── */
+.nv-eu {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-top: 1px solid var(--hairline);
   background: var(--raised);
-  border: 1px solid var(--hairline);
-  padding: 5px 10px;
-  max-width: 30ch;
+}
+.nv-eu .nv-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.nv-eu-texto {
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+.nv-eu-texto b {
+  font-size: 13.5px;
+  font-weight: 620;
+  color: var(--txt);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.nv-topo .direita {
+.nv-eu-texto em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--txt-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nv-eu-texto em.caiu {
+  color: var(--alerta);
+}
+.nv-eu.falando .nv-eu-texto em {
+  color: var(--ok);
+}
+.nv-eu-botao {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-nv-sm);
+  border: 0;
+  background: none;
+  color: var(--txt-2);
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+.nv-eu-botao:hover {
+  background: rgba(100, 149, 237, 0.14);
+  color: var(--txt);
+}
+.nv-eu-botao.perigo {
+  color: var(--erro);
+}
+
+/* ---------------------------------------------------- cabeçalho do palco --
+ *
+ * O "# canal": em que sala você está e com quantas pessoas. Fica dentro do
+ * palco, e não atravessando a tela inteira, porque é título **desta** coluna
+ * — a lateral tem o próprio cabeçalho, e uma barra única por cima das duas
+ * faria a sala parecer um site com menu, que é exatamente o que uma chamada
+ * não deve parecer.
+ */
+.nv-canal {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  height: 49px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface);
+}
+.nv-canal-nome {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--txt);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nv-canal-nome span {
+  font-size: 19px;
+  font-weight: 400;
+  color: var(--txt-3);
+}
+.nv-canal-gente {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-left: 12px;
+  border-left: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--txt-3);
+  white-space: nowrap;
+}
+.nv-canal-gente.caiu {
+  color: var(--alerta);
+}
+.nv-canal-acoes {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 4px;
 }
+.nv-canal-botao {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-nv-sm);
+  border: 0;
+  background: none;
+  color: var(--txt-3);
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+.nv-canal-botao:hover {
+  background: rgba(100, 149, 237, 0.14);
+  color: var(--txt);
+}
+.nv-canal-botao.ligado {
+  color: var(--accent-light);
+}
+
+/* O botão das ferramentas troca de lugar conforme a lateral seja mobília ou
+   gaveta: à direita com as outras ações quando ela divide a largura, e à
+   esquerda — onde a gaveta vai aparecer — quando ela flutua por cima. */
+.nv-canal-botao.so-estreito {
+  display: none;
+}
+@media (max-width: 1180px) {
+  .nv-canal-botao.so-largo {
+    display: none;
+  }
+  .nv-canal-botao.so-estreito {
+    display: grid;
+  }
+}
+
 .nv-mini {
   border-radius: 999px;
   font-family: var(--mono);
@@ -271,30 +459,6 @@
 .nv-mini:hover {
   border-color: var(--hairline-hi);
   color: var(--accent-light);
-}
-.nv-selo {
-  position: absolute;
-  top: -7px;
-  right: -7px;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  padding: 0 4px;
-  background: var(--nv-corn);
-  color: #06070b;
-  font-size: 10px;
-  font-weight: 700;
-}
-.nv-estado {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--txt-3);
 }
 .nv-ponto {
   width: 7px;
@@ -315,6 +479,14 @@
   display: flex;
   flex: 1;
   min-width: 0;
+  flex-direction: column;
+}
+/* A caixa onde a pílula boia: o palco menos a tirinha de pessoas. */
+.nv-palco-area {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
   flex-direction: column;
 }
 
@@ -338,16 +510,23 @@
   background: var(--surface);
   padding: 12px 16px;
 }
+/* A grade rola quando não cabe, em vez de espremer.
+   `place-content: center` centralizava e, com gente demais, deixava a última
+   fileira debaixo da pílula de controles sem jeito de alcançá-la. O
+   `padding-bottom` grande é o espaço que a pílula ocupa boiando. */
 .nv-pessoas-grade {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
   display: grid;
-  place-content: center;
-  gap: 22px;
-  padding: 24px;
+  align-content: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px 24px 88px;
 }
 
 .nv-pessoa {
+  position: relative;
   border-radius: var(--r-nv);
   display: flex;
   align-items: center;
@@ -355,17 +534,35 @@
   padding: 9px 12px;
   border: 1px solid var(--hairline);
   background: var(--raised);
-  transition: border-color 0.25s, box-shadow 0.25s;
+  transition: border-color 0.25s, box-shadow 0.25s, outline-color 0.15s;
+  outline: 2px solid transparent;
+  outline-offset: -1px;
 }
+
+/*
+ * O cartão grande é um **quadro de voz**, no formato do vídeo que ele
+ * substitui: quem está com a câmera fechada ocupa o mesmo retângulo de quem
+ * não está, e a grade não muda de forma quando alguém liga a tela. Era um
+ * cartão de 172 px em pé — que ficava alto e estreito ao lado de um vídeo
+ * deitado, e fazia a fileira parecer desalinhada.
+ */
 .nv-pessoa.grande {
   flex-direction: column;
+  justify-content: center;
   gap: 14px;
-  width: 172px;
-  padding: 26px 16px 20px;
+  width: min(260px, 34vw);
+  aspect-ratio: 16 / 10;
+  padding: 16px;
+  background: var(--bg);
+  border-color: var(--hairline);
 }
+
+/* Verde, e em volta do quadro inteiro — é o sinal mais reconhecível de uma
+   sala de voz, e o que se lê de relance a três metros da tela. O azul de
+   antes era bonito e dizia a mesma coisa que a borda parada. */
 .nv-pessoa.falando {
-  border-color: var(--hairline-hi);
-  box-shadow: 0 0 0 1px rgba(100, 149, 237, 0.22), 0 22px 50px -30px rgba(42, 77, 197, 0.85);
+  outline-color: var(--ok);
+  box-shadow: 0 0 26px -6px rgba(62, 240, 138, 0.28);
 }
 
 .nv-avatar {
@@ -404,8 +601,35 @@
   white-space: nowrap;
   max-width: 100%;
 }
+/* O nome vira uma plaquinha no pé do quadro, como nas telas compartilhadas —
+   lugar fixo, sempre legível, e que não empurra o avatar do centro. */
 .nv-pessoa.grande .nv-nome {
-  text-align: center;
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  max-width: calc(100% - 20px);
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 72%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-size: 13px;
+  font-weight: 560;
+}
+/* E os ícones (mudo, tela, conexão) na quina oposta, pelo mesmo motivo. */
+.nv-pessoa.grande .nv-icones {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 72%, transparent);
+}
+.nv-pessoa.grande .nv-regua {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 10px;
 }
 .nv-nome span {
   color: var(--txt-3);
@@ -601,24 +825,95 @@
 
 /* ---------------------------------------------------------- controles -- */
 
+/*
+ * A pílula boia; ela não ocupa faixa.
+ *
+ * `position: absolute` dentro do palco, e não um rodapé no fluxo: uma barra
+ * no fluxo cobra 60 px de altura do vídeo durante a chamada inteira, inclusive
+ * na hora em que duas pessoas estão olhando uma tela compartilhada e ninguém
+ * vai apertar nada. `pointer-events: none` no invólucro devolve ao palco tudo
+ * o que não é botão — sem isso, a faixa invisível em volta da pílula comeria
+ * o clique de quem quer desenhar no quadro perto do pé da tela.
+ */
 .nv-controles {
-  position: relative;
-  flex-shrink: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.nv-controles > * {
+  pointer-events: auto;
+}
+
+.nv-pilula {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 13px 16px;
-  border-top: 1px solid var(--hairline);
+  gap: 8px;
+  padding: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--raised) 82%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.85);
+}
+
+/* Redondo e sem rótulo. Quatro ícones grandes se acham no canto do olho;
+   seis palavras do mesmo tamanho, não — era esse o problema da barra
+   anterior, em que o botão de sair e o de mudo tinham exatamente o mesmo
+   peso visual. O nome vive no `title` e no `aria-label`. */
+.nv-redondo {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 0;
   background: var(--surface);
+  color: var(--txt);
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, transform 0.12s;
+}
+.nv-redondo:hover {
+  background: rgba(100, 149, 237, 0.2);
+}
+.nv-redondo:active {
+  transform: scale(0.94);
+}
+.nv-redondo.ligado {
+  background: var(--accent-light);
+  color: #06070b;
+}
+/* Vermelho é "você está fora do ar para os outros" — mudo —, e não "cuidado".
+   É a mesma leitura do Discord, e a que evita a dúvida mais cara da chamada. */
+.nv-redondo.perigo {
+  background: var(--erro);
+  color: #1a0508;
+}
+.nv-redondo.desligar {
+  margin-left: 4px;
+  background: var(--erro);
+  color: #1a0508;
+  /* A divisória existe para o dedo, não para o olho: o botão de sair é o
+     único da fileira que não tem volta. */
+  box-shadow: -13px 0 0 -12px var(--hairline);
+}
+.nv-redondo.desligar:hover {
+  background: #ff8a99;
 }
 
 .nv-painel {
   border-radius: var(--r-nv);
   position: absolute;
   bottom: 100%;
-  right: 16px;
+  /* Sai do centro da pílula e não da borda direita da tela: a pílula está no
+     meio do palco, e um painel colado na quina pareceria de outro elemento. */
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 30;
   margin-bottom: 12px;
   width: 330px;
@@ -1673,28 +1968,25 @@ button.nv-aviso:hover {
  * `color-mix` em vez de um rgba fixo porque a superfície vem do tema — um
  * rgba escrito à mão aqui deixaria de acompanhar na primeira troca de paleta.
  */
-.nv-topo,
-.nv-controles {
+.nv-canal {
   background: color-mix(in srgb, var(--surface) 76%, transparent);
   backdrop-filter: blur(20px) saturate(1.5);
   -webkit-backdrop-filter: blur(20px) saturate(1.5);
   z-index: 20;
+  padding: 0 calc(12px * var(--e));
+  gap: calc(12px * var(--e));
 }
-.nv-topo {
-  padding: calc(12px * var(--e)) calc(20px * var(--e));
-  gap: calc(14px * var(--e));
-}
-.nv-controles {
-  padding: calc(13px * var(--e)) calc(16px * var(--e));
-  gap: calc(10px * var(--e));
+.nv-pilula {
+  padding: calc(8px * var(--e));
+  gap: calc(8px * var(--e));
 }
 
 /* Sem `backdrop-filter` (Firefox com a opção desligada, navegador antigo) o
    translúcido vira uma barra suja com o conteúdo aparecendo através. Melhor
    opaco: a barra ainda funciona, só não flutua. */
 @supports not (backdrop-filter: blur(1px)) {
-  .nv-topo,
-  .nv-controles {
+  .nv-canal,
+  .nv-pilula {
     background: var(--surface);
   }
 }
@@ -1770,9 +2062,6 @@ button.nv-aviso:hover {
 }
 
 /* A reconexão precisa aparecer, e o verde de "tudo bem" não precisa. */
-.nv-estado.caiu {
-  color: var(--alerta);
-}
 
 /* --------------------------------------------------------- as pessoas -- */
 
@@ -2013,7 +2302,7 @@ button.nv-aviso:hover {
 .nv-pessoas-grade .nv-gente {
   --lado: clamp(
     150px,
-    calc((min(100vw, 1240px) - 420px) / var(--n, 4) - 22px),
+    calc((min(100vw, 1240px) - 580px) / var(--n, 4) - 22px),
     250px
   );
 }
@@ -2042,7 +2331,8 @@ button.nv-aviso:hover {
  */
 .nv-btn.ligado,
 .nv-opcao.ativa,
-.nv-selo {
+.nv-redondo.ligado,
+.nv-forma.on {
   background: var(--accent-light);
   border-color: var(--accent-light);
   color: #06070b;
@@ -2080,7 +2370,7 @@ button.nv-aviso:hover {
 .nv-pessoas-grade .nv-gente {
   --lado: clamp(
     132px,
-    calc(((min(100vw, 1240px) - 420px) / var(--n, 4) - 22px) * var(--e)),
+    calc(((min(100vw, 1240px) - 580px) / var(--n, 4) - 22px) * var(--e)),
     268px
   );
 }
@@ -2127,20 +2417,26 @@ button.nv-aviso:hover {
    que ela deveria ajudar.
    ═══════════════════════════════════════════════════════════════════ */
 
-/* A gaveta fica à ESQUERDA, e o chat à direita.
-   Não é simetria: o quadro passou a ocupar o palco, e as ferramentas
-   viraram a lateral de um programa de desenho — que é onde todo mundo já
-   sabe procurá-las. E ela emagreceu de 340 para 300 px, porque a tela do
-   quadro saiu de dentro dela: o que sobrou são controles, e controle não
-   precisa de largura, precisa de altura. */
+/* As ferramentas não são mais uma gaveta com largura própria: elas são o
+   **miolo da lateral**, entre o cabeçalho da sala e o seu cartão. Quem manda
+   na largura agora é o `.nv-rail`, e este painel só preenche o que sobrou. */
 .nv-ferr {
-  width: 300px;
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  border-right: 1px solid var(--hairline);
-  background: var(--surface);
+  background: transparent;
+}
+/* Fechar a lateral só faz sentido enquanto ela for gaveta. Como mobília ela
+   não fecha — e um "x" que tira da tela a única coisa que diz se você está
+   mudo é um botão que a pessoa aperta uma vez e se arrepende. */
+.nv-ferr-x {
+  display: none;
+}
+@media (max-width: 1180px) {
+  .nv-ferr-x {
+    display: grid;
+  }
 }
 
 .nv-ferr-topo {
@@ -2314,17 +2610,23 @@ button.nv-aviso:hover {
 
 /* O distintivo no botão da barra: o pedido tem de alcançar quem está
    desenhando de costas para o menu. */
+/* Ele passou de um botão com rótulo, onde vinha depois da palavra, para um
+   botão de ícone de 32 px, onde não há depois: vai para a quina, como todo
+   contador de aviso. */
 .nv-distintivo {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
   border-radius: 999px;
   background: var(--alerta);
   color: #1b1200;
   font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 18px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
   text-align: center;
 }
 
@@ -2656,22 +2958,26 @@ button.nv-aviso:hover {
    Abaixo de 1180 px a das ferramentas passa a flutuar por cima, em vez de
    disputar a largura. */
 @media (max-width: 1180px) {
-  .nv-ferr {
+  .nv-corpo {
+    position: relative;
+  }
+  .nv-rail {
     position: absolute;
     top: 0;
     bottom: 0;
     left: 0;
     z-index: 30;
-    border-right: 1px solid var(--hairline);
     box-shadow: 24px 0 48px -24px rgba(0, 0, 0, 0.7);
+    transform: translateX(-100%);
+    transition: transform 0.25s;
   }
-  .nv-corpo {
-    position: relative;
+  .nv-rail.aberta {
+    transform: translateX(0);
   }
 }
 
 @media (max-width: 900px) {
-  .nv-ferr {
+  .nv-rail {
     position: fixed;
     inset: 0;
     z-index: 40;
@@ -2726,4 +3032,209 @@ button.nv-aviso:hover {
 /* O corpo do painel passa a empurrar os atalhos para o pé. */
 .nv-ferr-corpo {
   justify-content: flex-start;
+}
+
+/* ══════════════════════════════════════════════════ o sinal da conexão ══
+ *
+ * Ele mostrava o `connectionState` cru — `connecting`, `disconnected`,
+ * `failed` — com o mesmo triângulo amarelo para os três. Duas coisas erradas
+ * numa: três palavras em inglês que não dizem nada a quem está na chamada, e
+ * um alarme aceso pelo estado **normal** dos primeiros segundos de qualquer
+ * pessoa que entra na sala.
+ *
+ * São dois tons agora. `esperando` é a sala trabalhando, e gira — girar diz
+ * "aguarde" sem dizer "deu errado". `alerta` é a sala já tendo tentado, e aí
+ * o amarelo está no lugar. O texto de cada um está em `diagnostico()`.
+ */
+.nv-diag {
+  display: grid;
+  place-items: center;
+}
+.nv-diag.alerta {
+  color: var(--alerta);
+}
+.nv-diag.esperando {
+  color: var(--txt-3);
+}
+.nv-girando {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  animation: nv-girar 0.9s linear infinite;
+}
+@keyframes nv-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Quem desligou animação no sistema não recebe um pião girando na tela. O
+   traço que falta no anel continua dizendo que ele é um indicador de espera. */
+@media (prefers-reduced-motion: reduce) {
+  .nv-girando {
+    animation: none;
+  }
+}
+.nv [data-movimento="pouco"] .nv-girando,
+[data-movimento="pouco"] .nv-girando {
+  animation: none;
+}
+
+/* ═══════════════════════════════════════════════ a lateral que recolhe ══
+ *
+ * Na tela larga a lateral é mobília e fica; mas o botão do cabeçalho existe,
+ * e um botão que não faz nada é pior que botão nenhum. Recolhida, ela sai
+ * inteira — o palco ganha 260 px, que é o ponto de recolher.
+ */
+@media (min-width: 1181px) {
+  .nv-rail:not(.aberta) {
+    display: none;
+  }
+}
+
+/* ══════════════════════════════════════════════ as ferramentas, por dentro ══ */
+
+/* ── o selo vivo da lista ──
+   Diz o que tem dentro sem abrir: "3 na fila", "02:40", "2 votos". Alinhado
+   à direita e em monoespaçada para os números não dançarem de linha em linha
+   enquanto o relógio corre. */
+.nv-ferr-selo {
+  margin-left: auto;
+  align-self: center;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--accent-light);
+  background: rgba(100, 149, 237, 0.12);
+  border-radius: 999px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+/* ── os bicos de caneta ──
+   Seis alvos quadrados numa fileira. Quadrados e não redondos porque o
+   redondo já é a linguagem dos controles da chamada, e estes não são
+   controles de chamada. */
+.nv-formas {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+.nv-forma {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-nv-sm);
+  border: 1px solid transparent;
+  background: var(--raised);
+  color: var(--txt-2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.nv-forma:hover {
+  color: var(--txt);
+  border-color: var(--hairline);
+}
+.nv-forma.on {
+  background: var(--accent-light);
+  border-color: var(--accent-light);
+  color: #06070b;
+}
+
+/* O cursor conta qual bico está na mão antes de a mão descer. Numa tela em
+   que a única diferença entre desenhar e apagar é uma escolha feita há dois
+   minutos no painel do lado, isso evita o traço que ninguém queria. */
+.nv-tela--quadro canvas {
+  cursor: crosshair;
+}
+.nv-tela--quadro canvas.borracha {
+  cursor: cell;
+}
+.nv-tela--quadro canvas.so-ver {
+  cursor: default;
+}
+
+/* ── as notas: copiar, baixar, contar ── */
+.nv-notas-acoes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.nv-notas-conta {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--txt-3);
+}
+
+/* ── o tempo em minutos livres ── */
+.nv-tempo-livre {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nv-tempo-livre input {
+  width: 5.5em;
+  border-radius: var(--r-nv-sm);
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  color: var(--txt);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.nv-tempo-livre input:focus {
+  border-color: var(--hairline-hi);
+}
+.nv-tempo-livre .nv-btn {
+  margin-left: auto;
+}
+
+/* ── a enquete decidida ──
+   O verde é o mesmo de "está falando": nesta sala ele quer dizer "isto
+   aconteceu", e reusá-lo aqui é mais barato para o olho do que ensinar uma
+   sexta cor. */
+.nv-voto.venceu {
+  border-color: var(--ok);
+  color: var(--txt);
+}
+.nv-voto.venceu b {
+  color: var(--ok);
+}
+
+/* ── a fila de fala ── */
+.nv-fila-espera {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--txt-3);
+}
+.nv-fila-lista li.vez {
+  border-color: var(--hairline-hi);
+}
+.nv-fila-lista li.vez .nv-fila-n {
+  background: var(--accent-light);
+  color: #06070b;
+}
+.nv-fila-vez {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-nv-sm);
+  border: 1px solid var(--ok);
+  background: rgba(62, 240, 138, 0.08);
+  color: var(--txt);
+  font-size: 13px;
+}
+.nv-fila-vez svg {
+  color: var(--ok);
+  flex-shrink: 0;
 }
