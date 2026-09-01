@@ -34,7 +34,14 @@ import {
   TempoIcon,
 } from "@/components/icons";
 
-const ICONE: Record<IdFerramenta, (p: { size?: number }) => React.ReactElement> = {
+/**
+ * O ícone de cada ferramenta **do catálogo**.
+ *
+ * `Partial`, e não o registro completo, porque nem toda ferramenta é um lugar
+ * aonde se vai: a reação não tem painel, não aparece no menu, e exigir um
+ * ícone dela aqui seria pedir um desenho para uma tela que não existe.
+ */
+const ICONE: Partial<Record<IdFerramenta, (p: { size?: number }) => React.ReactElement>> = {
   quadro: QuadroIcon,
   notas: NotasIcon,
   mao: MaoIcon,
@@ -187,28 +194,49 @@ function Menu({
   }, [f.tempo.rodando]);
 
   return (
-    <div className="nv-ferr-menu">
+    /*
+     * Uma BANCADA, e não uma lista de canais.
+     *
+     * A lista em coluna, com ícone pequeno à esquerda e uma frase de
+     * explicação à direita, é a forma de um índice — e um índice se lê de
+     * cima para baixo, uma vez, para achar onde ir. Estas cinco não são
+     * destinos: são coisas que se pegam, e que se trocam por outra no meio do
+     * caminho. A forma disso é a caixa de ferramentas — peças do mesmo
+     * tamanho, lado a lado, a mão indo direto na que se quer.
+     *
+     * A explicação de cada uma não sumiu: ela mora dentro da ferramenta, no
+     * cabeçalho, onde é lida uma vez e nunca mais atrapalha. O que fica na
+     * bancada é o que se consulta sempre — o nome, quem está com ela, e o que
+     * ela tem dentro agora.
+     */
+    <div className="nv-bancada">
       {CATALOGO.map((c) => {
-        const Icone = ICONE[c.id];
+        const Icone = ICONE[c.id] ?? QuadroIcon;
         const dono = f.donos[c.id];
         const resumo = resumoVivo(f, c.id);
+        const trancada = Boolean(dono) && !f.posso[c.id];
 
         return (
-          <button key={c.id} className="nv-ferr-item" onClick={() => onAbrir(c.id)}>
-            <span className="nv-ferr-icone">
-              <Icone size={19} />
-            </span>
-            <span className="nv-ferr-texto">
-              <b>{c.titulo}</b>
-              <span>{c.para}</span>
-              {dono && (
-                <em className="nv-ferr-dono">
-                  aberta por {dono.nome}
-                  {!f.posso[c.id] && " · você só vê"}
-                </em>
+          <button
+            key={c.id}
+            className={`nv-peca${resumo ? " viva" : ""}`}
+            onClick={() => onAbrir(c.id)}
+            title={dono ? `${c.titulo} — aberta por ${dono.nome}` : c.para}
+          >
+            <span className="nv-peca-icone">
+              <Icone size={20} />
+              {trancada && (
+                <i className="nv-peca-cadeado" aria-label="você só vê">
+                  <CadeadoIcon size={10} />
+                </i>
               )}
             </span>
-            {resumo && <span className="nv-ferr-selo">{resumo}</span>}
+            <b>{c.titulo}</b>
+            {resumo ? (
+              <span className="nv-peca-selo">{resumo}</span>
+            ) : (
+              dono && <span className="nv-peca-dono">{dono.nome}</span>
+            )}
           </button>
         );
       })}
@@ -237,7 +265,7 @@ function Atalhos({
     <nav className="nv-ferr-atalhos" aria-label="Outras ferramentas">
       <span className="nv-rotulo">Outras</span>
       {outras.map((c) => {
-        const Icone = ICONE[c.id];
+        const Icone = ICONE[c.id] ?? QuadroIcon;
         const dono = f.donos[c.id];
         return (
           <button key={c.id} className="nv-ferr-atalho" onClick={() => onAbrir(c.id)}>

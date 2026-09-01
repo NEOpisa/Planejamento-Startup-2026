@@ -2474,8 +2474,9 @@ button.nv-aviso:hover {
   place-items: center;
 }
 
-.nv-ferr-corpo,
-.nv-ferr-menu {
+/* O corpo de uma ferramenta aberta. A regra dividia declaração com o menu em
+   coluna, que deu lugar à bancada. */
+.nv-ferr-corpo {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -2483,60 +2484,6 @@ button.nv-aviso:hover {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-/* ── o menu ── */
-.nv-ferr-item {
-  display: flex;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-nv);
-  background: var(--raised);
-  color: var(--txt);
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
-  transition: border-color 160ms ease, transform 160ms ease;
-}
-.nv-ferr-item:hover {
-  border-color: var(--hairline-hi);
-  transform: translateY(-1px);
-}
-.nv-ferr-icone {
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--r-nv-sm);
-  background: var(--accent);
-  color: #fff;
-}
-.nv-ferr-texto {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.nv-ferr-texto b {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13.5px;
-  font-weight: 620;
-}
-.nv-ferr-texto > span {
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--txt-3);
-}
-.nv-ferr-dono {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-style: normal;
-  letter-spacing: 0.05em;
-  color: var(--accent-light);
 }
 
 /* O ponto que diz "tem coisa aqui dentro". Sem ele, o menu não distingue
@@ -3099,19 +3046,6 @@ button.nv-aviso:hover {
    Diz o que tem dentro sem abrir: "3 na fila", "02:40", "2 votos". Alinhado
    à direita e em monoespaçada para os números não dançarem de linha em linha
    enquanto o relógio corre. */
-.nv-ferr-selo {
-  margin-left: auto;
-  align-self: center;
-  flex-shrink: 0;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-  color: var(--accent-light);
-  background: rgba(100, 149, 237, 0.12);
-  border-radius: 999px;
-  padding: 3px 8px;
-  white-space: nowrap;
-}
 
 /* ── os bicos de caneta ──
    Seis alvos quadrados numa fileira. Quadrados e não redondos porque o
@@ -3237,4 +3171,320 @@ button.nv-aviso:hover {
 .nv-fila-vez svg {
   color: var(--ok);
   flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════ a lateral, revisada ══ */
+
+/*
+ * A lateral deixou de imitar a barra de canais.
+ *
+ * O que ela tinha de emprestado era a FORMA da lista: ícone pequeno à
+ * esquerda, nome e uma frase de explicação à direita, cinco linhas empilhadas.
+ * Essa é a forma de um índice, e um índice se lê uma vez para achar aonde ir.
+ * As ferramentas não são destinos — são coisas que se pegam e se trocam no
+ * meio do caminho, e a forma disso é a bancada: peças do mesmo tamanho, lado
+ * a lado, a mão indo direto na que quer.
+ */
+.nv-rail {
+  width: 268px;
+}
+
+.nv-rail-marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.nv-rail-pulso {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+.nv-rail-pulso.caiu {
+  color: var(--alerta);
+}
+.nv-rail-x {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-nv-sm);
+  border: 0;
+  background: none;
+  color: var(--txt-3);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.nv-rail-x:hover {
+  background: rgba(100, 149, 237, 0.14);
+  color: var(--txt);
+}
+
+/* ── a bancada ── */
+.nv-bancada {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 12px;
+}
+.nv-peca {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 7px;
+  padding: 14px 8px 12px;
+  min-height: 92px;
+  border-radius: var(--r-nv);
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--txt-2);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.18s, background 0.18s, color 0.18s, transform 0.12s;
+}
+.nv-peca:hover {
+  border-color: var(--hairline-hi);
+  color: var(--txt);
+  transform: translateY(-1px);
+}
+.nv-peca b {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.nv-peca-icone {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent-light) 12%, transparent);
+  color: var(--accent-light);
+}
+/* Uma peça com coisa dentro fica acesa. É o que faz a bancada valer de
+   relance: dá para ver que há três mãos na fila sem abrir nada. */
+.nv-peca.viva {
+  border-color: color-mix(in srgb, var(--accent-light) 40%, var(--hairline));
+}
+.nv-peca-selo {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--accent-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.nv-peca-dono {
+  font-size: 10.5px;
+  color: var(--txt-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.nv-peca-cadeado {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--alerta);
+}
+
+/* O cabeçalho da ferramenta aberta ficou sendo o único "voltar" — o × da
+   lateral saiu daqui e virou o da própria coluna. */
+.nv-ferr-x {
+  display: none !important;
+}
+
+/* ── o seu cartão, com o nível ao vivo ── */
+.nv-eu-nivel {
+  display: block;
+  height: 3px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--hairline);
+  overflow: hidden;
+}
+.nv-eu-nivel i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-light);
+  /* Sobe na hora e desce devagar: um medidor que acompanha a queda ponto a
+     ponto pisca a cada sílaba e não se lê. */
+  transition: width 0.18s ease-out;
+}
+.nv-eu.falando .nv-eu-nivel i {
+  background: var(--ok);
+}
+
+/* ══════════════════════════════════════════════════════════ as reações ══ */
+
+.nv-reacoes {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 12px;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--raised) 92%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.85);
+}
+.nv-reacao {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 0;
+  background: none;
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.12s;
+}
+.nv-reacao:hover {
+  background: rgba(100, 149, 237, 0.18);
+  transform: scale(1.14);
+}
+
+/* A reação sobe do avatar e some. Quatro segundos é o mesmo prazo do estado
+   em `ferramentas.ts` — se um dos dois mudar sozinho, a reação some da tela
+   antes da hora ou fica parada esperando. */
+.nv-reacao-voo {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  font-size: 22px;
+  line-height: 1;
+  pointer-events: none;
+  animation: nv-voar 4s ease-out forwards;
+}
+@keyframes nv-voar {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.6);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -6px) scale(1.15);
+  }
+  22% {
+    transform: translate(-50%, -10px) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, -16px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -26px) scale(0.9);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nv-reacao-voo {
+    animation: nv-piscar 4s linear forwards;
+  }
+}
+[data-movimento="reduzido"] .nv-reacao-voo {
+  animation: nv-piscar 4s linear forwards;
+}
+@keyframes nv-piscar {
+  0%,
+  90% {
+    opacity: 1;
+    transform: translate(-50%, -10px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+}
+
+/* A mão levantada, na quina do cartão. Ela vem da fila de fala e aparece
+   aqui porque é lá que a pessoa está olhando — ninguém abre a ferramenta
+   para descobrir que alguém quer falar. */
+.nv-mao-erguida {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--alerta);
+  color: #1b1200;
+}
+
+/* ══════════════════════════════════ o painel de escolher o que mostrar ══ */
+
+.nv-partilha {
+  width: 340px;
+}
+.nv-partilha-ops {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.nv-partilha-op {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: var(--r-nv-sm);
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--txt-2);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+}
+.nv-partilha-op:hover {
+  border-color: var(--hairline-hi);
+  background: rgba(100, 149, 237, 0.08);
+}
+.nv-partilha-op b {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 620;
+  color: var(--txt);
+}
+.nv-partilha-op b i {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+.nv-partilha-op span {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--txt-3);
 }

@@ -65,6 +65,37 @@ export type Preferencias = {
    * "eles não estão falando, ou eu que não estou sendo ouvido?".
    */
   medidor: boolean;
+  /**
+   * Falar só enquanto a tecla está apertada.
+   *
+   * O microfone aberto o tempo todo é o certo para dois; para quatro numa
+   * casa com cachorro, ventilador e alguém cozinhando, ele é a razão pela
+   * qual metade da chamada é ruído. A porta de ruído ajuda e não resolve — ela
+   * decide por nível, e um cachorro é alto.
+   *
+   * A tecla é a barra de espaço, e não outra, porque é a única que a mão
+   * acha sem olhar enquanto os olhos estão na outra pessoa.
+   */
+  falarApertando: boolean;
+  /**
+   * Sons da sala: alguém entrou, alguém saiu.
+   *
+   * Ligado por padrão. Numa conversa longa, com a janela atrás do navegador,
+   * é a única forma de saber que alguém chegou sem ficar conferindo a lista —
+   * e chegar numa sala em que ninguém percebe que você chegou é constrangedor
+   * de um jeito que nenhum aviso escrito conserta.
+   */
+  sons: boolean;
+  /**
+   * Não deixar a tela dormir durante a chamada.
+   *
+   * A causa mais comum de "ela sumiu" numa conversa longa não é a internet: é
+   * a máquina suspendendo depois de vinte minutos sem teclado nem mouse — o
+   * que é exatamente o que acontece com quem só está conversando.
+   */
+  manterAcordado: boolean;
+  /** as reações que aparecem sobre os avatares; desligar é para quem se distrai */
+  reacoes: boolean;
 };
 
 export const PREFERENCIAS_PADRAO: Preferencias = {
@@ -76,6 +107,10 @@ export const PREFERENCIAS_PADRAO: Preferencias = {
   movimento: "completo",
   avatares: "cor",
   medidor: false,
+  falarApertando: false,
+  sons: true,
+  manterAcordado: true,
+  reacoes: true,
 };
 
 /** As cores de acento oferecidas. O valor é o `data-tema` que o CSS conhece. */
@@ -122,6 +157,12 @@ export function lerPreferencias(): Preferencias {
       movimento: um(lido.movimento, ["completo", "reduzido"] as const, p.movimento),
       avatares: um(lido.avatares, ["cor", "neutro"] as const, p.avatares),
       medidor: typeof lido.medidor === "boolean" ? lido.medidor : p.medidor,
+      falarApertando:
+        typeof lido.falarApertando === "boolean" ? lido.falarApertando : p.falarApertando,
+      sons: typeof lido.sons === "boolean" ? lido.sons : p.sons,
+      manterAcordado:
+        typeof lido.manterAcordado === "boolean" ? lido.manterAcordado : p.manterAcordado,
+      reacoes: typeof lido.reacoes === "boolean" ? lido.reacoes : p.reacoes,
     };
   } catch {
     // Navegação privativa com armazenamento bloqueado **lança** no acesso, em

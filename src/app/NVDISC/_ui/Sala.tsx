@@ -37,6 +37,8 @@ import {
   FerramentasIcon,
   QuadroIcon,
   ChatIcon,
+  ReacaoIcon,
+  MaoIcon,
 } from "@/components/icons";
 import { comBase } from "@/lib/base.mjs";
 import {
@@ -49,8 +51,70 @@ import {
 } from "@/lib/preferencias";
 import PainelFerramentas from "./Ferramentas";
 import { MiniaturaQuadro, QuadroPalco, PINCEL_PADRAO, type Pincel } from "./Quadro";
-import { Ferramentas, type EstadoFerramentas, type IdFerramenta, type Traco } from "@/lib/ferramentas";
+import {
+  Ferramentas,
+  REACOES,
+  type EstadoFerramentas,
+  type IdFerramenta,
+  type Traco,
+} from "@/lib/ferramentas";
 import "../nvdisc.css";
+
+/**
+ * O foco está num lugar onde teclas viram letras?
+ *
+ * Sem esta pergunta, os atalhos da sala mordem quem está escrevendo: `M`
+ * mutaria a pessoa no meio de "amanhã", e a barra de espaço — que abre o
+ * microfone no modo de apertar para falar — não conseguiria separar duas
+ * palavras no chat.
+ */
+function escrevendo(alvo: EventTarget | null): boolean {
+  const el = alvo as HTMLElement | null;
+  if (!el) return false;
+  if (/^(input|textarea|select)$/i.test(el.tagName)) return true;
+  return Boolean(el.isContentEditable);
+}
+
+/**
+ * As duas notinhas da sala: alguém entrou, alguém saiu.
+ *
+ * Feitas no navegador em vez de baixadas: são duas senoides de 120 ms, e um
+ * arquivo seria um pedido de rede para tocar um oitavo de segundo — um pedido
+ * que falha exatamente quando a rede está ruim, que é quando gente entra e sai.
+ *
+ * Sobem para quem chega e descem para quem sai. A direção é a informação, e é
+ * a única parte que precisa ser aprendida — e ela se aprende na primeira vez
+ * sem ninguém explicar.
+ */
+function notinha(tipo: "entrou" | "saiu") {
+  try {
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const t0 = ctx.currentTime;
+    const notas = tipo === "entrou" ? [587, 880] : [880, 587];
+    notas.forEach((hz, i) => {
+      const osc = ctx.createOscillator();
+      const vol = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = hz;
+      // A rampa não é enfeite: um ganho que salta de zero produz um estalo
+      // que se ouve mais que a própria nota.
+      vol.gain.setValueAtTime(0.0001, t0 + i * 0.1);
+      vol.gain.exponentialRampToValueAtTime(0.1, t0 + i * 0.1 + 0.015);
+      vol.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.1 + 0.12);
+      osc.connect(vol).connect(ctx.destination);
+      osc.start(t0 + i * 0.1);
+      osc.stop(t0 + i * 0.1 + 0.14);
+    });
+    setTimeout(() => void ctx.close(), 700);
+  } catch {
+    /* navegador sem áudio, ou contexto ainda travado */
+  }
+}
 
 const VAZIO: EstadoMalha = {
   voceId: null,
@@ -202,15 +266,93 @@ export default function Sala({ sala }: { sala: string }) {
   useEffect(() => {
     function tecla(e: KeyboardEvent) {
       if (e.key.toLowerCase() !== "m" || e.metaKey || e.ctrlKey || e.altKey) return;
-      const alvo = e.target as HTMLElement | null;
-      if (alvo && /^(input|textarea)$/i.test(alvo.tagName)) return;
-      if (alvo?.isContentEditable) return;
+      if (escrevendo(e.target)) return;
       e.preventDefault();
       malha.current?.mudo(!estado.mudo);
     }
     window.addEventListener("keydown", tecla);
     return () => window.removeEventListener("keydown", tecla);
   }, [estado.mudo]);
+
+  /**
+   * Falar apertando a barra de espaço.
+   *
+   * Ligado, o microfone fica **fechado** e abre enquanto a tecla está
+   * apertada. É a única defesa que funciona contra ruído alto e intermitente —
+   * cachorro, obra, uma criança —, porque a porta de ruído decide por nível, e
+   * um cachorro é mais alto que uma voz.
+   *
+   * Três cuidados, e cada um deles é um defeito que essa função costuma ter:
+   *
+   * - `repeat` é descartado. Segurar a tecla dispara `keydown` dezenas de
+   *   vezes por segundo, e cada uma seria um `mudo(false)` com um recado à
+   *   sala junto.
+   * - Ao **desligar** a preferência, o microfone volta a abrir. Sem isto,
+   *   experimentar a opção e desistir deixa a pessoa muda para sempre, sem
+   *   nenhuma pista do porquê.
+   * - `blur` da janela solta a tecla. Alt+Tab no meio da fala engole o
+   *   `keyup`, e a pessoa continuaria com o microfone aberto em outra janela
+   *   achando que fechou.
+   */
+  useEffect(() => {
+    if (!prefs.falarApertando) {
+      malha.current?.mudo(false);
+      return;
+    }
+    malha.current?.mudo(true);
+
+    const desce = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || e.repeat) return;
+      if (escrevendo(e.target)) return;
+      e.preventDefault();
+      malha.current?.mudo(false);
+    };
+    const sobe = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      if (escrevendo(e.target)) return;
+      e.preventDefault();
+      malha.current?.mudo(true);
+    };
+    const solta = () => malha.current?.mudo(true);
+
+    window.addEventListener("keydown", desce);
+    window.addEventListener("keyup", sobe);
+    window.addEventListener("blur", solta);
+    return () => {
+      window.removeEventListener("keydown", desce);
+      window.removeEventListener("keyup", sobe);
+      window.removeEventListener("blur", solta);
+    };
+  }, [prefs.falarApertando]);
+
+  /** A trava de sono acompanha a preferência, e nada mais. */
+  useEffect(() => {
+    malha.current?.manterAcordado(prefs.manterAcordado);
+  }, [prefs.manterAcordado]);
+
+  /**
+   * Alguém entrou, alguém saiu.
+   *
+   * Duas notas curtas, subindo para quem chega e descendo para quem sai — a
+   * direção é a informação, e ela se entende sem ninguém explicar. Numa
+   * conversa longa com a janela atrás do navegador, é a única forma de saber
+   * que alguém chegou sem ficar conferindo a lista; e chegar numa sala onde
+   * ninguém percebe que você chegou é constrangedor de um jeito que nenhum
+   * aviso escrito conserta.
+   *
+   * A comparação é com **quantos havia**, e não com quem: a lista chega
+   * inteira a cada mudança, e comparar conjuntos daria o mesmo resultado por
+   * um preço maior. A primeira leitura não toca nada — entrar numa sala com
+   * quatro pessoas dispararia quatro sons de uma vez.
+   */
+  const quantosAntes = useRef<number | null>(null);
+  useEffect(() => {
+    const agora = estado.participantes.length;
+    const antes = quantosAntes.current;
+    quantosAntes.current = agora;
+    if (antes === null || !prefs.sons || antes === agora) return;
+    notinha(agora > antes ? "entrou" : "saiu");
+  }, [estado.participantes.length, prefs.sons]);
 
   // No celular o chat vive escondido; o contador existe para a pessoa saber que
   // perdeu alguma coisa sem precisar abrir para conferir.
@@ -336,7 +478,8 @@ export default function Sala({ sala }: { sala: string }) {
               estado={estado}
               prefs={prefs}
               onMudo={() => malha.current?.mudo(!estado.mudo)}
-              onTela={() => void malha.current?.alternarTela()}
+              onTela={(sup) => void malha.current?.alternarTela(sup)}
+              onReagir={(e) => ferr.current?.reagir(e)}
               onQualidade={(q) => void malha.current?.definirQualidade(q)}
               onMicrofone={(id) => void malha.current?.definirMicrofone(id)}
               onPreferencia={ajustar}
@@ -351,6 +494,7 @@ export default function Sala({ sala }: { sala: string }) {
               nome={nome}
               prefs={prefs}
               variante="faixa"
+              ferramentas={estadoF}
               onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
             />
           )}
@@ -419,7 +563,7 @@ function Rail({
 }) {
   return (
     <nav className={`nv-rail${visivel ? " aberta" : ""}`} aria-label="A sala">
-      <CabecalhoSala sala={sala} />
+      <CabecalhoSala sala={sala} estado={estado} onFechar={onFechar} />
 
       <div className="nv-rail-corpo">
         {f && (
@@ -444,15 +588,21 @@ function Rail({
 }
 
 /**
- * O alto da lateral: a marca, o nome da sala, e o convite.
+ * O alto da lateral: onde você está, e o convite.
  *
  * O código e o convite são **uma peça só**. Eram dois — uma pílula com o
  * código, que não fazia nada, e um botão "copiar convite" ao lado. Quem quer
  * o código quer mandá-lo para alguém; ler em voz alta é o caminho raro.
- * Juntando, o alvo fica maior e a ação principal passa a ser a coisa mais
- * óbvia do canto.
  */
-function CabecalhoSala({ sala }: { sala: string }) {
+function CabecalhoSala({
+  sala,
+  estado,
+  onFechar,
+}: {
+  sala: string;
+  estado: EstadoMalha;
+  onFechar: () => void;
+}) {
   const [copiado, setCopiado] = useState(false);
 
   async function copiar() {
@@ -469,9 +619,24 @@ function CabecalhoSala({ sala }: { sala: string }) {
 
   return (
     <header className="nv-rail-topo">
-      <Link href={comBase("/")} className="marca">
-        NV<b>DISC</b>
-      </Link>
+      <div className="nv-rail-marca">
+        <Link href={comBase("/")} className="marca">
+          NV<b>DISC</b>
+        </Link>
+        <span className={`nv-rail-pulso${estado.ligado ? "" : " caiu"}`}>
+          <span className={`nv-ponto${estado.ligado ? "" : " off"}`} aria-hidden />
+          {estado.ligado ? "no ar" : "voltando…"}
+        </span>
+        <button
+          className="nv-rail-x"
+          onClick={onFechar}
+          aria-label="Recolher a lateral"
+          title="recolher a lateral"
+        >
+          <FecharIcon size={15} />
+        </button>
+      </div>
+
       <button
         className={`nv-convite${copiado ? " copiado" : ""}`}
         onClick={copiar}
@@ -488,11 +653,16 @@ function CabecalhoSala({ sala }: { sala: string }) {
  * O seu cartão, no pé da lateral.
  *
  * O microfone aparece **duas vezes** na sala de propósito: aqui e na pílula
- * do palco. Não é descuido — é a mesma decisão do Discord, e ela é sobre
- * confiança, não sobre atalho. O botão da pílula é o comando; este aqui é o
- * **estado**, no lugar onde está escrito o seu nome. Quem passa a chamada
- * inteira em dúvida sobre se está mudo olha para o próprio nome, não para
- * uma barra de ferramentas que pode ter sumido atrás de um menu.
+ * do palco. Não é descuido — é sobre confiança, não sobre atalho. O botão da
+ * pílula é o comando; este aqui é o **estado**, no lugar onde está escrito o
+ * seu nome. Quem passa a chamada inteira em dúvida sobre se está mudo olha
+ * para o próprio nome, não para uma barra de ferramentas que pode ter sumido
+ * atrás de um menu.
+ *
+ * E ele mostra o **nível de entrada ao vivo**, que é a resposta para a
+ * pergunta que a dúvida realmente faz: não "estou mudo?", mas "eles estão
+ * quietos, ou eu que não estou saindo?". Um ícone de microfone aceso não
+ * distingue as duas; uma barrinha que se mexe quando você fala, sim.
  */
 function CartaoEu({
   nome,
@@ -530,15 +700,13 @@ function CartaoEu({
 
       <span className="nv-eu-texto">
         <b>{nome}</b>
-        {/* O estado da conexão com o servidor mora aqui e não no topo do
-            palco: é sobre **você**, e não sobre a conversa. */}
-        <em className={estado.ligado ? "" : "caiu"}>
-          {estado.ligado
-            ? estado.mudo
-              ? "microfone desligado"
-              : "na sala"
-            : "reconectando…"}
-        </em>
+        <span className="nv-eu-nivel" aria-hidden>
+          <i
+            style={{
+              width: `${Math.min(100, (estado.mudo ? 0 : estado.meuVolume) * 130)}%`,
+            }}
+          />
+        </span>
       </span>
 
       <button
@@ -552,6 +720,7 @@ function CartaoEu({
     </footer>
   );
 }
+
 
 // ------------------------------------------------ o cabeçalho do palco --
 
@@ -878,6 +1047,7 @@ function Palco({
           nome={nome}
           prefs={prefs}
           variante="grade"
+          ferramentas={ferramentas}
           onVolume={onVolume}
         />
       )}
@@ -1059,15 +1229,27 @@ function Pessoas({
   nome,
   prefs,
   variante,
+  ferramentas,
   onVolume,
 }: {
   estado: EstadoMalha;
   nome: string;
   prefs: Preferencias;
   variante: "grade" | "faixa";
+  /** de onde saem as mãos levantadas e as reações no ar */
+  ferramentas?: EstadoFerramentas | null;
   onVolume: (id: string, v: number) => void;
 }) {
   const grade = variante === "grade";
+  // Duas buscas por pessoa numa lista de cinco não custa nada, e um índice
+  // custaria um `useMemo` que se desatualiza calado.
+  const reacaoDe = (id?: string | null) =>
+    prefs.reacoes && id
+      ? ferramentas?.reacoes.find((r) => r.de === id)?.emoji
+      : undefined;
+  const maoDe = (id?: string | null) =>
+    Boolean(id && ferramentas?.maos.some((m) => m.id === id));
+
   const gente = (
     <>
       <Pessoa
@@ -1078,6 +1260,8 @@ function Pessoas({
         tela={estado.tela}
         grande={grade}
         colorido={prefs.avatares === "cor"}
+        reacao={reacaoDe(estado.voceId)}
+        mao={maoDe(estado.voceId)}
         eu
       />
       {estado.participantes.map((p) => (
@@ -1091,6 +1275,8 @@ function Pessoas({
           fluxo={p.audio}
           grande={grade}
           colorido={prefs.avatares === "cor"}
+          reacao={reacaoDe(p.id)}
+          mao={maoDe(p.id)}
           saida={estado.volumes[p.id] ?? 1}
           onSaida={(v) => onVolume(p.id, v)}
         />
@@ -1191,6 +1377,8 @@ function Pessoa({
   fluxo,
   grande,
   colorido,
+  reacao,
+  mao,
   saida = 1,
   onSaida,
 }: {
@@ -1205,6 +1393,10 @@ function Pessoa({
   fluxo?: MediaStream;
   grande?: boolean;
   colorido?: boolean;
+  /** a reação que esta pessoa soltou agora; some sozinha em quatro segundos */
+  reacao?: string;
+  /** a mão levantada, para quem está na fila de fala */
+  mao?: boolean;
   /** o volume com que **eu** ouço esta pessoa: 0 a 2 */
   saida?: number;
   onSaida?: (v: number) => void;
@@ -1272,7 +1464,23 @@ function Pessoa({
             }}
           />
         )}
+        {/* A reação nasce sobre o avatar, e não num canto da tela: reação é
+            de alguém, e uma nuvem de emojis solta no palco não diz de quem. A
+            `key` é o próprio emoji para que reagir duas vezes seguidas com
+            coisas diferentes reinicie a animação — sem ela, o segundo emoji
+            trocaria o desenho no meio do voo. */}
+        {reacao && (
+          <span className="nv-reacao-voo" key={reacao} aria-hidden>
+            {reacao}
+          </span>
+        )}
       </span>
+
+      {mao && (
+        <span className="nv-mao-erguida" title="quer falar" aria-label="quer falar">
+          <MaoIcon size={13} />
+        </span>
+      )}
 
       <span className="nv-nome">
         {nome}
@@ -1671,6 +1879,7 @@ function Controles({
   prefs,
   onMudo,
   onTela,
+  onReagir,
   onQualidade,
   onMicrofone,
   onPreferencia,
@@ -1678,12 +1887,15 @@ function Controles({
   estado: EstadoMalha;
   prefs: Preferencias;
   onMudo: () => void;
-  onTela: () => void;
+  onTela: (superficie?: Superficie) => void;
+  onReagir: (emoji: string) => void;
   onQualidade: (q: Partial<Qualidade>) => void;
   onMicrofone: (id: string | null) => void;
   onPreferencia: (p: Partial<Preferencias>) => void;
 }) {
   const [aberto, setAberto] = useState(false);
+  const [partilha, setPartilha] = useState(false);
+  const [reagindo, setReagindo] = useState(false);
 
   return (
     <footer className="nv-controles">
@@ -1701,6 +1913,36 @@ function Controles({
         />
       )}
 
+      {partilha && (
+        <EscolherTela
+          q={estado.qualidade}
+          onQualidade={onQualidade}
+          onEscolher={(sup) => {
+            setPartilha(false);
+            onTela(sup);
+          }}
+          onFechar={() => setPartilha(false)}
+        />
+      )}
+
+      {reagindo && (
+        <div className="nv-reacoes" role="group" aria-label="Reagir">
+          {REACOES.map((e) => (
+            <button
+              key={e}
+              className="nv-reacao"
+              onClick={() => {
+                onReagir(e);
+                setReagindo(false);
+              }}
+              aria-label={`reagir com ${e}`}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="nv-pilula">
         <button
           className={`nv-redondo${estado.mudo ? " perigo" : ""}`}
@@ -1713,18 +1955,44 @@ function Controles({
         </button>
 
         <button
-          className={`nv-redondo${estado.tela ? " ligado" : ""}`}
-          onClick={onTela}
+          className={`nv-redondo${estado.tela ? " ligado" : ""}${partilha ? " ligado" : ""}`}
+          onClick={() => {
+            // Parar não pergunta nada: quem já está compartilhando e aperta o
+            // botão quer parar, e uma pergunta no caminho seria só um clique
+            // a mais entre a pessoa e o "pare de me ver".
+            if (estado.tela) return onTela();
+            setReagindo(false);
+            setPartilha((v) => !v);
+          }}
           title={estado.tela ? "parar de compartilhar a tela" : "compartilhar a tela"}
           aria-label={estado.tela ? "parar de compartilhar a tela" : "compartilhar a tela"}
-          aria-pressed={estado.tela}
+          aria-pressed={estado.tela || partilha}
         >
           {estado.tela ? <PararIcon /> : <TelaIcon />}
         </button>
 
+        {prefs.reacoes && (
+          <button
+            className={`nv-redondo${reagindo ? " ligado" : ""}`}
+            onClick={() => {
+              setPartilha(false);
+              setReagindo((v) => !v);
+            }}
+            title="reagir sem interromper"
+            aria-label="Reagir"
+            aria-pressed={reagindo}
+          >
+            <ReacaoIcon />
+          </button>
+        )}
+
         <button
           className={`nv-redondo${aberto ? " ligado" : ""}`}
-          onClick={() => setAberto((v) => !v)}
+          onClick={() => {
+            setPartilha(false);
+            setReagindo(false);
+            setAberto((v) => !v);
+          }}
           title="ajustes de som, vídeo e aparência"
           aria-label="Ajustes"
           aria-pressed={aberto}
@@ -1745,6 +2013,149 @@ function Controles({
         </Link>
       </div>
     </footer>
+  );
+}
+
+/** O que mostrar: o monitor, uma janela, ou uma aba do navegador. */
+export type Superficie = "monitor" | "window" | "browser";
+
+const SUPERFICIES: {
+  v: Superficie;
+  r: string;
+  para: string;
+  som: string;
+}[] = [
+  {
+    v: "monitor",
+    r: "Tela inteira",
+    para: "Tudo o que você vê, inclusive as janelas que trocar depois.",
+    som: "sem som",
+  },
+  {
+    v: "window",
+    r: "Uma janela",
+    para: "Só um programa. O resto da sua tela continua seu.",
+    som: "sem som",
+  },
+  {
+    v: "browser",
+    r: "Uma aba",
+    para: "Uma aba do navegador — e é a única que leva o som junto.",
+    som: "leva o som",
+  },
+];
+
+/**
+ * A escolha do que compartilhar, **antes** da janelinha do navegador.
+ *
+ * Vale dizer com todas as letras o que este painel não faz, porque é a
+ * primeira pergunta de quem o usa: ele não substitui o diálogo do navegador,
+ * e nenhum site do mundo consegue substituí-lo. Escolher a sua tela é uma
+ * decisão que o navegador reserva para si justamente para que uma página não
+ * possa se servir dela sozinha — se um site pudesse pular esse passo, abrir um
+ * link seria entregar a tela.
+ *
+ * O que dá para fazer é o que se faz aqui, e não é pouco: decidir **o som e a
+ * qualidade antes** (depois de escolher a janela é tarde — trocar significa
+ * parar e recomeçar a partilha na frente de todo mundo), e chegar ao diálogo
+ * do navegador já na aba certa, com o que você quer selecionado. Os três
+ * botões abaixo são a mesma escolha que o navegador vai oferecer, feita aqui
+ * onde há espaço para explicar o que cada uma quer dizer — que é a parte que
+ * o diálogo dele não conta.
+ */
+function EscolherTela({
+  q,
+  onQualidade,
+  onEscolher,
+  onFechar,
+}: {
+  q: Qualidade;
+  onQualidade: (q: Partial<Qualidade>) => void;
+  onEscolher: (s: Superficie) => void;
+  onFechar: () => void;
+}) {
+  const caixa = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fora = (e: PointerEvent) => {
+      if (!caixa.current?.contains(e.target as Node)) onFechar();
+    };
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onFechar();
+    };
+    // No próximo quadro: o mesmo clique que abriu o painel chegaria aqui como
+    // "clique fora" e o fecharia antes de aparecer.
+    const t = setTimeout(() => document.addEventListener("pointerdown", fora), 0);
+    window.addEventListener("keydown", tecla);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("pointerdown", fora);
+      window.removeEventListener("keydown", tecla);
+    };
+  }, [onFechar]);
+
+  return (
+    <div className="nv-painel nv-cantos nv-partilha" ref={caixa}>
+      <header>
+        <span className="nv-eyebrow">Compartilhar</span>
+        <button onClick={onFechar} aria-label="Fechar">
+          <FecharIcon />
+        </button>
+      </header>
+
+      <div className="grupo">
+        <span className="nv-rotulo">O que mostrar</span>
+        <div className="nv-partilha-ops">
+          {SUPERFICIES.map((sup) => (
+            <button
+              key={sup.v}
+              className="nv-partilha-op"
+              onClick={() => onEscolher(sup.v)}
+            >
+              <b>
+                {sup.r}
+                <i>{sup.som}</i>
+              </b>
+              <span>{sup.para}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grupo">
+        {/*
+          * O som decidido AQUI, e não depois: ele é pedido no mesmo instante
+          * da captura, e mudá-lo com a partilha em andamento obriga a parar e
+          * recomeçar — na frente de todo mundo, com a tela piscando.
+          */}
+        <Chave
+          titulo="Levar o som"
+          ligado={q.somDaTela}
+          onMudar={(v) => onQualidade({ somDaTela: v })}
+          nota={
+            q.somDaTela
+              ? "Marque também a caixa de som na janela do navegador. Só o Chrome e o Edge levam áudio, e só ao compartilhar uma aba — o Firefox não leva em caso nenhum."
+              : "A tela vai muda. É o que se quer ao mostrar um documento ou um código."
+          }
+        />
+        <Chave
+          titulo="Priorizar nitidez"
+          ligado={q.perfil === "nitidez"}
+          onMudar={(v) => onQualidade({ perfil: v ? "nitidez" : "movimento" })}
+          nota={
+            q.perfil === "nitidez"
+              ? "Texto e bordas ficam legíveis; movimento rápido perde alguns quadros. É o certo para código, planilha e documento."
+              : "Movimento fica fluido e o texto borra um pouco. É o certo para vídeo e para jogo."
+          }
+        />
+      </div>
+
+      <p className="nv-nota">
+        A seguir, o **navegador** pergunta qual tela ou janela. Essa parte é
+        dele, e nenhum site pode pular — é o que impede uma página de se servir
+        da sua tela sem você ver.
+      </p>
+    </div>
   );
 }
 
@@ -1816,10 +2227,12 @@ function PainelQualidade({
         <AbaMicrofone
           q={q}
           estado={estado}
+          prefs={prefs}
           microfones={microfones}
           microfoneId={microfoneId}
           onQualidade={onQualidade}
           onMicrofone={onMicrofone}
+          onPreferencia={onPreferencia}
         />
       )}
       {aba === "transmissao" && <AbaTransmissao q={q} onQualidade={onQualidade} />}
@@ -1833,17 +2246,21 @@ function PainelQualidade({
 function AbaMicrofone({
   q,
   estado,
+  prefs,
   microfones,
   microfoneId,
   onQualidade,
   onMicrofone,
+  onPreferencia,
 }: {
   q: Qualidade;
   estado: EstadoMalha;
+  prefs: Preferencias;
   microfones: { id: string; nome: string }[];
   microfoneId: string | null;
   onQualidade: (q: Partial<Qualidade>) => void;
   onMicrofone: (id: string | null) => void;
+  onPreferencia: (p: Partial<Preferencias>) => void;
 }) {
   return (
     <>
@@ -1874,6 +2291,19 @@ function AbaMicrofone({
             </p>
           </>
         )}
+      </div>
+
+      <div className="grupo">
+        <Chave
+          titulo="Falar apertando espaço"
+          ligado={prefs.falarApertando}
+          onMudar={(v) => onPreferencia({ falarApertando: v })}
+          nota={
+            prefs.falarApertando
+              ? "O microfone fica fechado e abre enquanto a barra de espaço está apertada. No chat a barra continua sendo espaço."
+              : "Contra ruído alto e intermitente — cachorro, obra, uma criança — é a única defesa que funciona: a porta de ruído decide por nível, e um cachorro é mais alto que uma voz."
+          }
+        />
       </div>
 
       {/* O medidor é a peça que faz o resto desta aba ser regulável em vez de
@@ -2227,6 +2657,33 @@ function AbaTema({
           ligado={prefs.movimento === "completo"}
           onMudar={(v) => onPreferencia({ movimento: v ? "completo" : "reduzido" })}
           nota="Desligado, as transições somem e o anel de fala para de crescer — fica só a mudança de cor. Se o seu sistema já pede menos movimento, isto já está valendo."
+        />
+      </div>
+
+      <div className="grupo">
+        <Chave
+          titulo="Reações"
+          ligado={prefs.reacoes}
+          onMudar={(v) => onPreferencia({ reacoes: v })}
+          nota="O botão de reagir na barra, e os emojis que aparecem sobre os avatares por quatro segundos. Desligado, você não manda nem vê — as dos outros continuam existindo para eles."
+        />
+      </div>
+
+      <div className="grupo">
+        <Chave
+          titulo="Sons da sala"
+          ligado={prefs.sons}
+          onMudar={(v) => onPreferencia({ sons: v })}
+          nota="Duas notinhas: subindo quando alguém entra, descendo quando sai. Com a janela atrás do navegador, é a única forma de saber que alguém chegou sem ficar conferindo a lista."
+        />
+      </div>
+
+      <div className="grupo">
+        <Chave
+          titulo="Não deixar a tela dormir"
+          ligado={prefs.manterAcordado}
+          onMudar={(v) => onPreferencia({ manterAcordado: v })}
+          nota="A causa mais comum de sumir de uma conversa longa não é a internet: é a máquina suspendendo depois de vinte minutos sem teclado nem mouse — que é exatamente o que acontece com quem só está conversando. Vale enquanto esta aba está à vista."
         />
       </div>
 

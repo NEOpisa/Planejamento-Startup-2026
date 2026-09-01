@@ -36,8 +36,16 @@
 
 import type { Malha, MsgFerramenta } from "./malha";
 
-/** As cinco. O identificador viaja na mensagem, então é curto de propósito. */
-export const FERRAMENTAS = ["quadro", "notas", "mao", "enquete", "tempo"] as const;
+/**
+ * As seis. O identificador viaja na mensagem, então é curto de propósito.
+ *
+ * `reacao` é a única que **não** aparece no catálogo, e por isso não tem
+ * painel: ela não é um lugar aonde se vai, é um gesto que se faz de onde se
+ * está. Ela usa este canal porque precisa exatamente do que ele oferece —
+ * origem carimbada pelo servidor, orçamento de rajada próprio, e nenhum
+ * conhecimento do lado de lá sobre o que está passando.
+ */
+export const FERRAMENTAS = ["quadro", "notas", "mao", "enquete", "tempo", "reacao"] as const;
 export type IdFerramenta = (typeof FERRAMENTAS)[number];
 
 /** As que têm dono e pedem licença para mexer. */
@@ -139,6 +147,20 @@ export type Voto = { pergunta: string; opcoes: string[]; votos: Record<string, n
 
 export type Mao = { id: string; nome: string; em: number };
 
+/** Uma reação no ar: de quem, qual, e desde quando. */
+export type Reacao = { id: string; de: string; nome: string; emoji: string; em: number };
+
+/**
+ * As reações que a sala oferece.
+ *
+ * Seis, e não sessenta. Um seletor de emoji inteiro transforma um gesto de
+ * meio segundo numa busca — e o ponto de reagir numa chamada é justamente não
+ * tirar a atenção da conversa. Estas seis cobrem o que se responde sem
+ * interromper: concordo, discordo, achei graça, palmas, isso, e "estou
+ * pensando".
+ */
+export const REACOES = ["👍", "👎", "😂", "👏", "🎉", "🤔"] as const;
+
 export type EstadoFerramentas = {
   /** quem é dono de quê — `null` é "aberta a quem quiser pegar" */
   donos: Record<IdFerramenta, { id: string; nome: string } | null>;
@@ -154,6 +176,8 @@ export type EstadoFerramentas = {
   maos: Mao[];
   enquete: (Voto & { aberta: boolean; meuVoto: number | null }) | null;
   tempo: { rodando: boolean; restante: number; fimEm: number | null };
+  /** as reações no ar agora; elas somem sozinhas em poucos segundos */
+  reacoes: Reacao[];
 };
 
 function vazio(): EstadoFerramentas {
@@ -175,6 +199,7 @@ function vazio(): EstadoFerramentas {
     maos: [],
     enquete: null,
     tempo: { rodando: false, restante: 0, fimEm: null },
+    reacoes: [],
   };
 }
 
@@ -215,6 +240,15 @@ export class Ferramentas {
   private meuTraco: Traco | null = null;
   private aEnviar: number[] = [];
   private timerEnvio: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * As contagens que tiram as reações da tela.
+   *
+   * Guardadas para morrerem junto com a sala: um `setTimeout` solto dispara
+   * depois de o componente sair, chama `avisar()` num ouvinte que não existe
+   * mais, e o React reclama de atualizar coisa desmontada — o tipo de aviso
+   * no console que ninguém liga até virar o único aviso que restou.
+   */
+  private temporizadores = new Set<ReturnType<typeof setTimeout>>();
 
   constructor(malha: Malha, ouvinte: (e: EstadoFerramentas) => void) {
     this.malha = malha;
@@ -540,6 +574,46 @@ export class Ferramentas {
     this.avisar();
   }
 
+  // ────────────────────────────────────────────────────────── as reações ──
+
+  /**
+   * Solta uma reação sobre o meu avatar, na tela de todo mundo.
+   *
+   * Ela **não tem dono, não tem histórico e não tem confirmação**: some
+   * sozinha em quatro segundos e não deixa nada para trás. É a diferença
+   * entre reagir e comentar — o que merece ficar vai para o chat, que é o
+   * lugar onde as coisas ficam.
+   *
+   * Uma por pessoa de cada vez: a segunda substitui a primeira. Sem isso,
+   * quem apertasse seis vezes empilharia seis emojis no próprio avatar, e a
+   * brincadeira viraria uma forma de tapar a sala.
+   */
+  reagir(emoji: string) {
+    if (!(REACOES as readonly string[]).includes(emoji)) return;
+    this.porReacao(this.eu, this.meuNome, emoji);
+    this.malha.mandarFerramenta("reacao", ACAO.ATO, { k: "reagir", e: emoji });
+  }
+
+  /**
+   * Põe uma reação no ar e marca a hora de tirá-la.
+   *
+   * O relógio é de quem recebe, e não de quem manda: usar o `em` da mensagem
+   * faria a reação de alguém com o relógio adiantado nascer já vencida, e a
+   * de quem está atrasado ficar na tela um minuto. É o mesmo motivo pelo qual
+   * o temporizador manda quanto falta em vez de quando acaba.
+   */
+  private porReacao(de: string, nome: string, emoji: string) {
+    const r: Reacao = { id: id24(), de, nome, emoji, em: Date.now() };
+    this.e.reacoes = [...this.e.reacoes.filter((x) => x.de !== de), r];
+    this.avisar();
+    const t = setTimeout(() => {
+      this.e.reacoes = this.e.reacoes.filter((x) => x.id !== r.id);
+      this.avisar();
+      this.temporizadores.delete(t);
+    }, 4000);
+    this.temporizadores.add(t);
+  }
+
   // ─────────────────────────────────────────────────────── temporizador ──
 
   /**
@@ -744,6 +818,15 @@ export class Ferramentas {
       return;
     }
 
+    if (f === "reacao" && k === "reagir") {
+      const e = String(d.e ?? "");
+      // Conferido na chegada, e não só na saída: o que vem da rede é o que
+      // qualquer cliente quis mandar, e um emoji não é o pior que caberia
+      // aqui. Fora da lista, ignora.
+      if ((REACOES as readonly string[]).includes(e)) this.porReacao(m.de, m.nome, e);
+      return;
+    }
+
     if (f === "mao" && k === "mao") {
       const outras = this.e.maos.filter((x) => x.id !== m.de);
       this.e.maos = d.levantada
@@ -801,6 +884,8 @@ export class Ferramentas {
 
   encerrar() {
     if (this.timerEnvio) clearTimeout(this.timerEnvio);
+    for (const t of this.temporizadores) clearTimeout(t);
+    this.temporizadores.clear();
     this.malha.aoFerramenta = null;
   }
 }

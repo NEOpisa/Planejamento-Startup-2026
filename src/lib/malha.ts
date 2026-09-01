@@ -1052,6 +1052,21 @@ export class Malha {
   private jaAbriu = false;
   private apurar?: ReturnType<typeof setTimeout>;
   private religar?: ReturnType<typeof setTimeout>;
+  /**
+   * Quando chegou a última coisa do servidor — **qualquer** coisa.
+   *
+   * Existe por causa do socket zumbi: o `onclose` não é garantido. Um
+   * notebook que dorme, um Wi-Fi que troca de ponto, um 4G que passa por um
+   * túnel — em todos, o `WebSocket` continua com `readyState === OPEN` e nada
+   * mais atravessa. A sala fica "ligada" na tela, verde, e morta. Sem alguém
+   * conferindo o relógio, ela só volta quando a pessoa recarrega a página, e
+   * até lá parece que o site caiu.
+   */
+  private ultimoRecado = 0;
+  private cao?: ReturnType<typeof setInterval>;
+  /** a trava que impede a tela de dormir durante a chamada */
+  private acordado: WakeLockSentinel | null = null;
+  private querAcordado = false;
   /** evita duas recuperações de captura ao mesmo tempo */
   private recuperando = false;
   /** desde quando a captura está em silêncio absoluto; 0 = não está */
@@ -1346,6 +1361,18 @@ export class Malha {
     this.abrirSinalizacao();
     this.laçoDeVolume();
     this.vigiarFluxos();
+
+    // Os três avisos de "a vida voltou". `online` é a rede; `visibilitychange`
+    // é a aba de volta ao primeiro plano (e a volta do sono chega assim, no
+    // computador); `connection.change` é a troca de Wi-Fi para 4G, que muda o
+    // endereço IP debaixo de uma chamada em andamento sem derrubar nada — e é
+    // o caso em que a voz some com tudo parecendo certo.
+    window.addEventListener("online", this.aoVoltar);
+    document.addEventListener("visibilitychange", this.aoVoltar);
+    (navigator as unknown as { connection?: EventTarget }).connection?.addEventListener?.(
+      "change",
+      this.aoVoltar,
+    );
   }
 
   /**
@@ -1492,8 +1519,13 @@ export class Malha {
       // abaixo do tempo de corte de praticamente todos eles.
       if (this.pingTimer) clearInterval(this.pingTimer);
       this.pingTimer = setInterval(() => this.manda(PARA_SERVIDOR.PING), 20_000);
+      this.ultimoRecado = Date.now();
+      this.vigiarSocket();
     };
     ws.onmessage = (ev) => {
+      // Qualquer recado serve de sinal de vida, e não só o `pong`: o que se
+      // quer saber é se o cano ainda passa alguma coisa.
+      this.ultimoRecado = Date.now();
       // Um socket substituído por uma reconexão ainda entrega o que estava a
       // caminho; aceitar isso misturaria a lista de participantes de duas
       // sessões.
@@ -1535,6 +1567,117 @@ export class Malha {
     } catch {
       /* sem resposta nenhuma: aí é rede mesmo, e "reconectando…" está certo */
     }
+  }
+
+  /**
+   * O cão de guarda do socket.
+   *
+   * O `ping` sai de 20 em 20 segundos e o servidor responde na hora. Cinquenta
+   * segundos sem **nada** chegando, portanto, são dois pings perdidos — não é
+   * uma rede lenta, é um cano fechado que ninguém fechou. Fechar à força faz o
+   * `onclose` disparar, e o `onclose` é quem chama a reconexão: o socket zumbi
+   * vira uma reconexão normal, do jeito que já funciona há tempos.
+   *
+   * Conferir a cada cinco segundos custa nada e é o que separa "voltou em
+   * cinco segundos" de "só volta se você recarregar".
+   */
+  private vigiarSocket() {
+    if (this.cao) clearInterval(this.cao);
+    this.cao = setInterval(() => {
+      if (this.fechando || !this.ws) return;
+      if (this.ws.readyState !== WebSocket.OPEN) return;
+      if (Date.now() - this.ultimoRecado < 50_000) return;
+      try {
+        this.ws.close();
+      } catch {
+        /* já indo embora */
+      }
+    }, 5000);
+  }
+
+  /**
+   * Voltar **agora**, e não daqui a dez segundos.
+   *
+   * A espera exponencial existe para não martelar um servidor que está fora
+   * do ar, e para isso ela está certa. Mas ela também punia o caso mais comum
+   * de todos, que é o oposto: a rede acabou de voltar, o notebook acabou de
+   * acordar, a pessoa acabou de voltar para a aba. Nessas três horas o
+   * problema já acabou, e esperar mais dez segundos é dez segundos de sala
+   * morta sem motivo nenhum.
+   *
+   * Os três eventos dizem exatamente isso, cada um do seu jeito, e todos
+   * chegam antes de a espera terminar.
+   */
+  private aoVoltar = () => {
+    if (this.fechando) return;
+    if (document.visibilityState === "hidden") return;
+
+    // A sinalização: se caiu, tenta na hora em vez de esperar a vez dela.
+    if (!this.estado.ligado) {
+      if (this.religar) {
+        clearTimeout(this.religar);
+        this.religar = undefined;
+      }
+      this.tentativa = 0;
+      this.abrirSinalizacao();
+    } else {
+      // De pé na aparência não é de pé de verdade: uma volta do sono é
+      // justamente quando o socket zumbi aparece. Um ping imediato resolve a
+      // dúvida em menos de um segundo.
+      this.manda(PARA_SERVIDOR.PING);
+    }
+
+    // E as conexões de voz, que são outra história e não passam pelo
+    // servidor: o caminho de rede que elas usavam pode ter deixado de
+    // existir enquanto a máquina dormia. Reiniciar o ICE procura outro sem
+    // derrubar a chamada; quem já está bem não sente nada.
+    for (const par of this.pares.values()) {
+      if (par.pc.connectionState === "connected") continue;
+      try {
+        par.pc.restartIce();
+      } catch {
+        /* conexão indo embora */
+      }
+    }
+
+    void this.segurarSono();
+  };
+
+  /**
+   * Impede a tela de dormir enquanto a chamada está de pé.
+   *
+   * A causa nº 1 de "ela sumiu da sala" numa conversa longa não é rede: é a
+   * máquina suspendendo sozinha depois de vinte minutos sem teclado nem
+   * mouse — que é exatamente o que acontece com quem só está conversando. O
+   * `WakeLock` é a API feita para isto, e o navegador a solta sozinho quando a
+   * aba sai de vista, o que é o comportamento desejado: minimizou, pode
+   * dormir.
+   *
+   * Só existe em contexto seguro e não existe em todo navegador; o `catch`
+   * cobre os dois casos, e a chamada segue sem ela.
+   */
+  async segurarSono() {
+    if (!this.querAcordado || this.fechando) return;
+    if (this.acordado && !this.acordado.released) return;
+    try {
+      this.acordado = (await navigator.wakeLock?.request("screen")) ?? null;
+      // Uma trava solta pelo navegador (aba escondida, bateria acabando) não
+      // volta sozinha. Sem isto, ela vale até a primeira vez que a pessoa
+      // troca de janela — e a conversa longa é toda depois disso.
+      this.acordado?.addEventListener?.("release", () => {
+        this.acordado = null;
+      });
+    } catch {
+      /* sem WakeLock: a chamada segue, a tela é que pode dormir */
+    }
+  }
+
+  /** Liga ou desliga a trava de sono. Vem da preferência de quem está na sala. */
+  manterAcordado(quer: boolean) {
+    this.querAcordado = quer;
+    if (quer) return void this.segurarSono();
+    void this.acordado?.release().catch(() => {});
+    this.acordado = null;
   }
 
   private agendarReconexao() {
@@ -2486,16 +2629,42 @@ export class Malha {
     return v;
   }
 
-  async alternarTela() {
+  /**
+   * Começa (ou para) o compartilhamento de tela.
+   *
+   * `superficie` diz ao navegador **o que oferecer primeiro** na janelinha de
+   * escolha dele: o monitor inteiro, uma janela, ou uma aba. Vale dizer o que
+   * ela não faz, porque é a pergunta que sempre aparece: nenhum site pode
+   * escolher a tela por você nem pular esse diálogo. É regra do navegador, e
+   * existe justamente para que uma página não consiga se servir da sua tela
+   * sozinha. O que dá para fazer — e é o que se faz aqui — é chegar nela já
+   * na aba certa, com o som e a qualidade decididos antes.
+   *
+   * `systemAudio: "include"` e `surfaceSwitching: "include"` são pedidos ao
+   * Chrome: o primeiro deixa a caixa do som da tela marcada por padrão, o
+   * segundo põe o botão de trocar de tela **sem** parar e recomeçar a
+   * partilha. Navegador que não conhece nenhum dos dois ignora e segue.
+   */
+  async alternarTela(superficie?: "monitor" | "window" | "browser") {
     if (this.estado.tela) return this.pararTela();
     try {
+      const video: MediaTrackConstraints & Record<string, unknown> = {
+        ...this.restricoesDeTela(),
+      };
+      if (superficie) video.displaySurface = superficie;
       const fluxo = await navigator.mediaDevices.getDisplayMedia({
         // O áudio da tela vai junto quando o navegador deixa — é o que faz
         // vídeo compartilhado ter som. Desligar é para quem vai mostrar algo
         // com som que os outros não precisam ouvir.
-        video: this.restricoesDeTela(),
+        video,
         audio: this.estado.qualidade.somDaTela,
-      });
+        systemAudio: this.estado.qualidade.somDaTela ? "include" : "exclude",
+        surfaceSwitching: "include",
+        // A própria aba do NVDISC no meio das opções é a receita do túnel de
+        // espelhos — a pessoa escolhe, se vê se vendo, e não entende o que
+        // aconteceu. Ela continua escolhível, só não vem sugerida.
+        selfBrowserSurface: "exclude",
+      } as DisplayMediaStreamOptions);
       this.fluxoTela = fluxo;
       const faixa = fluxo.getVideoTracks()[0];
       // A dica de conteúdo muda o codificador: `detail` preserva bordas de
@@ -3011,6 +3180,15 @@ export class Malha {
     if (this.apurar) clearTimeout(this.apurar);
     if (this.pingTimer) clearInterval(this.pingTimer);
     if (this.religar) clearTimeout(this.religar);
+    if (this.cao) clearInterval(this.cao);
+    window.removeEventListener("online", this.aoVoltar);
+    document.removeEventListener("visibilitychange", this.aoVoltar);
+    (navigator as unknown as { connection?: EventTarget }).connection?.removeEventListener?.(
+      "change",
+      this.aoVoltar,
+    );
+    void this.acordado?.release().catch(() => {});
+    this.acordado = null;
     this.meuMedidor?.parar();
     this.cadeia?.desmontar();
     this.cadeia = null;
