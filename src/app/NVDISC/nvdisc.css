@@ -496,6 +496,9 @@
   display: flex;
   flex: 1;
   min-height: 0;
+  /* Filho de uma linha flex agora: sem `min-width: 0` ele se recusa a encolher
+     abaixo do conteúdo e empurra a coluna de gente para fora da tela. */
+  min-width: 0;
   flex-direction: column;
 }
 
@@ -510,14 +513,66 @@
   padding: 0;
   justify-content: center;
 }
-.nv-gente.faixa {
-  justify-content: flex-start;
+/* Palco e gente lado a lado. */
+.nv-palco-corpo {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
 }
-.nv-pessoas-faixa {
+
+/*
+ * A coluna de gente, à direita do palco.
+ *
+ * Era uma tirinha embaixo, de 90 px. Numa tela de notebook — larga e baixa —
+ * altura é a dimensão escassa e largura é a que sobra, então a tirinha cobrava
+ * caro justamente onde doía: a tela compartilhada, que é 16:9, encolhia por
+ * inteiro para caber. De pé na direita ela cobra 120 px de uma dimensão farta,
+ * e o que se está assistindo cresce.
+ *
+ * Rola sozinha em vez de espremer: com gente demais, cartão espremido deixa de
+ * mostrar quem é a pessoa, que é a única coisa que ele precisa fazer.
+ */
+.nv-pessoas-coluna {
   flex-shrink: 0;
-  border-top: 1px solid var(--hairline);
+  width: 120px;
+  overflow-y: auto;
+  border-left: 1px solid var(--hairline);
   background: var(--surface);
-  padding: 12px 16px;
+  padding: 12px;
+}
+.nv-gente.coluna {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.nv-gente.coluna .nv-pessoa {
+  width: 100%;
+}
+
+/*
+ * No celular a conta se inverte: a tela é alta e estreita, largura é o que
+ * falta, e uma coluna de 120 px come um terço dela. Aí a gente volta para
+ * baixo, deitada, como era.
+ */
+@media (max-width: 720px) {
+  .nv-palco-corpo {
+    flex-direction: column;
+  }
+  .nv-pessoas-coluna {
+    width: auto;
+    border-left: 0;
+    border-top: 1px solid var(--hairline);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .nv-gente.coluna {
+    flex-direction: row;
+  }
+  .nv-gente.coluna .nv-pessoa {
+    width: auto;
+  }
 }
 /* A grade rola quando não cabe, em vez de espremer.
    `place-content: center` centralizava e, com gente demais, deixava a última
@@ -3585,4 +3640,119 @@ button.nv-aviso:hover {
   font-size: 11.5px;
   line-height: 1.45;
   color: var(--txt-3);
+}
+
+/* ─────────────────────────────────── a prévia da sala, atrás da porta ── */
+/*
+ * Ela mora dentro do painel de entrada e não pode competir com ele: o desfoque
+ * pesado e a opacidade baixa garantem que nada aqui se leia como conteúdo. A
+ * máscara apaga a prévia justamente onde o formulário passa — sem ela, os
+ * campos ficariam sobre um fundo agitado e a leitura cairia.
+ */
+.panel--porta {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Tudo o que é conteúdo sobe; a prévia fica no fundo. */
+.panel--porta > *:not(.nv-previa) {
+  position: relative;
+  z-index: 1;
+}
+
+.nv-previa {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  gap: 14px;
+  padding: 26px;
+  opacity: 0.5;
+  filter: blur(14px);
+  pointer-events: none;
+  /* Some para baixo e para a esquerda: é por ali que o título, o texto e os
+     campos passam, e é ali que a prévia atrapalharia a leitura. */
+  -webkit-mask-image: radial-gradient(120% 95% at 78% 22%, #000 22%, transparent 72%);
+  mask-image: radial-gradient(120% 95% at 78% 22%, #000 22%, transparent 72%);
+}
+
+.nv-previa-trilho,
+.nv-previa-chat {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: var(--r-nv);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  padding: 14px 10px;
+}
+.nv-previa-trilho {
+  width: 52px;
+  align-items: center;
+}
+.nv-previa-chat {
+  width: 132px;
+}
+.nv-previa-trilho i {
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  background: var(--raised);
+}
+.nv-previa-chat i {
+  height: 9px;
+  border-radius: 5px;
+  background: var(--raised);
+}
+/* Linhas de comprimentos diferentes: barras iguais leem como tabela, e o que
+   se quer sugerir é conversa. */
+.nv-previa-chat i:nth-child(2) {
+  width: 72%;
+}
+.nv-previa-chat i:nth-child(3) {
+  width: 88%;
+}
+.nv-previa-chat i:nth-child(5) {
+  width: 60%;
+}
+
+.nv-previa-palco {
+  position: relative;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-nv);
+  background:
+    radial-gradient(90% 70% at 50% 0%, rgba(42, 77, 197, 0.18), transparent 60%),
+    var(--surface);
+  border: 1px solid var(--hairline);
+}
+.nv-previa-gente {
+  display: flex;
+  gap: 18px;
+}
+.nv-previa-gente span {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  background: linear-gradient(160deg, var(--accent), var(--accent-light));
+  opacity: 0.75;
+}
+.nv-previa-pilula {
+  position: absolute;
+  bottom: 16px;
+  width: 128px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+}
+
+/* Numa tela estreita o painel já é pequeno, e a prévia atrás dele vira sujeira
+   em vez de contexto. */
+@media (max-width: 720px) {
+  .nv-previa {
+    display: none;
+  }
 }

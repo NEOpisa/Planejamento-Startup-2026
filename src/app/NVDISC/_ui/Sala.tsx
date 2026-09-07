@@ -455,49 +455,53 @@ export default function Sala({ sala }: { sala: string }) {
             <div className="nv-aviso">{estado.capturaAviso}</div>
           )}
 
-          {/* A pílula flutua **dentro desta caixa**, e não do palco inteiro.
-              Ancorada no palco, ela caía por cima da tirinha de pessoas
-              sempre que alguém compartilhava a tela — e a tirinha é
-              justamente onde se olha para saber quem ainda está ali. */}
-          <div className="nv-palco-area">
-            <Palco
-              compartilhando={compartilhando}
-              minhaTela={estado.tela ? malha.current?.minhaTela ?? null : null}
-              estado={estado}
-              nome={nome}
-              prefs={prefs}
-              aberta={telaAberta}
-              onAbrir={setTelaAberta}
-              onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
-              ferramentas={estadoF}
-              motor={ferr.current}
-              pincel={pincel}
-            />
+          {/* Palco e gente **lado a lado**. A tirinha que ficava embaixo virou
+              coluna: numa tela 16:9 altura é a dimensão escassa, e ela cobrava
+              justamente essa. */}
+          <div className="nv-palco-corpo">
+            {/* A pílula flutua **dentro desta caixa**, e não do par inteiro.
+                Ancorada no par, ela ficaria centrada contando a coluna da
+                direita — e portanto torta em relação ao que se assiste. */}
+            <div className="nv-palco-area">
+              <Palco
+                compartilhando={compartilhando}
+                minhaTela={estado.tela ? malha.current?.minhaTela ?? null : null}
+                estado={estado}
+                nome={nome}
+                prefs={prefs}
+                aberta={telaAberta}
+                onAbrir={setTelaAberta}
+                onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
+                ferramentas={estadoF}
+                motor={ferr.current}
+                pincel={pincel}
+              />
 
-            <Controles
-              estado={estado}
-              prefs={prefs}
-              onMudo={() => malha.current?.mudo(!estado.mudo)}
-              onTela={(sup) => void malha.current?.alternarTela(sup)}
-              onReagir={(e) => ferr.current?.reagir(e)}
-              onQualidade={(q) => void malha.current?.definirQualidade(q)}
-              onMicrofone={(id) => void malha.current?.definirMicrofone(id)}
-              onPreferencia={ajustar}
-            />
+              <Controles
+                estado={estado}
+                prefs={prefs}
+                onMudo={() => malha.current?.mudo(!estado.mudo)}
+                onTela={(sup) => void malha.current?.alternarTela(sup)}
+                onReagir={(e) => ferr.current?.reagir(e)}
+                onQualidade={(q) => void malha.current?.definirQualidade(q)}
+                onMicrofone={(id) => void malha.current?.definirMicrofone(id)}
+                onPreferencia={ajustar}
+              />
+            </div>
+
+            {/* A coluna de gente só existe quando o palco está ocupado por uma
+                tela; sem ela, as pessoas **são** o palco. */}
+            {telaAberta && (
+              <Pessoas
+                estado={estado}
+                nome={nome}
+                prefs={prefs}
+                variante="coluna"
+                ferramentas={estadoF}
+                onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
+              />
+            )}
           </div>
-
-          {/* A tirinha embaixo só existe quando o palco está ocupado por uma
-              tela; sem ela, as pessoas **são** o palco. */}
-          {telaAberta && (
-            <Pessoas
-              estado={estado}
-              nome={nome}
-              prefs={prefs}
-              variante="faixa"
-              ferramentas={estadoF}
-              onVolume={(id, v) => malha.current?.definirVolumeDe(id, v)}
-            />
-          )}
         </main>
 
         <Chat
@@ -1242,7 +1246,7 @@ function Pessoas({
   estado: EstadoMalha;
   nome: string;
   prefs: Preferencias;
-  variante: "grade" | "faixa";
+  variante: "grade" | "coluna";
   /** de onde saem as mãos levantadas e as reações no ar */
   ferramentas?: EstadoFerramentas | null;
   onVolume: (id: string, v: number) => void;
@@ -1302,9 +1306,20 @@ function Pessoas({
   const quantos = estado.participantes.length + 1;
 
   if (!grade) {
+    /**
+     * A coluna da direita, e não mais a tirinha de baixo.
+     *
+     * Numa tela 16:9 o que falta é **altura**, não largura: a tirinha comia
+     * 90 px da dimensão escassa para mostrar de lado o que cabe em pé.
+     * Encostada na direita ela cobra 120 px da dimensão que sobra, e a tela
+     * compartilhada — que é larga e baixa — cresce de verdade.
+     *
+     * Rola sozinha quando há gente demais, em vez de espremer os cartões até
+     * ninguém se reconhecer neles.
+     */
     return (
-      <section className="nv-pessoas-faixa">
-        <ul className="nv-gente faixa">{gente}</ul>
+      <section className="nv-pessoas-coluna">
+        <ul className="nv-gente coluna">{gente}</ul>
       </section>
     );
   }

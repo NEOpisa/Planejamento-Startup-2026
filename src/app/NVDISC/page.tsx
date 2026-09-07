@@ -68,7 +68,8 @@ export default function Porta() {
 
         <main className="sh-main" id="main">
           {/* ── a escolha, e a única que hoje leva a algum lugar ────────── */}
-          <section className="panel" aria-labelledby="porta-h" id="entrar">
+          <section className="panel panel--porta" aria-labelledby="porta-h" id="entrar">
+            <PreviaDaSala />
             <span className="eyebrow">Neovanguard · para onde ir</span>
             <h1 id="porta-h" className="h-xl" style={{ marginTop: 20 }}>
               Escolha um destino.
@@ -201,6 +202,50 @@ export default function Porta() {
         <RailRight />
       </div>
     </>
+  );
+}
+
+/**
+ * A sala, desenhada atrás da porta.
+ *
+ * Uma tela de entrada não diz para onde se está indo, e "sala de voz" é um nome
+ * que cada um imagina de um jeito. Aqui a forma da sala aparece desfocada atrás
+ * dos dois campos — trilho à esquerda, palco com duas pessoas, chat à direita, a
+ * pílula de controles embaixo. Não é preciso reconhecer os detalhes: o que se lê
+ * num relance é *é uma chamada, e tem ferramentas em volta*.
+ *
+ * **Nada aqui é ao vivo.** Não há câmera, não há microfone, não há uma segunda
+ * pessoa: são divs. Uma prévia que pedisse permissão de mídia na tela de entrada
+ * seria exatamente o oposto da promessa que esta página faz.
+ *
+ * `aria-hidden` porque é ornamento — quem navega por leitor de tela não ganha
+ * nada com "caixa cinza dentro de caixa cinza", e ganha com o formulário
+ * chegando primeiro.
+ */
+function PreviaDaSala() {
+  return (
+    <div className="nv-previa" aria-hidden="true">
+      <div className="nv-previa-trilho">
+        <i />
+        <i />
+        <i />
+        <i />
+      </div>
+      <div className="nv-previa-palco">
+        <div className="nv-previa-gente">
+          <span />
+          <span />
+        </div>
+        <div className="nv-previa-pilula" />
+      </div>
+      <div className="nv-previa-chat">
+        <i />
+        <i />
+        <i />
+        <i />
+        <i />
+      </div>
+    </div>
   );
 }
 
