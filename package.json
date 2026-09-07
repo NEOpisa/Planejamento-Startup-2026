@@ -3,7 +3,10 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
+    "isolador": "node scripts/gerar-isolador.mjs",
+    "predev": "npm run isolador",
     "dev": "node server.mjs",
+    "prebuild": "npm run isolador",
     "build": "next build",
     "start": "NODE_ENV=production node server.mjs",
     "test": "node scripts/teste.mjs",
@@ -13,6 +16,7 @@
     "test:instancias": "node scripts/teste-instancias.mjs"
   },
   "dependencies": {
+    "@jitsi/rnnoise-wasm": "^0.2.1",
     "@supabase/supabase-js": "^2.112.3",
     "@vercel/functions": "^3.9.5",
     "ioredis": "^6.0.0",

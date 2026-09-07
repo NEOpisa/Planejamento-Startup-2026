@@ -39,7 +39,19 @@ export const dynamic = "force-dynamic";
  * **não** resolve é justamente o caso que traz alguém até este arquivo.
  */
 const STUN: RTCIceServer[] = [
-  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+  {
+    // Quatro operadores independentes, e não quatro endereços do mesmo: o
+    // ponto é que a queda de um não leve a sala junto. Esta lista sobrescreve
+    // a do navegador assim que a resposta chega, então ela precisa continuar
+    // igual à de `servidores()` em `src/lib/malha.ts` — duas listas que
+    // divergem viram um defeito que só aparece em produção.
+    urls: [
+      "stun:stun.l.google.com:19302",
+      "stun:stun1.l.google.com:19302",
+      "stun:stun.nextcloud.com:443",
+      "stun:stun.sipgate.net:3478",
+    ],
+  },
 ];
 
 type Resposta = {

@@ -9,3 +9,6 @@ next-env.d.ts
 .next-dev
 .cert
 .env
+
+# derivado de @jitsi/rnnoise-wasm; gerado por scripts/gerar-isolador.mjs
+public/isolador-de-voz.js

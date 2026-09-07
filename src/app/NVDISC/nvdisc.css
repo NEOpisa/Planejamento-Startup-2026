@@ -53,13 +53,22 @@
   letter-spacing: -0.035em;
 }
 
-/* O fundo da central: dois brilhos azuis e a grade de 44 px. */
+/*
+ * O fundo da sala: um brilho, e só.
+ *
+ * A central tem dois brilhos e a grade de 44 px porque lá o fundo é a página
+ * — não há nada disputando com ele. Numa chamada há: rosto, tela
+ * compartilhada, quadro. A grade aparecia atrás de tudo isso e cobrava
+ * atenção o tempo todo para não dizer nada, e o segundo brilho, no canto
+ * oposto, deixava o meio da tela mais claro que as bordas justamente onde
+ * mora o vídeo.
+ *
+ * Fica um brilho só, mais fraco, no alto: o bastante para o preto não ser
+ * chapado, longe o bastante do palco para não competir com ele.
+ */
 .nv-fundo {
   background:
-    radial-gradient(1100px 560px at 84% -10%, rgba(42, 77, 197, 0.16), transparent 60%),
-    radial-gradient(820px 480px at -10% 12%, rgba(100, 149, 237, 0.08), transparent 55%),
-    linear-gradient(rgba(100, 149, 237, 0.022) 1px, transparent 1px) 0 0 / 44px 44px,
-    linear-gradient(90deg, rgba(100, 149, 237, 0.022) 1px, transparent 1px) 0 0 / 44px 44px,
+    radial-gradient(1200px 620px at 70% -15%, rgba(42, 77, 197, 0.1), transparent 62%),
     var(--bg);
 }
 
@@ -2866,10 +2875,99 @@ button.nv-aviso:hover {
   color: var(--txt-3);
   pointer-events: none;
 }
-.nv-tela--quadro figcaption {
+/* ── o palco do quadro: a barra de pranchas em cima, a folha embaixo ── */
+/*
+ * Uma coluna, e não a moldura das telas de vídeo. A folha fica com toda a
+ * altura que sobra; a barra é a única coisa fixa, e é fina de propósito —
+ * ela existe para virar a folha, não para se anunciar.
+ */
+.nv-quadro-palco {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  height: 100%;
+  gap: 8px;
+}
+.nv-quadro-palco > .nv-tela--quadro {
+  min-height: 0;
+  margin: 0;
+}
+
+.nv-pranchas {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+}
+.nv-pranchas-abas,
+.nv-pranchas-acoes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nv-pranchas-acoes {
+  gap: 8px;
+}
+
+/* As abas são números, e números bastam: "Prancha 3" escrito por extenso em
+   cinco abas vira uma barra de texto onde devia haver um índice. O nome
+   completo fica no `title`, para quem passa o mouse e para quem lê por voz. */
+.nv-pranchas-abas button {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--r-nv-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--txt-3);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+.nv-pranchas-abas button:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--txt);
+}
+.nv-pranchas-abas button.atual {
+  background: var(--raised);
+  border-color: var(--hairline-hi);
+  color: var(--accent-light);
+}
+.nv-pranchas-abas button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.nv-prancha-nova {
+  font-size: 15px !important;
+  color: var(--txt-3);
+}
+
+.nv-pranchas-acoes button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-nv-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--txt-3);
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+.nv-pranchas-acoes button:hover {
+  background: var(--raised);
+  color: var(--txt);
+}
+.nv-pranchas-acoes .nv-rotulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 /* ── a prévia do quadro no cartão da aba ── */

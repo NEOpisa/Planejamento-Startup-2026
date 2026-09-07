@@ -141,7 +141,32 @@ export type Traco = {
   pontos: number[];
   /** o dedo já levantou? */
   fim: boolean;
+  /**
+   * Em qual prancha este traço está.
+   *
+   * Um quadro só nunca chegou ao fim de uma conversa: desenha-se uma coisa,
+   * explica-se, e a próxima ideia precisa de espaço limpo — e limpar apaga a
+   * anterior, que muitas vezes ainda era necessária. Com pranchas, "limpar"
+   * deixa de ser a única saída.
+   *
+   * Fica no traço, e não numa lista por prancha, porque o retrato já viaja
+   * como um array plano de traços em lotes de 40: guardar assim significa que
+   * a divisão em pranchas atravessa a rede de graça, sem mensagem nova e sem
+   * um cliente antigo entender errado — para ele o campo simplesmente não
+   * existe, e tudo cai na primeira prancha.
+   */
+  prancha: string;
 };
+
+/**
+ * O identificador da primeira prancha, igual em todo mundo.
+ *
+ * Fixo de propósito: se cada um sorteasse o seu, dois navegadores abririam a
+ * sala com pranchas de nomes diferentes e o primeiro traço cairia em lugar
+ * nenhum. É também o valor que um traço sem prancha assume — é assim que o
+ * desenho de um cliente antigo continua aparecendo.
+ */
+export const PRIMEIRA_PRANCHA = "q1";
 
 export type Voto = { pergunta: string; opcoes: string[]; votos: Record<string, number> };
 
@@ -171,7 +196,13 @@ export type EstadoFerramentas = {
   /** o que eu pedi e ainda não foi respondido */
   pedindo: Partial<Record<IdFerramenta, boolean>>;
 
-  quadro: { tracos: Traco[] };
+  quadro: {
+    tracos: Traco[];
+    /** as pranchas em ordem; a posição na lista é o número que se mostra */
+    pranchas: string[];
+    /** a que está no palco — a mesma para todo mundo, como um quadro de sala */
+    atual: string;
+  };
   notas: { texto: string; em: number; porNome: string };
   maos: Mao[];
   enquete: (Voto & { aberta: boolean; meuVoto: number | null }) | null;
@@ -194,7 +225,7 @@ function vazio(): EstadoFerramentas {
     posso: podes,
     pedidos: [],
     pedindo: {},
-    quadro: { tracos: [] },
+    quadro: { tracos: [], pranchas: [PRIMEIRA_PRANCHA], atual: PRIMEIRA_PRANCHA },
     notas: { texto: "", em: 0, porNome: "" },
     maos: [],
     enquete: null,
@@ -367,7 +398,15 @@ export class Ferramentas {
   /** Começa um traço. `x` e `y` já vêm de 0 a 1. */
   comecarTraco(x: number, y: number, cor: string, grossura: number) {
     if (!this.e.posso.quadro) return null;
-    this.meuTraco = { id: id24(), de: this.eu, cor, grossura, pontos: [x, y], fim: false };
+    this.meuTraco = {
+      id: id24(),
+      de: this.eu,
+      cor,
+      grossura,
+      pontos: [x, y],
+      fim: false,
+      prancha: this.e.quadro.atual,
+    };
     this.aEnviar = [x, y];
     this.e.quadro.tracos = [...this.e.quadro.tracos, this.meuTraco];
     this.agendarEnvio();
@@ -415,6 +454,10 @@ export class Ferramentas {
       id: t.id,
       cor: t.cor,
       grossura: t.grossura,
+      // `q` e não `p`: `p` já são os pontos, e trocar o significado de um
+      // campo no meio do protocolo é como um cliente antigo passa a desenhar
+      // lixo em vez de simplesmente ignorar o que não conhece.
+      q: t.prancha,
       // Arredondar em quatro casas corta o pacote quase pela metade e é mais
       // precisão do que qualquer tela tem: 1/10000 de uma tela de 4K é meio
       // pixel.
@@ -469,25 +512,105 @@ export class Ferramentas {
    */
   tracoPronto(pontos: number[], cor: string, grossura: number) {
     if (!this.e.posso.quadro || pontos.length < 4) return;
-    const t: Traco = { id: id24(), de: this.eu, cor, grossura, pontos, fim: true };
+    const t: Traco = {
+      id: id24(),
+      de: this.eu,
+      cor,
+      grossura,
+      pontos,
+      fim: true,
+      prancha: this.e.quadro.atual,
+    };
     this.e.quadro.tracos = [...this.e.quadro.tracos, t];
     this.malha.mandarFerramenta("quadro", ACAO.ATO, {
       k: "traco",
       id: t.id,
       cor,
       grossura,
+      q: t.prancha,
       p: pontos.map((n) => Math.round(n * 10000) / 10000),
       fim: true,
     });
     this.avisar();
   }
 
-  /** Limpa tudo — só o dono, porque apaga o trabalho dos outros junto. */
+  /**
+   * Limpa **a prancha em que se está** — só o dono, porque apaga o trabalho
+   * dos outros junto.
+   *
+   * Antes limpava o quadro inteiro, e não havia outra coisa a limpar. Agora
+   * apagar tudo de uma vez seria destruir pranchas que ninguém estava
+   * olhando: quem quer isso apaga prancha por prancha, às claras.
+   */
   limparQuadro() {
     if (!this.souDono("quadro") && this.e.donos.quadro) return;
-    this.e.quadro.tracos = [];
-    this.malha.mandarFerramenta("quadro", ACAO.ATO, { k: "limpar" });
+    const q = this.e.quadro.atual;
+    this.e.quadro.tracos = this.e.quadro.tracos.filter((t) => t.prancha !== q);
+    this.malha.mandarFerramenta("quadro", ACAO.ATO, { k: "limpar", q });
     this.avisar();
+  }
+
+  // ─────────────────────────────────────────────────────────── pranchas ──
+
+  /** Os traços da prancha que está no palco — o que o `Quadro` desenha. */
+  get tracosVisiveis(): Traco[] {
+    const q = this.e.quadro.atual;
+    return this.e.quadro.tracos.filter((t) => t.prancha === q);
+  }
+
+  /**
+   * Cria uma prancha e vai para ela.
+   *
+   * O identificador é sorteado, e não `"q" + (n + 1)`: duas pessoas criando
+   * ao mesmo tempo produziriam o mesmo nome e os traços de uma cairiam na
+   * prancha da outra. O número que se lê na aba é a **posição na lista**, que
+   * cada um calcula sozinho e dá no mesmo resultado.
+   */
+  novaPrancha() {
+    if (!this.e.posso.quadro) return;
+    const id = id24();
+    this.e.quadro.pranchas = [...this.e.quadro.pranchas, id];
+    this.e.quadro.atual = id;
+    this.malha.mandarFerramenta("quadro", ACAO.ATO, { k: "prancha+", q: id });
+    this.avisar();
+  }
+
+  /**
+   * Vira a prancha para todo mundo.
+   *
+   * Compartilhada de propósito: um quadro de sala em que cada um vê uma folha
+   * diferente não é um quadro, é um caderno — e "olha aqui" deixaria de
+   * funcionar, que é para o que o quadro existe numa conversa.
+   */
+  irParaPrancha(id: string) {
+    if (!this.e.posso.quadro) return;
+    if (!this.e.quadro.pranchas.includes(id) || this.e.quadro.atual === id) return;
+    this.e.quadro.atual = id;
+    this.malha.mandarFerramenta("quadro", ACAO.ATO, { k: "prancha", q: id });
+    this.avisar();
+  }
+
+  /** Apaga uma prancha e o que estava nela. Nunca a última que sobrou. */
+  apagarPrancha(id: string) {
+    if (!this.souDono("quadro") && this.e.donos.quadro) return;
+    if (this.e.quadro.pranchas.length < 2) return;
+    this.aplicarApagarPrancha(id);
+    this.malha.mandarFerramenta("quadro", ACAO.ATO, { k: "prancha-", q: id });
+    this.avisar();
+  }
+
+  /** O efeito de apagar, sem a rede — usado dos dois lados. */
+  private aplicarApagarPrancha(id: string) {
+    const ps = this.e.quadro.pranchas;
+    if (ps.length < 2 || !ps.includes(id)) return;
+    const i = ps.indexOf(id);
+    this.e.quadro.pranchas = ps.filter((q) => q !== id);
+    this.e.quadro.tracos = this.e.quadro.tracos.filter((t) => t.prancha !== id);
+    if (this.e.quadro.atual === id) {
+      // A vizinha da esquerda, ou a primeira: cair numa prancha em branco
+      // depois de apagar é perder a noção de onde se estava.
+      this.e.quadro.atual = this.e.quadro.pranchas[Math.max(0, i - 1)];
+    }
   }
 
   // ──────────────────────────────────────────────────────────── as notas ──
@@ -658,6 +781,7 @@ export class Ferramentas {
       // o teto de tamanho da mensagem — que cortaria o retrato inteiro, e o
       // sintoma seria alguém entrar e ver um quadro em branco que todos os
       // outros veem cheio.
+      manda("quadro", { k: "pranchas", ps: this.e.quadro.pranchas, q: this.e.quadro.atual });
       const t = this.e.quadro.tracos;
       for (let i = 0; i < t.length; i += 40) manda("quadro", { k: "tracos", t: t.slice(i, i + 40) });
       if (t.length === 0) manda("quadro", { k: "tracos", t: [] });
@@ -761,7 +885,11 @@ export class Ferramentas {
         // Emenda em vez de troca: o retrato vem em lotes, e o segundo lote
         // não pode apagar o primeiro.
         const tenho = new Set(this.e.quadro.tracos.map((t) => t.id));
-        const novos = chegando.filter((t) => t && !tenho.has(t.id));
+        // Traço sem prancha é de um cliente que não conhece pranchas: cai na
+        // primeira, que é onde ele acha que está desenhando.
+        const novos = chegando
+          .filter((t) => t && !tenho.has(t.id))
+          .map((t) => ({ ...t, prancha: t.prancha || PRIMEIRA_PRANCHA }));
         if (retrato && chegando.length === 0 && this.e.quadro.tracos.length === 0) return;
         this.e.quadro.tracos = [...this.e.quadro.tracos, ...novos];
         this.avisar();
@@ -784,6 +912,7 @@ export class Ferramentas {
               grossura: Number(d.grossura ?? 3),
               pontos: p,
               fim: Boolean(d.fim),
+              prancha: String(d.q ?? PRIMEIRA_PRANCHA),
             },
           ];
         }
@@ -800,7 +929,44 @@ export class Ferramentas {
       }
       if (k === "limpar") {
         if (this.e.donos.quadro && this.e.donos.quadro.id !== m.de) return;
-        this.e.quadro.tracos = [];
+        // Sem `q` é um cliente antigo mandando limpar o quadro inteiro, que
+        // para ele é tudo o que existe. Respeitar isso apagaria pranchas que
+        // ele não sabe que existem, então limpa-se só a primeira.
+        const q = String(d.q ?? PRIMEIRA_PRANCHA);
+        this.e.quadro.tracos = this.e.quadro.tracos.filter((t) => t.prancha !== q);
+        this.avisar();
+        return;
+      }
+      if (k === "pranchas") {
+        // Chega no retrato, antes dos lotes de traço: a lista tem de existir
+        // para os traços terem onde cair.
+        const ps = (d.ps as string[]) ?? [];
+        if (ps.length > 0) this.e.quadro.pranchas = ps;
+        const at = String(d.q ?? "");
+        if (this.e.quadro.pranchas.includes(at)) this.e.quadro.atual = at;
+        this.avisar();
+        return;
+      }
+      if (k === "prancha+") {
+        const q = String(d.q ?? "");
+        if (!q || this.e.quadro.pranchas.includes(q)) return;
+        this.e.quadro.pranchas = [...this.e.quadro.pranchas, q];
+        // Quem cria leva a sala junto: criar uma prancha e continuar vendo a
+        // anterior faria a pessoa desenhar num lugar que ninguém está vendo.
+        this.e.quadro.atual = q;
+        this.avisar();
+        return;
+      }
+      if (k === "prancha") {
+        const q = String(d.q ?? "");
+        if (!this.e.quadro.pranchas.includes(q)) return;
+        this.e.quadro.atual = q;
+        this.avisar();
+        return;
+      }
+      if (k === "prancha-") {
+        if (this.e.donos.quadro && this.e.donos.quadro.id !== m.de) return;
+        this.aplicarApagarPrancha(String(d.q ?? ""));
         this.avisar();
         return;
       }

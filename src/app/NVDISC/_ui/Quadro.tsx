@@ -19,7 +19,7 @@
  * duas telas.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import type { EstadoFerramentas, Ferramentas as Motor, Traco } from "@/lib/ferramentas";
 import {
@@ -30,7 +30,6 @@ import {
   FecharIcon,
   LimparIcon,
   MaoLivreIcon,
-  QuadroIcon,
   RetaIcon,
   RetanguloIcon,
   SetaIcon,
@@ -231,7 +230,18 @@ export function QuadroPalco({
   /** onde a forma começou, enquanto o dedo não levanta */
   const inicio = useRef<{ x: number; y: number } | null>(null);
   const previa = useRef<Traco | null>(null);
-  const pintar = useTela(f.quadro.tracos, tela, moldura, previa);
+  /**
+   * Só o que está nesta prancha.
+   *
+   * Calculado aqui, e não guardado no motor: o motor tem uma lista só, e é
+   * ela que atravessa a rede. Filtrar na hora de pintar mantém uma única
+   * verdade e faz virar a folha custar um `useMemo`, não uma sincronização.
+   */
+  const visiveis = useMemo(
+    () => f.quadro.tracos.filter((t) => t.prancha === f.quadro.atual),
+    [f.quadro.tracos, f.quadro.atual],
+  );
+  const pintar = useTela(visiveis, tela, moldura, previa);
   const posso = f.posso.quadro;
   const dono = f.donos.quadro;
   const forma = pincel.forma;
@@ -257,7 +267,7 @@ export function QuadroPalco({
    */
   function apagarSob(x: number, y: number, larg: number, alt: number) {
     const raio = Math.max(10, pincel.grossura * 3);
-    for (const t of f.quadro.tracos) {
+    for (const t of visiveis) {
       if (t.de !== eu) continue;
       for (let i = 0; i < t.pontos.length; i += 2) {
         const dx = t.pontos[i] * larg - x * larg;
@@ -270,8 +280,70 @@ export function QuadroPalco({
     }
   }
 
+  const pranchas = f.quadro.pranchas;
+  const podeApagar = pranchas.length > 1 && (!dono || dono.id === eu);
+
   return (
-    <figure className="nv-tela nv-tela--quadro" ref={moldura}>
+    /**
+     * O palco do quadro é **outro palco**.
+     *
+     * Ele dividia a moldura com as telas compartilhadas, e as duas coisas não
+     * têm a mesma forma: uma tela de vídeo é uma imagem que se assiste, com
+     * legenda embaixo e um botão de fechar no canto. Um quadro é uma folha em
+     * que se trabalha, e trabalhar pede as folhas à mão. A barra em cima é o
+     * que uma legenda nunca ia poder ser.
+     */
+    <section className="nv-quadro-palco">
+      <header className="nv-pranchas">
+        <div className="nv-pranchas-abas" role="tablist" aria-label="Pranchas do quadro">
+          {pranchas.map((q, i) => (
+            <button
+              key={q}
+              role="tab"
+              aria-selected={q === f.quadro.atual}
+              className={q === f.quadro.atual ? "atual" : ""}
+              onClick={() => motor?.irParaPrancha(q)}
+              disabled={!posso}
+              title={`Prancha ${i + 1}`}
+            >
+              {i + 1}
+            </button>
+          ))}
+          {posso && (
+            <button
+              className="nv-prancha-nova"
+              onClick={() => motor?.novaPrancha()}
+              title="Nova prancha"
+              aria-label="Nova prancha"
+            >
+              +
+            </button>
+          )}
+        </div>
+
+        <div className="nv-pranchas-acoes">
+          {!posso && (
+            <span className="nv-rotulo">
+              <CadeadoIcon size={11} /> só ver
+            </span>
+          )}
+          {dono && <span className="nv-rotulo">de {dono.nome}</span>}
+          {podeApagar && (
+            <button
+              onClick={() => motor?.apagarPrancha(f.quadro.atual)}
+              title="Apagar esta prancha"
+              aria-label="Apagar esta prancha"
+            >
+              <LimparIcon size={14} />
+            </button>
+          )}
+          <button onClick={onFechar} title="voltar às pessoas" aria-label="Fechar o quadro">
+            <FecharIcon size={15} />
+          </button>
+        </div>
+      </header>
+
+      <figure className="nv-tela nv-tela--quadro" ref={moldura}>
       <canvas
         ref={tela}
         className={`${posso ? "" : "so-ver"}${forma === "borracha" ? " borracha" : ""}`}
@@ -312,6 +384,10 @@ export function QuadroPalco({
               grossura: pincel.grossura,
               pontos: pontosDaForma(forma, i.x, i.y, x, y, prop),
               fim: false,
+              // A prévia nunca sai daqui, mas carrega a prancha em que nasceu:
+              // sem isso ela ficaria visível ao virar a folha no meio do
+              // desenho de uma forma.
+              prancha: f.quadro.atual,
             };
             pintar();
             return;
@@ -353,7 +429,7 @@ export function QuadroPalco({
         }}
       />
 
-      {f.quadro.tracos.length === 0 && (
+      {visiveis.length === 0 && (
         <p className="nv-quadro-vazio">
           {posso
             ? "Rabisque aqui — todo mundo na sala vê enquanto você desenha."
@@ -361,28 +437,8 @@ export function QuadroPalco({
         </p>
       )}
 
-      <figcaption>
-        <QuadroIcon size={12} />
-        Quadro
-        {dono && ` · de ${dono.nome}`}
-        {!posso && (
-          <>
-            {" · "}
-            <CadeadoIcon size={11} />
-            só ver
-          </>
-        )}
-      </figcaption>
-
-      {/* O mesmo botão redondo das telas de vídeo. Um `.nv-mini` de texto
-          aqui saía cortado: a caixa dos botões do palco tem 32 px de lado,
-          feita para ícone. */}
-      <div className="nv-tela-botoes">
-        <button onClick={onFechar} title="voltar às pessoas" aria-label="Fechar o quadro">
-          <FecharIcon size={15} />
-        </button>
-      </div>
-    </figure>
+      </figure>
+    </section>
   );
 }
 

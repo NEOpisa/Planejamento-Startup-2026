@@ -1017,7 +1017,14 @@ function Palco({
         telas={telas}
         atual={atual?.id ?? null}
         chegando={chegando?.nome ?? null}
-        tracos={ferramentas?.quadro.tracos ?? []}
+        // Só a prancha que está no palco: a miniatura mostrando o desenho de
+        // todas as folhas de uma vez seria um borrão que não corresponde a
+        // nada que se possa abrir.
+        tracos={
+          ferramentas
+            ? ferramentas.quadro.tracos.filter((t) => t.prancha === ferramentas.quadro.atual)
+            : []
+        }
         onAbrir={onAbrir}
       />
 
@@ -2351,6 +2358,7 @@ function AbaMicrofone({
             { v: "desligado", r: "Não filtrar" },
             { v: "padrao", r: "Padrão" },
             { v: "forte", r: "Forte" },
+            { v: "isolar", r: "Isolar voz" },
           ]}
           onEscolher={(v) => onQualidade({ ruido: v as Qualidade["ruido"] })}
         />
@@ -2359,7 +2367,9 @@ function AbaMicrofone({
             ? "Nada é tirado do som. É o certo quando o que importa não é a fala."
             : q.ruido === "padrao"
               ? "O supressor do navegador tira ventilador, teclado e chiado sem encostar na voz."
-              : "Além do supressor, o microfone fica fechado enquanto você não fala. Regule o limiar no avançado, olhando o medidor."}
+              : q.ruido === "forte"
+                ? "Além do supressor, o microfone fica fechado enquanto você não fala. Regule o limiar no avançado, olhando o medidor."
+                : "Uma rede neural separa sua voz do resto — a única opção que limpa enquanto você fala, e não só no silêncio. Baixa ~1,8 MB na primeira vez e custa uns 10 ms de atraso."}
         </p>
       </div>
 

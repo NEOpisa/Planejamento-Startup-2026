@@ -156,8 +156,36 @@ export type MsgFerramenta = {
  * configure em `NVDISC_TURN_URL` (ver README).
  */
 function servidores(): RTCIceServer[] {
+  /**
+   * STUN de quatro operadores diferentes, de propósito.
+   *
+   * O STUN é como o navegador descobre o próprio endereço público, e sem essa
+   * descoberta não há candidato para oferecer ao outro lado — a chamada falha
+   * até em NAT fácil, que teria fechado sozinho. Depender só do Google era um
+   * ponto único de falha: rede que o bloqueia, país que o filtra, ou um mau
+   * minuto do serviço, e a sala inteira fica muda sem nada no console.
+   *
+   * Operadores independentes cobrem uns aos outros — a chance de os quatro
+   * caírem juntos é outra ordem de grandeza. O `:443` do Nextcloud entra
+   * porque é o único que atravessa rede que só libera porta de web.
+   *
+   * **Quatro é teto, não meta.** Cada endereço é mais uma consulta antes de a
+   * chamada poder começar, e listas enormes trocam uma falha rara por uma
+   * demora em toda entrada na sala.
+   *
+   * O que isto **não** resolve: NAT simétrico dos dois lados. Aí o STUN
+   * descobre um endereço que não serve para o outro lado, e o que falta é um
+   * relé — nenhuma quantidade de STUN substitui.
+   */
   const lista: RTCIceServer[] = [
-    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+    {
+      urls: [
+        "stun:stun.l.google.com:19302",
+        "stun:stun1.l.google.com:19302",
+        "stun:stun.nextcloud.com:443",
+        "stun:stun.sipgate.net:3478",
+      ],
+    },
   ];
   /**
    * Mais de um endereço, separados por vírgula — e vale a pena usar isso.
@@ -214,8 +242,15 @@ export type Qualidade = {
    * rua e cachorro no quintal, e cobra por isso: começo de palavra dita
    * baixinho pode se perder, e respiração some. Numa conversa de duas pessoas
    * é ótimo; numa roda em que gente ri junto, incomoda.
+   *
+   * `isolar` — uma rede neural (RNNoise) no fio do microfone, a mesma família
+   * de técnica do Krisp. É a única das quatro que limpa **enquanto você
+   * fala**: a porta do modo `forte` só sabe fechar no silêncio, e por isso
+   * nunca tirou o ventilador de trás da voz. Custa uns 10 ms de atraso, um
+   * arquivo de ~1,8 MB baixado na primeira vez e um pouco de processador.
+   * Se ele falhar ao subir, o áudio passa cru — nunca mudo.
    */
-  ruido: "desligado" | "padrao" | "forte";
+  ruido: "desligado" | "padrao" | "forte" | "isolar";
   /** altura da tela transmitida; 0 = como está no monitor */
   resolucao: 0 | 720 | 1080 | 1440 | 2160;
   fps: 30 | 60;
@@ -838,17 +873,46 @@ type Cadeia = {
  * ponto de corte é a diferença entre "sumiu o ventilador" e "sumiu o começo
  * das minhas frases".
  */
+/**
+ * Sobe o isolador de voz no motor de áudio, uma vez só.
+ *
+ * `addModule` é uma busca de rede de ~1,8 MB, então ela acontece **quando a
+ * pessoa escolhe o modo**, e não na entrada da sala: quem nunca liga a
+ * isolação não paga nada. A promessa é guardada para as chamadas seguintes —
+ * trocar de modo duas vezes não baixa o arquivo duas vezes.
+ *
+ * Um `false` aqui não é motivo para impedir nada: a cadeia é montada sem o nó
+ * e o microfone segue cru. Ficar sem isolação é um aborrecimento; ficar mudo
+ * porque um arquivo não carregou seria um defeito.
+ */
+let moduloIsolador: Promise<boolean> | null = null;
+function garantirIsolador(contexto: AudioContext): Promise<boolean> {
+  if (!moduloIsolador) {
+    moduloIsolador = contexto.audioWorklet
+      .addModule("/isolador-de-voz.js")
+      .then(() => true)
+      .catch((e) => {
+        console.warn("NVDISC/isolador: não subiu, o microfone vai cru:", e);
+        // Sem `null` de volta: se falhou uma vez, tentar a cada troca de modo
+        // só multiplica a espera. Recarregar a página tenta de novo.
+        return false;
+      });
+  }
+  return moduloIsolador;
+}
+
 function montarCadeia(
   mic: MediaStream | null,
   extras: (MediaStream | null)[],
   comPorta: boolean,
   ganhoDb = 0,
+  comIsolador = false,
 ): Cadeia | null {
   const comSom = extras.filter((f): f is MediaStream => (f?.getAudioTracks().length ?? 0) > 0);
   if (!mic?.getAudioTracks().length && comSom.length === 0) return null;
   // Sem porta, sem reforço e sem som de tela não há o que fazer com o
   // microfone: a faixa crua vai direto, que é o que soa melhor e custa menos.
-  if (!comPorta && comSom.length === 0 && ganhoDb === 0) return null;
+  if (!comPorta && !comIsolador && comSom.length === 0 && ganhoDb === 0) return null;
 
   const contexto = contextoDeAudio();
   // A mistura sai daqui: com o contexto suspenso esta faixa é silêncio, e
@@ -878,6 +942,36 @@ function montarCadeia(
       ultimo.connect(reforco);
       ultimo = reforco;
       desfazer.push(() => reforco.disconnect());
+    }
+
+    if (comIsolador) {
+      /**
+       * A rede neural entra **depois** do reforço e antes de tudo o mais: ela
+       * quer o sinal no volume em que a pessoa de fato fala, e qualquer nó
+       * anterior que já tenha mexido no ruído só atrapalha o que ela aprendeu
+       * a reconhecer.
+       *
+       * Construir o nó pode falhar se o módulo não subiu — e aí a cadeia
+       * segue sem ele, com o microfone cru. Ver `garantirIsolador`.
+       */
+      try {
+        const isolador = new AudioWorkletNode(contexto, "isolador-de-voz", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [1],
+        });
+        isolador.port.postMessage({ tipo: "iniciar" });
+        isolador.port.onmessage = (ev) => {
+          if (ev.data?.tipo === "falhou") {
+            console.warn("NVDISC/isolador: a rede não subiu, áudio cru:", ev.data.erro);
+          }
+        };
+        ultimo.connect(isolador);
+        ultimo = isolador;
+        desfazer.push(() => isolador.disconnect());
+      } catch (e) {
+        console.warn("NVDISC/isolador: nó não pôde ser criado, áudio cru:", e);
+      }
     }
 
     if (comPorta) {
@@ -975,7 +1069,11 @@ function qualidadeGuardada(): Qualidade {
 
     return {
       audio: um(lido.audio, ["voz", "musica"] as const, QUALIDADE_PADRAO.audio),
-      ruido: um(lido.ruido, ["desligado", "padrao", "forte"] as const, QUALIDADE_PADRAO.ruido),
+      ruido: um(
+        lido.ruido,
+        ["desligado", "padrao", "forte", "isolar"] as const,
+        QUALIDADE_PADRAO.ruido,
+      ),
       resolucao: um(lido.resolucao, [0, 720, 1080, 1440, 2160] as const, QUALIDADE_PADRAO.resolucao),
       fps: um(lido.fps, [30, 60] as const, QUALIDADE_PADRAO.fps),
       perfil: um(lido.perfil, ["nitidez", "movimento"] as const, QUALIDADE_PADRAO.perfil),
@@ -1216,12 +1314,16 @@ export class Malha {
   private async refazerCadeia() {
     const q = this.estado.qualidade;
     const comPorta = q.ruido === "forte";
+    // O módulo é baixado agora, na troca de modo, e não na entrada da sala.
+    // Se não subir, `comIsolador` cai para falso e o microfone vai cru.
+    const comIsolador = q.ruido === "isolar" && (await garantirIsolador(contextoDeAudio()));
     this.cadeia?.desmontar();
     this.cadeia = montarCadeia(
       this.meuFluxo,
       [q.somDaTela ? this.fluxoTela : null],
       comPorta,
       q.ganho,
+      comIsolador,
     );
     await this.trocarVoz();
   }
@@ -2645,6 +2747,44 @@ export class Malha {
    * segundo põe o botão de trocar de tela **sem** parar e recomeçar a
    * partilha. Navegador que não conhece nenhum dos dois ignora e segue.
    */
+
+  /**
+   * Pendura (ou tira) a tela num par, e garante que ela **de fato sai**.
+   *
+   * Trocar a faixa não basta, e é aqui que morava o defeito de "aparece o
+   * ícone de compartilhando e ninguém vê". São dois silêncios somados:
+   *
+   * 1. `replaceTrack` num transceptor `recvonly` ou `inactive` é aceito sem
+   *    erro e não manda nada. É a mesma armadilha que a voz já resolvia em
+   *    `trocarVoz` — o vídeo nunca tinha ganho o passo equivalente.
+   * 2. `par.videoSender?.` com encadeamento opcional some sem reclamar quando
+   *    o remetente é nulo, e ele é nulo em qualquer caminho que tenha criado o
+   *    transceptor sem passar por `garantirEnvio` nem `prepararResposta`.
+   *
+   * Nos dois casos o estado local virava `tela: true` e era anunciado à sala,
+   * então todo mundo via o ícone aceso de uma transmissão que não existia. Um
+   * defeito que se descreve como "às vezes não vai" e não deixa rastro nenhum.
+   *
+   * Devolve se havia por onde mandar, para quem chama poder dizer a verdade.
+   */
+  private async mandarTela(par: Par, faixa: MediaStreamTrack | null): Promise<boolean> {
+    const { pc } = par;
+    // O remetente guardado é o caminho rápido; a varredura é o que salva
+    // quando ele nunca foi preenchido.
+    let tv = pc.getTransceivers().find((t) => par.videoSender && t.sender === par.videoSender);
+    if (!tv) tv = pc.getTransceivers().find((t) => t.receiver.track?.kind === "video");
+    if (!tv) return false;
+    par.videoSender = tv.sender;
+
+    await tv.sender.replaceTrack(faixa);
+
+    // Só ao **ligar**: abrir a direção dispara `onnegotiationneeded`, que
+    // enfileira uma oferta. Ao desligar, a faixa nula já basta, e renegociar
+    // à toa é justamente o que esta arquitetura evita.
+    if (faixa && tv.direction !== "sendrecv") tv.direction = "sendrecv";
+    return true;
+  }
+
   async alternarTela(superficie?: "monitor" | "window" | "browser") {
     if (this.estado.tela) return this.pararTela();
     try {
@@ -2674,8 +2814,20 @@ export class Malha {
       // Parar pelo botão do próprio navegador tem de desligar aqui também,
       // senão o ícone continua aceso para todo mundo.
       faixa.onended = () => void this.pararTela();
+      let semCaminho = 0;
       for (const par of this.pares.values()) {
-        await par.videoSender?.replaceTrack(faixa);
+        if (!(await this.mandarTela(par, faixa))) semCaminho++;
+      }
+      // Anunciar "estou compartilhando" para quem não tem como receber é
+      // exatamente o defeito que se está consertando aqui. Se sobrou alguém
+      // sem seção de vídeo, quem compartilha fica sabendo na hora.
+      if (semCaminho > 0) {
+        this.sistema(
+          `a tela não chegou a ${semCaminho} ${semCaminho === 1 ? "pessoa" : "pessoas"} — ` +
+            "a conexão com ela ainda não tem seção de vídeo. Costuma resolver " +
+            "sozinho em alguns segundos; se o ícone continuar aceso sem ninguém " +
+            "ver, pare e comece de novo.",
+        );
       }
       // O som da tela entra na mesma faixa da voz.
       this.estado.telaComSom = fluxo.getAudioTracks().length > 0;
@@ -2702,7 +2854,7 @@ export class Malha {
     this.fluxoTela?.getTracks().forEach((f) => f.stop());
     this.fluxoTela = null;
     for (const par of this.pares.values()) {
-      await par.videoSender?.replaceTrack(null);
+      await this.mandarTela(par, null);
     }
     // Sem tela, o caminho do som encolhe de novo — e volta a ser a faixa crua
     // do microfone, se a supressão forte não estiver ligada.
