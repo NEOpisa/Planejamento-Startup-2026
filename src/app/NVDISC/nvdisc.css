@@ -717,6 +717,24 @@
 }
 .nv-telas.uma {
   grid-template-columns: 1fr;
+  /* Com uma tela só não há vizinha de quem se separar, e o respiro de 14 px
+     vira moldura em volta de um vídeo que já é a única coisa ali. */
+  padding: calc(6px * var(--e));
+}
+/*
+ * A tela sozinha **não** ganha moldura nem fundo preto.
+ *
+ * O vídeo entra com `object-fit: contain`, então quase nunca preenche a caixa:
+ * o que sobra virava uma laje preta com borda, do tamanho do palco, anunciando
+ * o vazio em vez de sumir com ele. Sem fundo e sem borda, a sobra é o fundo da
+ * sala, e o olho vê só a imagem.
+ *
+ * As várias mantêm a moldura: aí ela deixa de ser enfeite e passa a ser o que
+ * diz onde uma tela acaba e a outra começa.
+ */
+.nv-telas.uma > .nv-tela {
+  background: transparent;
+  border-color: transparent;
 }
 .nv-telas.varias {
   grid-template-columns: 1fr;
@@ -910,6 +928,37 @@
   pointer-events: none;
 }
 .nv-controles > * {
+  pointer-events: auto;
+}
+
+/*
+ * A pílula sumida, enquanto se assiste a uma tela.
+ *
+ * `opacity` e não `display`: some com transição, e o alvo continua existindo
+ * para o navegador — trocar `display` faria o foco do teclado pular para outro
+ * lugar toda vez que ela dormisse.
+ *
+ * Desce 8 px ao sair. É pouco de propósito: o movimento diz "guardei" sem
+ * pedir atenção, que seria o oposto do ponto de escondê-la.
+ */
+.nv-controles {
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+.nv-controles.oculta {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.nv-controles.oculta > * {
+  pointer-events: none;
+}
+/* O teclado traz de volta: quem chega por Tab não pode mirar no invisível. */
+.nv-controles:focus-within {
+  opacity: 1;
+  transform: none;
+}
+.nv-controles:focus-within > * {
   pointer-events: auto;
 }
 
@@ -1701,7 +1750,7 @@ button.nv-aviso:hover {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 9px 16px;
+  padding: 7px 16px;
   border-bottom: 1px solid var(--hairline);
   background: var(--surface);
 }
@@ -1751,7 +1800,10 @@ button.nv-aviso:hover {
   position: relative;
   display: block;
   flex-shrink: 0;
-  width: 124px;
+  /* 104 e não 124: a miniatura existe para se reconhecer o que é, não para se
+     assistir por ela. Vinte pixels a menos em cada cartão são quase vinte de
+     altura devolvidos ao palco, já que ela é 16:9. */
+  width: 104px;
   padding: 0;
   border-radius: var(--r-nv-sm);
   border: 1px solid var(--hairline);

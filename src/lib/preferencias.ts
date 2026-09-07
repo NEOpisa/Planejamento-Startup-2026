@@ -96,6 +96,21 @@ export type Preferencias = {
   manterAcordado: boolean;
   /** as reações que aparecem sobre os avatares; desligar é para quem se distrai */
   reacoes: boolean;
+  /**
+   * As duas colunas começam abertas?
+   *
+   * Começavam, em tela grande, com o argumento de que mobília aparece sozinha
+   * e quem entra numa sala tem de ver o que ela oferece. O argumento é bom e
+   * o resultado não era: entrar numa conversa e encontrar o palco espremido
+   * entre duas colunas que ninguém pediu deixa a chamada — que é o motivo de
+   * estar ali — com a menor parte da tela.
+   *
+   * Agora nascem fechadas e a escolha **fica guardada**: quem abre o chat uma
+   * vez o encontra aberto na próxima. É a diferença entre um padrão e uma
+   * imposição.
+   */
+  chatAberto: boolean;
+  ferramentasAbertas: boolean;
 };
 
 export const PREFERENCIAS_PADRAO: Preferencias = {
@@ -108,6 +123,8 @@ export const PREFERENCIAS_PADRAO: Preferencias = {
   avatares: "cor",
   medidor: false,
   falarApertando: false,
+  chatAberto: false,
+  ferramentasAbertas: false,
   sons: true,
   manterAcordado: true,
   reacoes: true,
@@ -163,6 +180,11 @@ export function lerPreferencias(): Preferencias {
       manterAcordado:
         typeof lido.manterAcordado === "boolean" ? lido.manterAcordado : p.manterAcordado,
       reacoes: typeof lido.reacoes === "boolean" ? lido.reacoes : p.reacoes,
+      chatAberto: typeof lido.chatAberto === "boolean" ? lido.chatAberto : p.chatAberto,
+      ferramentasAbertas:
+        typeof lido.ferramentasAbertas === "boolean"
+          ? lido.ferramentasAbertas
+          : p.ferramentasAbertas,
     };
   } catch {
     // Navegação privativa com armazenamento bloqueado **lança** no acesso, em

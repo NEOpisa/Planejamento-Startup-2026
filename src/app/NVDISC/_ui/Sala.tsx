@@ -186,16 +186,22 @@ export default function Sala({ sala }: { sala: string }) {
      * conversa inteira, e cobrir a chamada ao entrar nela seria estranho.
      */
     /**
-     * Na tela grande as duas colunas nascem abertas; no telefone, fechadas.
+     * As duas colunas nascem **fechadas**, e a escolha fica guardada.
      *
-     * A lateral virou mobília, e mobília aparece sozinha — quem entra numa
-     * sala tem de ver o que ela oferece sem descobrir um botão antes. No
-     * telefone as duas viram gaveta em cima da conversa, e abrir uma gaveta
-     * por cima da chamada no instante de entrar nela seria estranho.
+     * Nasciam abertas em tela grande, com o argumento de que mobília aparece
+     * sozinha e quem entra numa sala precisa ver o que ela oferece. O
+     * argumento continua bom; o resultado é que se entrava numa conversa e o
+     * palco — que é o motivo de estar ali — chegava espremido entre duas
+     * colunas que ninguém tinha pedido.
+     *
+     * Guardar a escolha é o que impede isto de virar a imposição oposta: quem
+     * abre o chat uma vez o encontra aberto na próxima. No telefone continuam
+     * fechadas de qualquer jeito — lá elas são gavetas por cima da chamada.
      */
     const largo = window.innerWidth >= 1024;
-    setChatAberto(largo);
-    setFerrVisivel(largo);
+    const guardadas = lerPreferencias();
+    setChatAberto(largo && guardadas.chatAberto);
+    setFerrVisivel(largo && guardadas.ferramentasAbertas);
   }, []);
 
   function ajustar(mudanca: Partial<Preferencias>) {
@@ -420,7 +426,10 @@ export default function Sala({ sala }: { sala: string }) {
           quadroNoPalco={telaAberta === "quadro"}
           onAbrirQuadroNoPalco={() => setTelaAberta("quadro")}
           visivel={ferrVisivel}
-          onFechar={() => setFerrVisivel(false)}
+          onFechar={() => {
+            ajustar({ ferramentasAbertas: false });
+            setFerrVisivel(false);
+          }}
           onMudo={() => malha.current?.mudo(!estado.mudo)}
         />
 
@@ -430,10 +439,20 @@ export default function Sala({ sala }: { sala: string }) {
             estado={estado}
             rail={ferrVisivel}
             pedidos={estadoF?.pedidos.length ?? 0}
-            onRail={() => setFerrVisivel((v) => !v)}
+            onRail={() =>
+              setFerrVisivel((v) => {
+                ajustar({ ferramentasAbertas: !v });
+                return !v;
+              })
+            }
             chat={chatAberto}
             naoLidas={naoLidas}
-            onChat={() => setChatAberto((v) => !v)}
+            onChat={() =>
+              setChatAberto((v) => {
+                ajustar({ chatAberto: !v });
+                return !v;
+              })
+            }
           />
 
           {estado.erro && <div className="nv-erro">{estado.erro}</div>}
@@ -480,6 +499,7 @@ export default function Sala({ sala }: { sala: string }) {
               <Controles
                 estado={estado}
                 prefs={prefs}
+                assistindo={Boolean(telaAberta)}
                 onMudo={() => malha.current?.mudo(!estado.mudo)}
                 onTela={(sup) => void malha.current?.alternarTela(sup)}
                 onReagir={(e) => ferr.current?.reagir(e)}
@@ -507,7 +527,10 @@ export default function Sala({ sala }: { sala: string }) {
         <Chat
           estado={estado}
           aberto={chatAberto}
-          onFechar={() => setChatAberto(false)}
+          onFechar={() => {
+            ajustar({ chatAberto: false });
+            setChatAberto(false);
+          }}
           onEnviar={(t) => malha.current?.enviarChat(t)}
           onImagem={(f, legenda) => void malha.current?.enviarImagem(f, legenda)}
         />
@@ -1895,10 +1918,23 @@ function ImagemDoChat({ src, de }: { src: string; de: string }) {
  * E ela **flutua** por cima do palco em vez de ocupar uma faixa fixa: uma
  * barra sólida embaixo cobra altura de vídeo o tempo todo, inclusive nos
  * cinquenta minutos em que ninguém encosta nela.
+ *
+ * Flutuar resolvia metade do problema e criava a outra: por cima do vídeo, ela
+ * **cobre** o pé da tela que se está assistindo — e o pé da tela costuma ser
+ * onde mora a barra de tarefas, o terminal, a linha que a pessoa quer mostrar.
+ * Daí ela sumir sozinha enquanto se assiste, como faz qualquer tocador de
+ * vídeo, e voltar ao primeiro movimento do mouse. Assim ela não cobra altura
+ * **nem** tapa nada.
+ *
+ * Some só quando há uma tela no palco: na vista das pessoas ela não cobre
+ * coisa alguma, e sumir ali seria esconder o botão de mudo sem nada em troca.
+ * E nunca some com um painel dela aberto, nem com o foco do teclado dentro —
+ * quem navega por Tab não pode ver o alvo evaporar sob os dedos.
  */
 function Controles({
   estado,
   prefs,
+  assistindo,
   onMudo,
   onTela,
   onReagir,
@@ -1908,6 +1944,8 @@ function Controles({
 }: {
   estado: EstadoMalha;
   prefs: Preferencias;
+  /** há uma tela ou o quadro ocupando o palco? */
+  assistindo: boolean;
   onMudo: () => void;
   onTela: (superficie?: Superficie) => void;
   onReagir: (emoji: string) => void;
@@ -1918,9 +1956,48 @@ function Controles({
   const [aberto, setAberto] = useState(false);
   const [partilha, setPartilha] = useState(false);
   const [reagindo, setReagindo] = useState(false);
+  const [parado, setParado] = useState(false);
+
+  /**
+   * O relógio de ociosidade.
+   *
+   * Ouve na janela, e não no palco: o ponteiro passa por cima da pílula, do
+   * chat e do trilho, e um ouvinte preso ao palco leria isso como "parou de
+   * mexer" bem no meio de a pessoa estar mexendo.
+   *
+   * Só existe enquanto há tela no palco — sem isso, um `setTimeout` ficaria
+   * girando a cada movimento do mouse durante a chamada inteira para decidir
+   * esconder algo que não vai ser escondido.
+   */
+  useEffect(() => {
+    if (!assistindo) {
+      setParado(false);
+      return;
+    }
+    let t: ReturnType<typeof setTimeout>;
+    const acordar = () => {
+      setParado(false);
+      clearTimeout(t);
+      t = setTimeout(() => setParado(true), 2600);
+    };
+    acordar();
+    window.addEventListener("pointermove", acordar);
+    window.addEventListener("pointerdown", acordar);
+    window.addEventListener("keydown", acordar);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("pointermove", acordar);
+      window.removeEventListener("pointerdown", acordar);
+      window.removeEventListener("keydown", acordar);
+    };
+  }, [assistindo]);
+
+  // Um painel aberto segura a pílula no lugar: escondê-la com o seletor de
+  // qualidade aberto levaria o painel junto.
+  const oculta = parado && !aberto && !partilha && !reagindo;
 
   return (
-    <footer className="nv-controles">
+    <footer className={`nv-controles${oculta ? " oculta" : ""}`}>
       {aberto && (
         <PainelQualidade
           q={estado.qualidade}
