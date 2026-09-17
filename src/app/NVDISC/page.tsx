@@ -1,279 +1,278 @@
 "use client";
 
-/**
- * NVDISC — a porta.
- *
- * Esta tela não é um login, e o que ela mostra primeiro diz isso: não há
- * conta, não há senha, não há "continuar com". É uma **tela de escolha** —
- * para onde ir dentro da casa —, e o destino que existe hoje é a sala de voz,
- * que abre aqui mesmo, em dois campos.
- *
- * Os destinos por vir aparecem marcados, e não escondidos. Quem chega pela
- * primeira vez quer saber o tamanho da casa; um destino apagado da tela não
- * conta essa história, e um destino que parece pronto e não abre é pior
- * ainda.
- *
- * O nome fica no navegador (`localStorage`) só para não ser redigitado — ele
- * nunca sai daqui para lugar nenhum a não ser a sala em que você entrar.
- */
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-import MobileBar from "@/components/shell/MobileBar";
-import RailLeft from "@/components/shell/RailLeft";
-import RailRight from "@/components/shell/RailRight";
-import Foot from "@/components/shell/Foot";
 import { ArrowUpRight, MicIcon } from "@/components/icons";
-import { DESTINOS } from "@/lib/navegacao";
 import { CATALOGO } from "@/lib/ferramentas";
-import { limparNome, limparSala, salaAleatoria, LIMITES } from "@/lib/protocolo.mjs";
+import {
+  limparNome,
+  limparSala,
+  salaAleatoria,
+  LIMITES,
+} from "@/lib/protocolo.mjs";
 import { comBase } from "@/lib/base.mjs";
 import "./nvdisc.css";
+import "./porta.css";
 
 export default function Porta() {
   const router = useRouter();
   const [nome, setNome] = useState("");
   const [sala, setSala] = useState("");
   const [pronto, setPronto] = useState(false);
-
   useEffect(() => {
-    setNome(localStorage.getItem("nvdisc:nome") ?? "");
-    // O código da URL (`?sala=xyz`) vence o que estiver guardado: é assim que
-    // um link compartilhado leva a pessoa para a sala certa.
-    const daUrl = new URLSearchParams(location.search).get("sala");
-    if (daUrl) setSala(limparSala(daUrl));
+    try {
+      setNome(localStorage.getItem("nvdisc:nome") ?? "");
+    } catch {
+      /* armazenamento opcional */
+    }
+    const convite = new URLSearchParams(location.search).get("sala");
+    if (convite) setSala(limparSala(convite));
     setPronto(true);
   }, []);
-
-  const nomeOk = limparNome(nome).length > 0;
-  const salaOk = limparSala(sala).length > 0;
-
   function entrar(e: React.FormEvent) {
     e.preventDefault();
-    if (!nomeOk || !salaOk) return;
-    localStorage.setItem("nvdisc:nome", limparNome(nome));
+    if (!limparNome(nome) || !limparSala(sala)) return;
+    try {
+      localStorage.setItem("nvdisc:nome", limparNome(nome));
+    } catch {
+      /* a sala também permite informar o nome */
+    }
     router.push(comBase(`/sala/${encodeURIComponent(limparSala(sala))}`));
   }
-
   return (
-    <>
+    <div className="porta">
       <a href="#main" className="skip-link">
         Pular para o conteúdo
       </a>
-      <MobileBar />
-
-      <div className="sh">
-        <RailLeft />
-
-        <main className="sh-main" id="main">
-          {/* ── a escolha, e a única que hoje leva a algum lugar ────────── */}
-          <section className="panel panel--porta" aria-labelledby="porta-h" id="entrar">
-            <PreviaDaSala />
-            <span className="eyebrow">Neovanguard · para onde ir</span>
-            <h1 id="porta-h" className="h-xl" style={{ marginTop: 20 }}>
-              Escolha um destino.
-              <br />
-              <em className="h-accent">A sala abre aqui.</em>
-            </h1>
-            <p className="lead">
-              A conversa vai <strong>direto</strong> de um computador ao outro.
-              O servidor só apresenta vocês — não passa áudio, não passa vídeo,
-              e nada fica gravado.
+      <header className="porta-nav">
+        <a
+          className="porta-marca"
+          href={comBase("")}
+          aria-label="NVDISC início"
+        >
+          <span className="porta-simbolo" aria-hidden="true">
+            n/
+          </span>{" "}
+          nvdisc<span className="porta-marca-ponto">®</span>
+        </a>
+        <nav aria-label="Navegação principal">
+          <a href="#possibilidades">O que rola aqui</a>
+          <a
+            href="https://neovanguard.com.br"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Neovanguard <ArrowUpRight />
+          </a>
+        </nav>
+        <a href="#entrar" className="porta-nav-cta">
+          Abrir uma sala <ArrowUpRight />
+        </a>
+      </header>
+      <main id="main">
+        <section className="porta-hero" aria-labelledby="titulo">
+          <div className="porta-editorial">
+            <p className="porta-kicker">
+              <span /> UM LUGAR PARA ESTAR JUNTO
             </p>
-
-            <form onSubmit={entrar} className="entrada">
-              <div className="entrada-campo">
-                <label htmlFor="nome">Seu nome</label>
-                <input
-                  id="nome"
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  maxLength={LIMITES.NOME}
-                  placeholder="como te chamam"
-                  autoComplete="off"
-                />
-              </div>
-
-              <div className="entrada-campo">
-                <label htmlFor="sala">Código da sala</label>
-                <div className="entrada-linha">
-                  <input
-                    id="sala"
-                    value={sala}
-                    onChange={(e) => setSala(e.target.value)}
-                    maxLength={LIMITES.SALA}
-                    placeholder="churrasco"
-                    autoComplete="off"
-                    spellCheck={false}
+            <h1 id="titulo">
+              Boa conversa.
+              <br />
+              Zero <span>distância.</span>
+            </h1>
+            <p className="porta-descricao">
+              Seu grupo, suas ideias, seu espaço. Entre na voz, compartilhe a
+              tela e deixe a conversa acontecer.
+            </p>
+            <div className="porta-promessas">
+              <span>Sem cadastro</span>
+              <span>Até 8 pessoas</span>
+              <span>Sem gravação</span>
+            </div>
+            <div className="porta-arte" aria-hidden="true">
+              <div className="porta-orbita porta-orbita--a" />
+              <div className="porta-orbita porta-orbita--b" />
+              <div className="porta-frequencia">
+                {Array.from({ length: 39 }, (_, i) => (
+                  <i
+                    key={i}
+                    style={{
+                      height: `${16 + Math.abs(Math.sin(i * 0.71)) * (80 - Math.abs(i - 19) * 2.5)}%`,
+                      animationDelay: `${i * -0.13}s`,
+                    }}
                   />
-                  <button
-                    type="button"
-                    className="pill pill--ghost"
-                    onClick={() => setSala(salaAleatoria())}
-                  >
-                    sortear
-                  </button>
-                </div>
+                ))}
               </div>
-
+              <span className="porta-arte-label">
+                MENOS DISTÂNCIA. MAIS PRESENÇA.
+              </span>
+              <span className="porta-arte-numero">01 / ∞</span>
+            </div>
+          </div>
+          <div className="porta-entrada" id="entrar">
+            <div className="porta-entrada-topo">
+              <span className="porta-kicker">A CONVERSA COMEÇA AQUI</span>
+              <MicIcon />
+            </div>
+            <h2>Puxa uma cadeira.</h2>
+            <p>Um nome e um código. O resto é com vocês.</p>
+            <form onSubmit={entrar}>
+              <label htmlFor="nome">Como podemos te chamar?</label>
+              <input
+                id="nome"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                maxLength={LIMITES.NOME}
+                placeholder="Seu nome ou apelido"
+                autoComplete="nickname"
+                required
+              />
+              <div className="porta-label-linha">
+                <label htmlFor="sala">Código da sala</label>
+                <button type="button" onClick={() => setSala(salaAleatoria())}>
+                  Criar um código <ArrowUpRight />
+                </button>
+              </div>
+              <input
+                id="sala"
+                value={sala}
+                onChange={(e) => setSala(e.target.value)}
+                maxLength={LIMITES.SALA}
+                placeholder="Ex.: noite-de-ideias"
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                aria-describedby="codigo-ajuda"
+              />
+              <p id="codigo-ajuda" className="porta-ajuda">
+                Recebeu um convite? Use o código do seu grupo.
+              </p>
               <button
+                className="porta-entrar"
                 type="submit"
-                className="pill pill--accent entrada-ir"
-                disabled={!pronto || !nomeOk || !salaOk}
+                disabled={!pronto || !limparNome(nome) || !limparSala(sala)}
               >
-                <MicIcon />
-                Entrar na sala
+                Entrar na sala <ArrowUpRight />
               </button>
             </form>
-
-            <p className="entrada-nota">
-              Qualquer palavra serve como código. Quem digitar o mesmo código
-              cai na mesma sala — é assim que vocês se encontram, e é tudo o
-              que faz as vezes de convite.
-            </p>
-          </section>
-
-          {/* ── as portas ──────────────────────────────────────────────── */}
-          <section className="panel" aria-labelledby="destinos-h">
-            <header className="sec-head">
-              <span className="eyebrow">A casa</span>
-              <h2 id="destinos-h" className="h-lg">
-                Quatro destinos, <em className="h-accent">um endereço só.</em>
-              </h2>
-            </header>
-
-            <div className="portas">
-              {DESTINOS.map((d) =>
-                d.breve ? (
-                  <div key={d.titulo} className="door door--breve" aria-disabled="true">
-                    <ConteudoDaPorta {...d} />
-                  </div>
-                ) : d.externo ? (
-                  <a
-                    key={d.titulo}
-                    href={d.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="door"
-                  >
-                    <ConteudoDaPorta {...d} />
-                  </a>
-                ) : (
-                  <a key={d.titulo} href="#entrar" className="door">
-                    <ConteudoDaPorta {...d} />
-                  </a>
-                ),
-              )}
+            <div className="porta-entrada-rodape">
+              <span className="porta-mini-onda" aria-hidden="true">
+                ▂▅▇▃▆
+              </span>
+              <span>
+                Mesma sala. Mesmo momento.
+                <br />
+                <small>Compartilhe o código e encontre sua turma.</small>
+              </span>
             </div>
-          </section>
-
-          {/* ── o que existe dentro da sala ────────────────────────────── */}
-          <section className="panel" aria-labelledby="ferr-h">
-            <header className="sec-head">
-              <span className="eyebrow">Dentro da sala</span>
-              <h2 id="ferr-h" className="h-lg">
-                Ferramentas <em className="h-accent">para usar falando.</em>
-              </h2>
-            </header>
-            <p className="lead">
-              Elas ficam no menu de ferramentas, ao lado do chat. Quem abre o
-              quadro ou as notas é dono deles: todo mundo vê, e quem quiser
-              mexer pede licença.
+          </div>
+        </section>
+        <div className="porta-faixa">
+          <span>CONVERSAS QUE VIRAM IDEIAS</span>
+          <span aria-hidden="true">✳</span>
+          <span>IDEIAS QUE JUNTAM GENTE</span>
+          <span aria-hidden="true">✳</span>
+          <span>DO SEU JEITO</span>
+        </div>
+        <section
+          id="possibilidades"
+          className="porta-recursos"
+          aria-labelledby="recursos-titulo"
+        >
+          <div className="porta-sec-cab">
+            <p className="porta-kicker">MUITO ALÉM DO “TÁ ME OUVINDO?”</p>
+            <h2 id="recursos-titulo">
+              Um espaço.
+              <br />
+              <span>Mil possibilidades.</span>
+            </h2>
+            <p>
+              Para uma partida, um projeto ou só colocar o papo em dia. Tudo
+              fica perto, sem sair da conversa.
             </p>
-
-            <div className="cards">
+          </div>
+          <div className="porta-feature-grid">
+            <article className="porta-feature porta-feature--voz">
+              <span className="porta-feature-num">01 / CONECTAR</span>
+              <div className="porta-dupla" aria-hidden="true">
+                <span>oi.</span>
+                <span>fala!</span>
+              </div>
+              <h3>A voz aproxima.</h3>
+              <p>
+                Áudio com controle de ruído e volume individual. Cada pessoa
+                encontra seu jeito de ouvir.
+              </p>
+              <span className="porta-tag">VOZ EM TEMPO REAL</span>
+            </article>
+            <article className="porta-feature porta-feature--tela">
+              <span className="porta-feature-num">02 / COMPARTILHAR</span>
+              <div className="porta-mini-tela" aria-hidden="true">
+                <div>
+                  <i />
+                  <i />
+                  <i />
+                </div>
+                <span>
+                  Ideias à vista.
+                  <ArrowUpRight />
+                </span>
+              </div>
+              <h3>Mostra. Explica. Cria.</h3>
+              <p>
+                Sua tela vira o ponto de encontro. Compartilhe uma janela, uma
+                aba e, quando disponível, o som dela.
+              </p>
+              <span className="porta-tag">TELA + SOM</span>
+            </article>
+            <article className="porta-feature">
+              <span className="porta-feature-num">03 / FAZER JUNTO</span>
+              <div className="porta-nota" aria-hidden="true">
+                a próxima
+                <br />
+                grande ideia <span>↗</span>
+              </div>
+              <h3>O papo ganha forma.</h3>
+              <p>
+                Quadro, notas, enquetes e temporizador. Ferramentas que
+                acompanham o ritmo do grupo.
+              </p>
+              <span className="porta-tag">COLABORAÇÃO</span>
+            </article>
+          </div>
+          <details className="porta-detalhes">
+            <summary>
+              Explore todas as ferramentas <span>+</span>
+            </summary>
+            <div>
               {CATALOGO.map((f) => (
-                <article key={f.id} className="card">
-                  <span className="card-n">{f.resumo}</span>
-                  <h3 className="card-t">{f.titulo}</h3>
-                  <p className="card-d">{f.para}</p>
-                  <div className="card-tags">
-                    <span className="chip">{f.dono ? "com dono" : "aberta a todos"}</span>
-                  </div>
+                <article key={f.id}>
+                  <h3>{f.titulo}</h3>
+                  <p>{f.para}</p>
                 </article>
               ))}
             </div>
-          </section>
-
-          <Foot />
-        </main>
-
-        <RailRight />
-      </div>
-    </>
-  );
-}
-
-/**
- * A sala, desenhada atrás da porta.
- *
- * Uma tela de entrada não diz para onde se está indo, e "sala de voz" é um nome
- * que cada um imagina de um jeito. Aqui a forma da sala aparece desfocada atrás
- * dos dois campos — trilho à esquerda, palco com duas pessoas, chat à direita, a
- * pílula de controles embaixo. Não é preciso reconhecer os detalhes: o que se lê
- * num relance é *é uma chamada, e tem ferramentas em volta*.
- *
- * **Nada aqui é ao vivo.** Não há câmera, não há microfone, não há uma segunda
- * pessoa: são divs. Uma prévia que pedisse permissão de mídia na tela de entrada
- * seria exatamente o oposto da promessa que esta página faz.
- *
- * `aria-hidden` porque é ornamento — quem navega por leitor de tela não ganha
- * nada com "caixa cinza dentro de caixa cinza", e ganha com o formulário
- * chegando primeiro.
- */
-function PreviaDaSala() {
-  return (
-    <div className="nv-previa" aria-hidden="true">
-      <div className="nv-previa-trilho">
-        <i />
-        <i />
-        <i />
-        <i />
-      </div>
-      <div className="nv-previa-palco">
-        <div className="nv-previa-gente">
-          <span />
-          <span />
-        </div>
-        <div className="nv-previa-pilula" />
-      </div>
-      <div className="nv-previa-chat">
-        <i />
-        <i />
-        <i />
-        <i />
-        <i />
-      </div>
+          </details>
+        </section>
+        <section className="porta-final">
+          <p className="porta-kicker">PODE CHEGAR.</p>
+          <h2>
+            A melhor parte
+            <br />é quem está <em>do outro lado.</em>
+          </h2>
+          <a href="#entrar">
+            Encontre sua turma <ArrowUpRight />
+          </a>
+        </section>
+      </main>
+      <footer className="porta-footer">
+        <a className="porta-marca" href={comBase("")}>
+          nvdisc®
+        </a>
+        <span>Feito para conectar. Por Neovanguard.</span>
+        <span>Mais encontros em breve.</span>
+      </footer>
     </div>
-  );
-}
-
-/** O miolo de uma porta — igual nas três formas que ela pode assumir. */
-function ConteudoDaPorta({
-  n,
-  titulo,
-  d,
-  cta,
-  breve,
-}: {
-  n: string;
-  titulo: string;
-  d: string;
-  cta: string;
-  breve?: boolean;
-}) {
-  return (
-    <>
-      <span className="door-flag">
-        {n} · {breve ? "em breve" : "no ar"}
-      </span>
-      <h3>{titulo}</h3>
-      <p>{d}</p>
-      <span className="door-cta">
-        {cta}
-        {!breve && <ArrowUpRight />}
-      </span>
-    </>
   );
 }

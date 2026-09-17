@@ -185,11 +185,11 @@ http.listen(porta, host, () => {
         "TLS_CERT/TLS_KEY para falar entre dois aparelhos.",
     );
   }
-  if (!process.env.NVDISC_TURN_URL) {
+  if (!(process.env.TURN_URL || process.env.NEXT_PUBLIC_TURN_URL)) {
     console.log(
       "\naviso: sem TURN configurado. Na mesma rede e na maioria das casas\n" +
         "funciona só com STUN, mas em redes de empresa ou atrás de NAT\n" +
-        "simétrico a chamada não fecha. Veja NVDISC_TURN_URL no README.",
+        "simétrico a chamada não fecha. Veja TURN_URL, TURN_USER e TURN_SENHA no README.",
     );
   }
 });

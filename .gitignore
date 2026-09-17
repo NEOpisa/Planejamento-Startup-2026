@@ -12,3 +12,6 @@ next-env.d.ts
 
 # derivado de @jitsi/rnnoise-wasm; gerado por scripts/gerar-isolador.mjs
 public/isolador-de-voz.js
+
+# Capturas locais de validação visual
+artifacts/

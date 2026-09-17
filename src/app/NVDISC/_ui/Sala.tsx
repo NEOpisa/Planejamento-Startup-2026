@@ -16,6 +16,7 @@ import {
   Malha,
   aoPrimeiroGesto,
   criarReforco,
+  contextoDeAudio,
   QUALIDADE_PADRAO,
   type EstadoMalha,
   type Participante,
@@ -88,12 +89,8 @@ function escrevendo(alvo: EventTarget | null): boolean {
  */
 function notinha(tipo: "entrou" | "saiu") {
   try {
-    const Ctx =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext })
-        .webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
+    const ctx = contextoDeAudio();
+    if (ctx.state !== "running") return;
     const t0 = ctx.currentTime;
     const notas = tipo === "entrou" ? [587, 880] : [880, 587];
     notas.forEach((hz, i) => {
@@ -109,8 +106,9 @@ function notinha(tipo: "entrou" | "saiu") {
       osc.connect(vol).connect(ctx.destination);
       osc.start(t0 + i * 0.1);
       osc.stop(t0 + i * 0.1 + 0.14);
+      osc.onended = () => { osc.disconnect(); vol.disconnect(); };
     });
-    setTimeout(() => void ctx.close(), 700);
+
   } catch {
     /* navegador sem áudio, ou contexto ainda travado */
   }
@@ -213,7 +211,8 @@ export default function Sala({ sala }: { sala: string }) {
   }
 
   useEffect(() => {
-    const guardado = limparNome(localStorage.getItem("nvdisc:nome"));
+    let guardado = "";
+    try { guardado = limparNome(localStorage.getItem("nvdisc:nome")); } catch { /* armazenamento indisponível */ }
     if (!guardado) {
       // Sem nome não dá para entrar, e mandar de volta para a entrada com o
       // código já preenchido é mais gentil que um formulário no meio da sala.
@@ -868,13 +867,13 @@ function Som({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    reforco.current?.parar();
+    reforco.current = null;
     if (volume > 1) {
       el.muted = true;
       if (!reforco.current) reforco.current = criarReforco(fluxo);
       reforco.current.ajustar(volume);
     } else {
-      reforco.current?.parar();
-      reforco.current = null;
       el.muted = false;
       el.volume = volume;
     }
@@ -941,7 +940,7 @@ function Som({
         <button
           className="nv-mini"
           style={{ borderColor: "var(--alerta)", color: "var(--alerta)" }}
-          onClick={() => void ref.current?.play().then(() => setBloqueado(false))}
+          onClick={() => void ref.current?.play().then(() => setBloqueado(false), () => setBloqueado(true))}
         >
           ouvir {nome}
         </button>

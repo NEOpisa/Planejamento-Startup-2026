@@ -698,7 +698,7 @@ function destravarAudio() {
   ligarGestos();
 }
 
-function contextoDeAudio(): AudioContext {
+export function contextoDeAudio(): AudioContext {
   if (!contextoUnico) contextoUnico = new AudioContext({ sampleRate: 48000 });
   if (contextoUnico.state === "suspended") {
     void contextoUnico.resume();
@@ -1127,6 +1127,8 @@ export class Malha {
   private fluxoTela: MediaStream | null = null;
   private meuMedidor?: Medidor;
   private cadeia: Cadeia | null = null;
+  private filaCadeia: Promise<void> = Promise.resolve();
+  private conferindoFluxos = false;
   private quadro = 0;
   private pingTimer?: ReturnType<typeof setInterval>;
   private ouvinte: Ouvinte;
@@ -1311,13 +1313,21 @@ export class Malha {
     porta.gain.setTargetAtTime(alvo, contexto.currentTime, alvo === 1 ? 0.008 : 0.18);
   }
 
-  private async refazerCadeia() {
+  private refazerCadeia(): Promise<void> {
+    const tarefa = this.filaCadeia.then(() => this.montarNovaCadeia());
+    this.filaCadeia = tarefa.catch(() => {});
+    return tarefa;
+  }
+
+  private async montarNovaCadeia() {
+    if (this.fechando) return;
     const q = this.estado.qualidade;
     const comPorta = q.ruido === "forte";
     // O módulo é baixado agora, na troca de modo, e não na entrada da sala.
     // Se não subir, `comIsolador` cai para falso e o microfone vai cru.
     const comIsolador = q.ruido === "isolar" && (await garantirIsolador(contextoDeAudio()));
-    this.cadeia?.desmontar();
+    if (this.fechando) return;
+    const anterior = this.cadeia;
     this.cadeia = montarCadeia(
       this.meuFluxo,
       [q.somDaTela ? this.fluxoTela : null],
@@ -1326,6 +1336,7 @@ export class Malha {
       comIsolador,
     );
     await this.trocarVoz();
+    anterior?.desmontar();
   }
 
   /**
@@ -1428,6 +1439,7 @@ export class Malha {
       // Só agora, com a permissão dada, os dispositivos têm nome.
       this.vigiarCaptura();
       await this.listarMicrofones();
+      await this.refazerCadeia();
       navigator.mediaDevices?.addEventListener?.("devicechange", this.aoTrocarDispositivos);
     } catch {
       // Duas causas, e confundi-las custa uma noite: sem HTTPS o navegador
@@ -1460,6 +1472,7 @@ export class Malha {
     // par criado com a lista velha ficaria sem TURN até alguém refazê-lo, e
     // essa pessoa é justamente a que mais precisa dele.
     await ice;
+    if (this.fechando) return;
     this.abrirSinalizacao();
     this.laçoDeVolume();
     this.vigiarFluxos();
@@ -2234,6 +2247,7 @@ export class Malha {
      * lugar, e uma nunca apaga a outra.
      */
     pc.ontrack = (ev) => {
+      if (this.pares.get(outroId) !== par || this.fechando) return;
       const p = this.acha(outroId);
       if (!p) return;
 
@@ -2274,9 +2288,14 @@ export class Malha {
       // tela, senão fica um retângulo preto congelado no lugar dela.
       ev.track.onended = () => {
         const q = this.acha(outroId);
-        if (!q) return;
-        if (ev.track.kind === "audio") q.audio = undefined;
-        else q.video = undefined;
+        if (!q || this.pares.get(outroId) !== par) return;
+        const chave = ev.track.kind === "audio" ? "audio" : "video";
+        const restantes = q[chave]?.getTracks().filter(t => t !== ev.track && t.readyState === "live") ?? [];
+        q[chave] = restantes.length ? new MediaStream(restantes) : undefined;
+        if (chave === "audio") {
+          par.medidor?.parar();
+          par.medidor = q.audio ? criarMedidor(q.audio) : undefined;
+        }
         this.avisar();
       };
 
@@ -2284,6 +2303,7 @@ export class Malha {
     };
 
     pc.onicecandidate = (ev) => {
+      if (this.pares.get(outroId) !== par || this.fechando) return;
       if (ev.candidate) {
         this.manda(PARA_SERVIDOR.SINAL, {
           para: outroId,
@@ -2293,6 +2313,7 @@ export class Malha {
     };
 
     pc.onconnectionstatechange = () => {
+      if (this.pares.get(outroId) !== par || this.fechando) return;
       const p = this.acha(outroId);
       if (p) {
         p.conexao = pc.connectionState;
@@ -2375,6 +2396,7 @@ export class Malha {
   /** Faz e manda uma oferta. Roda sempre dentro da fila do par. */
   private async oferecer(par: Par, outroId: string) {
     const { pc } = par;
+    if (this.fechando || this.pares.get(outroId) !== par || pc.signalingState !== "stable") return;
     try {
       par.fazendoOferta = true;
       // A oferta é criada explicitamente para poder ajustar o Opus antes de
@@ -2442,6 +2464,7 @@ export class Malha {
     dados: { descricao?: RTCSessionDescriptionInit; candidato?: RTCIceCandidateInit },
   ) {
     const { pc } = par;
+    if (this.fechando || this.pares.get(de) !== par) return;
 
     try {
       if (dados.descricao) {
@@ -2570,6 +2593,10 @@ export class Malha {
     if (!par) return;
     this.avisados.delete(id);
     par.medidor?.parar();
+    par.pc.ontrack = null;
+    par.pc.onicecandidate = null;
+    par.pc.onconnectionstatechange = null;
+    par.pc.onnegotiationneeded = null;
     try {
       par.pc.close();
     } catch {
@@ -2995,7 +3022,12 @@ export class Malha {
    */
   private vigiarFluxos() {
     if (this.vigia) clearInterval(this.vigia);
-    this.vigia = setInterval(() => void this.conferirFluxos(), 2000);
+    this.vigia = setInterval(() => {
+      if (this.conferindoFluxos) return;
+      this.conferindoFluxos = true;
+      void this.conferirFluxos().catch((erro) => console.warn("NVDISC/recuperação:", erro))
+        .finally(() => { this.conferindoFluxos = false; });
+    }, 2000);
   }
 
   /**
@@ -3054,8 +3086,13 @@ export class Malha {
        */
       if (estado === "disconnected") {
         if (!par.caiuEm) par.caiuEm = agora;
-        else if (agora - par.caiuEm > 4000) {
-          par.caiuEm = agora; // uma tentativa a cada quatro segundos, não mais
+        if (agora - par.caiuEm > 18000 && agora - par.insistiEm > 8000) {
+          par.refeita += 1;
+          await this.refazerPar(id);
+          continue;
+        }
+        if (agora - par.caiuEm > 4000 && agora - par.insistiEm > 8000) {
+          par.insistiEm = agora;
           try {
             par.pc.restartIce();
           } catch {
@@ -3142,9 +3179,10 @@ export class Malha {
       par.insistiEm = 0;
 
       const recebidos = await this.pacotesDeAudio(par.pc);
-      if (recebidos < 0) continue;
+      if (this.fechando || this.pares.get(id) !== par || recebidos < 0) continue;
 
       if (recebidos > par.pacotes) {
+        par.refeita = 0;
         par.pacotes = recebidos;
         par.parouEm = 0;
         par.reiniciei = false;

@@ -13,7 +13,8 @@
     "test:navegador": "node scripts/teste-navegador.mjs",
     "test:ferramentas": "node scripts/teste-ferramentas.mjs",
     "cert": "node scripts/certificado.mjs",
-    "test:instancias": "node scripts/teste-instancias.mjs"
+    "test:instancias": "node scripts/teste-instancias.mjs",
+    "test:recuperacao": "node scripts/teste-recuperacao.mjs"
   },
   "dependencies": {
     "@jitsi/rnnoise-wasm": "^0.2.1",

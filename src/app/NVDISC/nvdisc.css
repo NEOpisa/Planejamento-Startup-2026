@@ -3808,3 +3808,33 @@ button.nv-aviso:hover {
     display: none;
   }
 }
+
+/* Sala: superfícies com mais respiro e hierarquia, mantendo os temas pessoais. */
+.nv-sala .nv-canal { min-height: 76px; padding-inline: 24px; background: color-mix(in srgb, var(--surface) 92%, transparent); }
+.nv-sala .nv-canal-nome { font-size: 19px; letter-spacing: -.045em; }
+.nv-sala .nv-canal-botao { min-height: 38px; border-radius: 10px; }
+.nv-sala .nv-rail-topo { padding: 22px 18px; gap: 18px; }
+.nv-sala .nv-rail-topo .marca { font-size: 23px; letter-spacing: -.065em; }
+.nv-sala .nv-rail { background: color-mix(in srgb, var(--surface) 85%, var(--bg)); }
+.nv-sala .nv-pessoa.grande { min-height: 220px; justify-content: center; background: linear-gradient(145deg, color-mix(in srgb, var(--accent-light) 7%, var(--surface)), var(--surface)); border-color: var(--hairline); box-shadow: 0 12px 40px #0002; }
+.nv-sala .nv-pessoa.falando { border-color: var(--accent-light); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-light) 25%, transparent), 0 12px 40px #0002; }
+.nv-sala .nv-pessoa.grande .nv-avatar { box-shadow: 0 8px 35px #0003; }
+.nv-sala .nv-pilula { padding: 9px; border: 1px solid var(--hairline-hi); box-shadow: 0 12px 40px #0005; background: color-mix(in srgb, var(--surface) 96%, transparent); }
+.nv-sala .nv-chat h2 { min-height: 76px; padding: 24px 18px; }
+.nv-sala .nv-chat form { padding: 14px; }
+.nv-sala .nv-chat form input { border-radius: 12px; }
+.nv-sala .nv-telas { border-radius: var(--r-nv); }
+@media (max-width: 720px) {
+  .nv-sala .nv-canal { min-height: 62px; padding-inline: 12px; }
+  .nv-sala .nv-canal-nome { font-size: 15px; }
+  .nv-sala .nv-pessoa.grande { min-height: 175px; }
+  .nv-sala .nv-pilula { padding: 6px; }
+}
+.nv-sala[data-tema="lima"] {
+  --bg: #10120f; --surface: #1b1f19; --raised: #252b21;
+  --accent: #485e2b; --accent-hover: #5e773a; --accent-light: #d5f78b;
+  --hairline-hi: #d5f78b66; --txt: #f1f3eb; --txt-2: #bdc6b1; --txt-3: #a5b296;
+}
+.nv-sala[data-tema="lima"][data-fundo="brilho"] {
+  background: radial-gradient(ellipse at 50% 45%, #d5f78b09, transparent 60%), var(--bg);
+}

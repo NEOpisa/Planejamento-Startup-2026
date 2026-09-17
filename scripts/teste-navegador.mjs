@@ -26,9 +26,9 @@ import { WebSocket } from "ws";
 
 import { BASE } from "../src/lib/base.mjs";
 
-const PORTA = 3400;
+const PORTA = Number(process.env.TEST_PORT ?? 3420);
 /** O segundo servidor, em modo de desenvolvimento (ver o fim do arquivo). */
-const PORTA_DEV = 3402;
+const PORTA_DEV = Number(process.env.TEST_DEV_PORT ?? 3422);
 const CDP = Number(process.env.CDP ?? 9333);
 const RAIZ = `http://localhost:${PORTA}${BASE}`;
 const SALA = "e2e-" + Math.random().toString(36).slice(2, 7);
@@ -195,6 +195,12 @@ try {
         const AC = window.AudioContext;
         window.__ACreal = AC;
         window.__acs = 0;
+        window.__sources = [];
+        const source = AC.prototype.createMediaStreamSource;
+        AC.prototype.createMediaStreamSource = function(stream) {
+          window.__sources.push(stream);
+          return source.call(this, stream);
+        };
         window.AudioContext = function (...b) {
           window.__acs += 1;
           return new AC(...b);
@@ -305,25 +311,27 @@ try {
     return true;
   })()`);
 
-  await abas[0].aba.js(`[...document.querySelectorAll("button")].find(b => /Compartilhar tela/.test(b.textContent))?.click(), true`);
+  await abas[0].aba.js(`document.querySelector('button[aria-label="compartilhar a tela"]').click(), true`);
+  await esperar(300);
+  await abas[0].aba.js(`document.querySelector(".nv-partilha-op").click(), true`);
   await esperar(2500);
   // A tela chega como **cartão** na área fixa, e só vira palco quando quem
   // assiste clica. O teste procurava direto pelo palco (`.nv-tela`) e por isso
   // falhava com o vídeo chegando perfeitamente do outro lado — a asserção é
   // que envelheceu junto com a interface, não a chamada.
   ok(
-    await abas[1].aba.js(`document.querySelectorAll(".nv-cartao-tela").length === 1`),
+    await abas[1].aba.js(`document.querySelectorAll(".nv-cartao-tela:not(.quadro) video").length === 1`),
     "a tela compartilhada aparece do outro lado",
   );
-  await abas[1].aba.js(`document.querySelector(".nv-cartao-tela")?.click(), true`);
+  await abas[1].aba.js(`document.querySelector(".nv-cartao-tela:not(.quadro)")?.click(), true`);
   await esperar(600);
   ok(
-    await abas[1].aba.js(`document.querySelectorAll(".nv-tela").length === 1`),
+    await abas[1].aba.js(`(() => { const v = document.querySelector(".nv-tela video"); return !!v && v.videoWidth > 0 && v.readyState >= 2; })()`),
     "e abre no palco ao clicar",
   );
 
   // microfone mudo: a partir daqui, som que chegar é o da tela
-  await abas[0].aba.js(`[...document.querySelectorAll("button")].find(b => /Microfone/.test(b.textContent))?.click(), true`);
+  await abas[0].aba.js(`document.querySelector('.nv-pilula button[aria-label$="o microfone"]').click(), true`);
   await esperar(2000);
 
   const energia = await abas[1].aba.js(`(async () => {
@@ -353,8 +361,8 @@ try {
   );
 
   // volta o microfone e para a tela, para não atrapalhar o resto
-  await abas[0].aba.js(`[...document.querySelectorAll("button")].find(b => /Microfone/.test(b.textContent))?.click(), true`);
-  await abas[0].aba.js(`[...document.querySelectorAll("button")].find(b => /Parar de compartilhar/.test(b.textContent))?.click(), true`);
+  await abas[0].aba.js(`document.querySelector('.nv-pilula button[aria-label$="o microfone"]').click(), true`);
+  await abas[0].aba.js(`document.querySelector('button[aria-label="parar de compartilhar a tela"]').click(), true`);
   await esperar(1500);
 
   console.log("\nsupressão de ruído");
@@ -362,7 +370,7 @@ try {
   // É `replaceTrack`, então não deveria renegociar nada nem interromper o
   // som — e "não deveria" é exatamente o tipo de frase que merece um teste.
   await abas[0].aba.js(`(() => {
-    [...document.querySelectorAll("button")].find(b => /Ajustes/.test(b.textContent))?.click();
+    document.querySelector('button[aria-label="Ajustes"]')?.click();
     return true;
   })()`);
   await esperar(400);
@@ -417,6 +425,17 @@ try {
       return n;
     })()`);
 
+  // Keep the listener amplified during recovery: the gain graph must follow
+  // the replacement stream rather than continuing to play the retired one.
+  await abas[1].aba.js(`document.querySelector(".nv-pessoa.ajustavel").click(), true`);
+  await esperar(200);
+  await abas[1].aba.js(`(() => {
+    const campo = document.querySelector(".nv-menu-volume input[type=range]");
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(campo, "1.5");
+    campo.dispatchEvent(new Event("input", {bubbles:true}));
+  })()`);
+  await esperar(300);
+  ok(await abas[1].aba.js(`document.querySelector("audio").muted`), "volume de 150% usa o amplificador antes da queda");
   const antesDaQueda = await pacotesDe(abas[1].aba);
 
   // A faixa sai do remetente sem que nada seja fechado: é o retrato de uma
@@ -455,6 +474,11 @@ try {
     await abas[1].aba.js(`(() => { const el = document.querySelector("audio"); return !!el && !el.paused; })()`),
     "e o elemento de áudio continua tocando",
   );
+
+  ok(await abas[1].aba.js(`(() => {
+    const el = document.querySelector("audio");
+    return el.muted && window.__sources.filter(s => s === el.srcObject).length >= 2;
+  })()`), "medidor e amplificador acompanham o novo fluxo após reconexão");
 
   // ── a entrada pelo formulário, em modo de desenvolvimento ──────────
   //
@@ -566,7 +590,7 @@ try {
   let temCaixa = false;
   for (let i = 0; i < 15 && !temCaixa; i += 1) {
     temCaixa = await abas[0].aba
-      .js(`!!document.querySelector("aside input:not([type=file])")`)
+      .js(`!!document.querySelector(".nv-chat input:not([type=file])")`)
       .catch(() => false);
     if (!temCaixa) await esperar(1000);
   }
@@ -576,16 +600,19 @@ try {
     // O primeiro input do chat é o seletor de imagem, escondido — e escrever
     // no value de um input de arquivo lança. O teste morria aí, depois de
     // tudo o mais já ter passado.
-    const campo = document.querySelector("aside input:not([type=file])");
+    const campo = document.querySelector(".nv-chat input:not([type=file])");
     const setter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype, "value").set;
     setter.call(campo, "oi da Ana");
     campo.dispatchEvent(new Event("input", { bubbles: true }));
-    campo.closest("form").requestSubmit();
+  })()`);
+  await esperar(150);
+  await abas[0].aba.js(`(() => {
+    document.querySelector(".nv-chat form").requestSubmit();
   })()`);
   await esperar(800);
   const viu = await abas[1].aba.js(
-    `document.querySelector("aside").textContent.includes("oi da Ana")`,
+    `document.querySelector(".nv-chat").textContent.includes("oi da Ana")`,
   );
   ok(viu, "a mensagem digitada por uma aparece na outra");
   }

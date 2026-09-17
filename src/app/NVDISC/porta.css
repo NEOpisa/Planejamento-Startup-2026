@@ -1,0 +1,649 @@
+.porta {
+  --p-lima: #d5f78b;
+  --p-muted: #a5aaa3;
+  background: #10120f;
+  color: #f1f3eb;
+  font-size: 15px;
+}
+.porta a {
+  text-decoration: none;
+}
+.porta button,
+.porta input {
+  font: inherit;
+}
+.porta-nav {
+  max-width: 1440px;
+  margin: auto;
+  height: 104px;
+  padding: 0 5%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #ffffff16;
+  gap: 24px;
+}
+.porta-marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: 700 30px var(--ff-display);
+  letter-spacing: -2px;
+}
+.porta-simbolo {
+  display: grid;
+  place-items: center;
+  background: var(--p-lima);
+  color: #151a0f;
+  width: 37px;
+  height: 37px;
+  border-radius: 50%;
+  font-size: 25px;
+}
+.porta-marca-ponto {
+  align-self: start;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+.porta-nav nav {
+  display: flex;
+  gap: 34px;
+  color: #bdc1b9;
+  font-size: 13px;
+}
+.porta-nav nav a,
+.porta-nav-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.porta svg {
+  width: 19px;
+  height: 19px;
+}
+.porta-nav-cta {
+  border: 1px solid #ffffff30;
+  border-radius: 100px;
+  padding: 11px 19px;
+  font-size: 12px;
+}
+.porta-nav a:hover {
+  color: var(--p-lima);
+}
+.porta-hero {
+  max-width: 1440px;
+  margin: auto;
+  padding: 78px 5% 66px;
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 8%;
+  align-items: center;
+}
+.porta-kicker {
+  font: 500 10px var(--ff-mono);
+  letter-spacing: 0.15em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.porta-kicker > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--p-lima);
+  box-shadow: 0 0 16px #d5f74455;
+}
+.porta h1 {
+  font: 500 clamp(48px, 5.7vw, 83px)/1.03 var(--ff-display);
+  letter-spacing: -0.07em;
+  margin: 28px 0 25px;
+}
+.porta h1 > span {
+  color: var(--p-lima);
+}
+.porta-descricao {
+  color: var(--p-muted);
+  max-width: 430px;
+  line-height: 1.85;
+  font-size: 15px;
+}
+.porta-promessas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 11px;
+  margin: 26px 0;
+  color: #c4c8bc;
+}
+.porta-promessas span::before {
+  content: "↗";
+  margin-right: 7px;
+  color: var(--p-lima);
+}
+.porta-arte {
+  height: 150px;
+  position: relative;
+  overflow: hidden;
+  margin-top: 34px;
+  border-top: 1px solid #ffffff16;
+}
+.porta-frequencia {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 15px 32px;
+  transform: rotate(-5deg);
+}
+.porta-frequencia i {
+  width: 6px;
+  border-radius: 8px;
+  background: var(--p-lima);
+  opacity: 0.75;
+  animation: porta-onda 3s ease-in-out infinite alternate;
+}
+@keyframes porta-onda {
+  to {
+    transform: scaleY(0.45);
+    opacity: 0.35;
+  }
+}
+.porta-orbita {
+  position: absolute;
+  width: 90%;
+  height: 100px;
+  border: 1px solid #d5f78b20;
+  border-radius: 50%;
+  top: 10px;
+  left: 5%;
+  transform: rotate(-13deg);
+}
+.porta-orbita--b {
+  transform: rotate(13deg);
+}
+.porta-arte-label,
+.porta-arte-numero {
+  position: absolute;
+  bottom: 0;
+  color: #909887;
+  font: 9px var(--ff-mono);
+  letter-spacing: 0.12em;
+}
+.porta-arte-numero {
+  right: 0;
+}
+.porta-entrada {
+  background: #1b1f19;
+  border: 1px solid #ffffff1c;
+  border-radius: 22px;
+  padding: 32px;
+  box-shadow: 0 24px 70px #0003;
+  scroll-margin-top: 24px;
+}
+.porta-entrada-topo {
+  display: flex;
+  justify-content: space-between;
+  color: var(--p-lima);
+  align-items: center;
+}
+.porta-entrada-topo > svg {
+  width: 34px;
+  height: 34px;
+  padding: 8px;
+  box-sizing: content-box;
+  border: 1px solid #d5f78b25;
+  border-radius: 50%;
+}
+.porta-entrada h2 {
+  font: 500 clamp(27px, 2.6vw, 36px) var(--ff-display);
+  letter-spacing: -0.06em;
+  margin: 25px 0 4px;
+}
+.porta-entrada > p {
+  margin: 0 0 30px;
+  color: var(--p-muted);
+  font-size: 12px;
+}
+.porta-entrada label {
+  display: block;
+  font-size: 12px;
+  margin: 0 0 9px;
+  color: #e0e4d9;
+}
+.porta-entrada input {
+  display: block;
+  width: 100%;
+  padding: 15px;
+  border: 1px solid #ffffff20;
+  border-radius: 9px;
+  background: #121610;
+  color: #f3f5ed;
+  outline-offset: 3px;
+  font-size: 13px;
+}
+.porta-entrada input:focus {
+  border-color: var(--p-lima);
+  outline-color: var(--p-lima);
+}
+.porta-entrada input::placeholder {
+  color: #929a8b;
+}
+.porta-label-linha {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+}
+.porta-label-linha button {
+  padding: 0;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--p-lima);
+  font-size: 10px;
+  cursor: pointer;
+}
+.porta-label-linha svg {
+  width: 13px;
+  height: 13px;
+}
+.porta-ajuda {
+  font-size: 10px;
+  color: var(--p-muted);
+  margin: 9px 0 25px;
+}
+.porta-entrar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px 20px;
+  color: #1c2414;
+  background: var(--p-lima);
+  border: 0;
+  border-radius: 9px;
+  font-weight: 700 !important;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+.porta-entrar:hover:enabled {
+  background: #e4ffb1;
+  transform: translateY(-2px);
+}
+.porta-entrar:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.porta-entrada-rodape {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #ffffff12;
+  font-size: 11px;
+}
+.porta-entrada-rodape small {
+  color: var(--p-muted);
+  font-size: 10px;
+}
+.porta-mini-onda {
+  font-size: 27px;
+  color: var(--p-lima);
+  letter-spacing: 2px;
+}
+.porta-faixa {
+  border-top: 1px solid #ffffff16;
+  border-bottom: 1px solid #ffffff16;
+  padding: 24px 5%;
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
+  gap: 22px;
+  color: #b4bca8;
+  font: 10px var(--ff-mono);
+  letter-spacing: 0.14em;
+}
+.porta-faixa span:nth-child(even) {
+  font-size: 24px;
+  color: var(--p-lima);
+}
+.porta-recursos {
+  max-width: 1440px;
+  margin: auto;
+  padding: 88px 5%;
+}
+.porta-sec-cab {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 12px 15%;
+  margin-bottom: 40px;
+}
+.porta-sec-cab .porta-kicker {
+  grid-column: 1 / -1;
+  color: var(--p-lima);
+}
+.porta-sec-cab h2 {
+  font: 500 clamp(32px, 4vw, 52px)/1.08 var(--ff-display);
+  letter-spacing: -0.055em;
+  margin: 8px 0;
+}
+.porta-sec-cab h2 span {
+  color: #929b88;
+}
+.porta-sec-cab > p:last-child {
+  color: var(--p-muted);
+  font-size: 13px;
+  align-self: end;
+}
+.porta-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.porta-feature {
+  background: #1b1f19;
+  border: 1px solid #ffffff16;
+  padding: 27px;
+  border-radius: 14px;
+  transition:
+    transform 0.25s,
+    border-color 0.25s;
+}
+.porta-feature:hover {
+  transform: translateY(-5px);
+  border-color: #d5f78b60;
+}
+.porta-feature-num {
+  font: 9px var(--ff-mono);
+  letter-spacing: 0.13em;
+  color: #a4af99;
+}
+.porta-feature h3 {
+  font: 500 24px var(--ff-display);
+  letter-spacing: -0.04em;
+  margin: 14px 0 8px;
+}
+.porta-feature p {
+  font-size: 12px;
+  color: var(--p-muted);
+  line-height: 1.85;
+  min-height: 70px;
+}
+.porta-tag {
+  display: inline-block;
+  margin-top: 12px;
+  font: 8px var(--ff-mono);
+  letter-spacing: 0.1em;
+  border: 1px solid #ffffff22;
+  border-radius: 20px;
+  padding: 7px 10px;
+  color: #c6cdbf;
+}
+.porta-dupla {
+  height: 145px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.porta-dupla span {
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: #d5f78b;
+  color: #243319;
+  font: 500 27px var(--ff-display);
+  transform: rotate(-12deg);
+}
+.porta-dupla span + span {
+  background: #c5b7f1;
+  margin-left: -10px;
+  transform: rotate(12deg);
+}
+.porta-mini-tela {
+  height: 114px;
+  margin: 19px 15px 12px;
+  border: 1px solid #a8b4db50;
+  border-radius: 10px;
+  background: #b4c5f0;
+  color: #263754;
+  transform: rotate(-4deg);
+}
+.porta-mini-tela > div {
+  display: flex;
+  gap: 4px;
+  padding: 10px;
+  border-bottom: 1px solid #26375430;
+}
+.porta-mini-tela i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #26375488;
+}
+.porta-mini-tela > span {
+  display: flex;
+  padding: 20px;
+  align-items: center;
+  justify-content: space-between;
+  font: 500 20px var(--ff-display);
+}
+.porta-nota {
+  height: 118px;
+  margin: 18px 24px 9px;
+  padding: 20px;
+  background: #e1c993;
+  color: #4b3e26;
+  font: 500 21px/1.2 var(--ff-display);
+  transform: rotate(4deg);
+  position: relative;
+}
+.porta-nota span {
+  position: absolute;
+  right: 13px;
+  bottom: 8px;
+  font-size: 32px;
+}
+.porta-detalhes {
+  margin-top: 26px;
+  border-bottom: 1px solid #ffffff20;
+}
+.porta-detalhes summary {
+  cursor: pointer;
+  padding: 20px 0;
+  font-size: 13px;
+}
+.porta-detalhes summary > span {
+  float: right;
+  color: var(--p-lima);
+}
+.porta-detalhes > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  padding-bottom: 28px;
+}
+.porta-detalhes h3 {
+  font-size: 14px;
+}
+.porta-detalhes p {
+  font-size: 12px;
+  color: var(--p-muted);
+}
+.porta-final {
+  text-align: center;
+  padding: 72px 20px 90px;
+  background: #d5f78b;
+  color: #222c17;
+}
+.porta-final .porta-kicker {
+  justify-content: center;
+}
+.porta-final h2 {
+  font: 500 clamp(34px, 4.8vw, 66px)/1.06 var(--ff-display);
+  letter-spacing: -0.06em;
+  margin: 25px 0 32px;
+}
+.porta-final em {
+  font-style: normal;
+  color: #617543;
+}
+.porta-final > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 25px;
+  border-radius: 50px;
+  padding: 15px 23px;
+  background: #202b17;
+  color: #f0f5e7;
+  font-size: 12px;
+}
+.porta-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 35px 5%;
+  color: #a5aaa3;
+  font-size: 10px;
+}
+.porta-footer .porta-marca {
+  color: #f1f3eb;
+}
+@media (min-width: 1600px) {
+  .porta-hero {
+    min-height: 720px;
+  }
+}
+@media (max-width: 850px) {
+  .porta-nav nav {
+    display: none;
+  }
+  .porta-hero {
+    gap: 5%;
+    padding-top: 48px;
+  }
+  .porta-entrada {
+    padding: 23px;
+  }
+  .porta h1 {
+    font-size: 50px;
+  }
+  .porta-feature {
+    padding: 20px;
+  }
+  .porta-feature-grid {
+    gap: 10px;
+  }
+  .porta-nota {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .porta-dupla span {
+    width: 70px;
+    height: 70px;
+  }
+  .porta-mini-tela {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .porta-feature h3 {
+    font-size: 20px;
+  }
+}
+@media (max-width: 640px) {
+  .porta-nav {
+    height: 80px;
+  }
+  .porta-marca {
+    font-size: 25px;
+  }
+  .porta-nav-cta {
+    font-size: 10px;
+    padding: 10px 12px;
+  }
+  .porta-hero {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 38px 6% 42px;
+  }
+  .porta h1 {
+    font-size: clamp(43px, 10.5vw, 66px);
+  }
+  .porta-arte {
+    height: 110px;
+    margin-top: 25px;
+  }
+  .porta-frequencia {
+    height: 90px;
+  }
+  .porta-entrada {
+    padding: 26px;
+  }
+  .porta-faixa {
+    flex-wrap: wrap;
+    font-size: 8px;
+    gap: 14px;
+  }
+  .porta-faixa > span:nth-last-child(-n + 2) {
+    display: none;
+  }
+  .porta-recursos {
+    padding: 50px 6%;
+  }
+  .porta-sec-cab {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .porta-feature-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .porta-feature {
+    padding: 25px;
+  }
+  .porta-feature p {
+    min-height: 0;
+  }
+  .porta-mini-tela {
+    max-width: 240px;
+    margin-inline: auto;
+  }
+  .porta-nota {
+    max-width: 210px;
+    margin-inline: auto;
+  }
+  .porta-detalhes > div {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .porta-footer {
+    flex-wrap: wrap;
+  }
+  .porta-footer > span:last-child {
+    width: 100%;
+  }
+  .porta-promessas {
+    gap: 13px;
+    font-size: 10px;
+  }
+}
+/* Grid children must be allowed to shrink below the waveform's intrinsic width. */
+.porta-hero > * {
+  min-width: 0;
+}
+.porta-frequencia i {
+  flex-shrink: 1;
+  min-width: 0;
+}
+.porta-final h2 {
+  color: #222c17;
+}
