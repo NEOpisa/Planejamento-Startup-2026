@@ -3816,7 +3816,7 @@ button.nv-aviso:hover {
 .nv-sala .nv-rail-topo { padding: 22px 18px; gap: 18px; }
 .nv-sala .nv-rail-topo .marca { font-size: 23px; letter-spacing: -.065em; }
 .nv-sala .nv-rail { background: color-mix(in srgb, var(--surface) 85%, var(--bg)); }
-.nv-sala .nv-pessoa.grande { min-height: 220px; justify-content: center; background: linear-gradient(145deg, color-mix(in srgb, var(--accent-light) 7%, var(--surface)), var(--surface)); border-color: var(--hairline); box-shadow: 0 12px 40px #0002; }
+.nv-sala .nv-pessoa.grande { justify-content: center; background: linear-gradient(145deg, color-mix(in srgb, var(--accent-light) 7%, var(--surface)), var(--surface)); border-color: var(--hairline); box-shadow: 0 12px 40px #0002; }
 .nv-sala .nv-pessoa.falando { border-color: var(--accent-light); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-light) 25%, transparent), 0 12px 40px #0002; }
 .nv-sala .nv-pessoa.grande .nv-avatar { box-shadow: 0 8px 35px #0003; }
 .nv-sala .nv-pilula { padding: 9px; border: 1px solid var(--hairline-hi); box-shadow: 0 12px 40px #0005; background: color-mix(in srgb, var(--surface) 96%, transparent); }
@@ -3827,7 +3827,6 @@ button.nv-aviso:hover {
 @media (max-width: 720px) {
   .nv-sala .nv-canal { min-height: 62px; padding-inline: 12px; }
   .nv-sala .nv-canal-nome { font-size: 15px; }
-  .nv-sala .nv-pessoa.grande { min-height: 175px; }
   .nv-sala .nv-pilula { padding: 6px; }
 }
 
@@ -3849,4 +3848,158 @@ button.nv-aviso:hover {
   .nv-convidar > span { display: none; }
   .nv-sala .nv-canal-gente { font-size: 9px; }
   .nv-sala .nv-telas-vazio { display: none; }
+}
+
+/* ══════════════════════════════════════════ a grade, pelo espaço que há ══
+ *
+ * Colunas e lado chegam medidos do React (`arrumarGrade`), e aqui só viram
+ * medida. A lista é flex e não grid de propósito: com a largura presa em
+ * `colunas × lado`, ela quebra no lugar certo e a última fileira, quando
+ * incompleta, fica centrada em vez de encostada à esquerda.
+ *
+ * Tudo o que está dentro do cartão sai do `--lado`, então avatar, nome e
+ * ícones crescem juntos quando sobra espaço e encolhem juntos com oito
+ * pessoas num celular.
+ */
+.nv-pessoas-grade {
+  /* `safe`: se não couber, a grade começa no topo e rola. Centrada à força, a
+     primeira fileira subia para fora da caixa, onde a rolagem não alcança. */
+  align-content: safe center;
+  justify-content: stretch;
+  padding: calc(20px * var(--e)) calc(20px * var(--e)) 92px;
+}
+.nv-pessoas-grade .nv-gente {
+  --vao: calc(14px * var(--e));
+  gap: var(--vao);
+  width: min(
+    100%,
+    calc(var(--colunas, 4) * var(--lado, 220px) + (var(--colunas, 4) - 1) * var(--vao))
+  );
+  margin-inline: auto;
+}
+.nv-pessoas-grade .nv-pessoa.grande {
+  width: var(--lado, 220px);
+  max-width: 100%;
+  min-height: 0;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  gap: 0;
+}
+.nv-pessoas-grade .nv-pessoa.grande .nv-avatar {
+  width: clamp(34px, calc(var(--lado, 220px) * 0.27), 118px);
+  height: clamp(34px, calc(var(--lado, 220px) * 0.27), 118px);
+  font-size: clamp(14px, calc(var(--lado, 220px) * 0.11), 46px);
+  /* Um pouco acima do centro: embaixo mora a plaquinha do nome. */
+  margin-bottom: calc(var(--lado, 220px) * 0.04);
+}
+.nv-pessoa.grande .nv-icones:empty {
+  display: none;
+}
+
+/* Cartões pequenos — oito pessoas num celular — perdem a folga das
+   plaquinhas, mas não a plaquinha: o nome é o que o cartão existe para dizer. */
+.nv-gente.miuda .nv-pessoa.grande .nv-nome,
+.nv-gente.miuda .nv-pessoa.grande .nv-icones {
+  bottom: 6px;
+  font-size: 11px;
+  padding: 2px 7px;
+}
+.nv-gente.miuda .nv-pessoa.grande .nv-nome {
+  left: 6px;
+  max-width: calc(100% - 12px);
+}
+.nv-gente.miuda .nv-pessoa.grande .nv-icones {
+  right: 6px;
+}
+.nv-gente.miuda .nv-pessoa.grande .nv-avatar {
+  margin-bottom: 14px;
+}
+
+/* ═════════════════════════════════════════ os painéis, quando apertam ══ */
+
+/* O véu só existe onde a gaveta boia: a lateral abaixo de 1180 px, o chat
+   abaixo de 1024. Fica entre a pílula (20) e as gavetas. */
+.nv-veu {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 21;
+  border: 0;
+  padding: 0;
+  background: rgba(4, 5, 9, 0.5);
+  cursor: default;
+}
+@media (max-width: 1180px) {
+  .nv-veu[data-rail] {
+    display: block;
+  }
+}
+@media (max-width: 1023px) {
+  .nv-veu[data-chat] {
+    display: block;
+  }
+  .nv-chat {
+    z-index: 22;
+  }
+}
+
+/* No celular a lateral é a tela inteira. A regra dizia isso, mas a largura
+   de 268 px da bancada, escrita depois, vencia — e sobrava uma fresta da
+   chamada ao lado, viva e clicável. */
+@media (max-width: 900px) {
+  .nv-rail {
+    width: auto;
+  }
+}
+@media (max-width: 480px) {
+  .nv-chat {
+    max-width: none;
+  }
+}
+
+/* A coluna de gente ao lado de uma tela: 120 px não cabem avatar **e** nome
+   em linha — sobrava "N…". Em pé, o nome ganha a largura toda. */
+.nv-gente.coluna .nv-pessoa {
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 6px 7px;
+  text-align: center;
+}
+.nv-gente.coluna .nv-pessoa .nv-nome {
+  font-size: 11.5px;
+}
+.nv-gente.coluna .nv-pessoa .nv-icones:empty,
+.nv-gente.coluna .nv-pessoa .nv-regua {
+  display: none;
+}
+
+/* No celular a coluna deita, e cada cartão guarda a própria largura em vez
+   de encolher até o nome virar uma letra. */
+@media (max-width: 720px) {
+  .nv-pessoas-coluna {
+    padding: 8px 12px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--hairline-hi) transparent;
+  }
+  .nv-gente.coluna .nv-pessoa {
+    flex-shrink: 0;
+    width: 84px;
+    padding: 6px 4px;
+  }
+  .nv-gente.coluna .nv-pessoa .nv-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+  }
+  /* A barra de abas já diz o que é; o rótulo e o "voltar" (que o X da tela
+     também faz) cediam o lugar das próprias abas. */
+  .nv-area-telas .nv-eyebrow,
+  .nv-area-telas .nv-abas-sair {
+    display: none;
+  }
+  /* A pílula boia sobre a tela aberta; a folga embaixo tira a legenda de
+     debaixo dela. No celular o vídeo deitado sobra na altura de todo jeito. */
+  .nv-telas.uma {
+    padding-bottom: 78px;
+  }
 }

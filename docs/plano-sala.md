@@ -21,4 +21,22 @@ Validação: build de produção e TypeScript aprovados. Inspeção visual em 14
 
 **Onde parei:** primeira revisão da entrada e do cabeçalho/palco implementada. O motor de áudio/vídeo não foi alterado nesta passagem.
 
-**Próxima etapa do plano:** refinar a grade com 2, 4 e 8 participantes, validar telas compartilhadas junto de chat/ferramentas abertos e ajustar os painéis laterais em 320 px. TURN continua pendente na hospedagem; não é resolvido por layout.
+## Etapa 6 — grade e painéis laterais (17/09/2026)
+Validado com 2, 4 e 8 participantes reais (Chrome headless, mídia falsa) em 1440, 1280, 1024, 390 e 320 px, com e sem tela compartilhada, lateral e chat.
+
+Grade:
+- A largura do cartão saía de `100vw − 580px`, como se lateral e chat estivessem sempre abertos. Agora o palco é medido (`ResizeObserver`) e `src/lib/grade.mjs` escolhe as colunas que deixam o cartão maior, com piso de 120 px e teto de 440 px × densidade. Empate: menos buracos na última fileira, depois o formato mais parecido com o do palco. Coberto no `npm test`.
+- Cartão sempre 16:10 (saiu o `min-height: 220px`, que fazia 8 pessoas virarem tiras em pé). Avatar e plaquinhas escalam com o lado; cartões pequenos (`.miuda`) apertam as plaquinhas.
+- Resultado: 2 pessoas com 440 px lado a lado; 8 em 4 × 2 no monitor, 2 × 4 no celular, sem rolar e sem nada debaixo da pílula. Com lateral + chat abertos em 1280, 2 × 4.
+- Corrigido: a camada de densidade apagava a folga de 88 px da pílula; `align-content: center` jogava a primeira fileira para fora da rolagem (agora `safe center`); plaquinha de ícones vazia aparecia como um traço.
+
+Painéis:
+- Abaixo de 1024 px abrir lateral fecha o chat e vice-versa (antes abriam um por cima do outro).
+- Véu escuro atrás da gaveta que boia (lateral ≤ 1180, chat ≤ 1023); tocar nele fecha.
+- No celular (≤ 900 px) a lateral ocupa a tela inteira; a largura de 268 px da bancada vencia a regra e deixava uma fresta clicável da chamada. Chat em largura total ≤ 480 px.
+- Coluna de pessoas ao lado da tela: avatar em cima e nome embaixo (antes só cabia "N…").
+- Celular com tela aberta: faixa de pessoas com cartões de 84 px que não encolhem; some o rótulo "No palco" e o "voltar às pessoas" (o X da tela faz o mesmo); folga embaixo da tela para a legenda não ficar sob a pílula.
+
+**Onde parei:** etapa 6 concluída. Motor de áudio/vídeo não foi alterado.
+
+**Próxima etapa do plano:** testar numa chamada real, no celular, abrir e fechar lateral/chat durante uma tela compartilhada. Em 1024 px com 8 pessoas a coluna ao lado da tela rola (esperado).

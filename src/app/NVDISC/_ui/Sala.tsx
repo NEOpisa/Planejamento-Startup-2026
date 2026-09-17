@@ -43,6 +43,7 @@ import {
   MaoIcon,
 } from "@/components/icons";
 import { comBase } from "@/lib/base.mjs";
+import { arrumarGrade } from "@/lib/grade.mjs";
 import {
   corDaPessoa,
   guardarPreferencias,
@@ -412,6 +413,30 @@ export default function Sala({ sala }: { sala: string }) {
         * dispensar sem perder nada da chamada.
         */}
       <div className="nv-corpo">
+        {/* O véu atrás das gavetas que boiam. Sem ele, a lateral aberta no
+            celular deixava a chamada à mostra e clicável ao lado, e o único
+            jeito de fechá-la era achar o X. O CSS decide em que larguras ele
+            existe — as mesmas em que cada gaveta deixa de ser coluna. */}
+        {(ferrVisivel || chatAberto) && (
+          <button
+            type="button"
+            className="nv-veu"
+            data-rail={ferrVisivel || undefined}
+            data-chat={chatAberto || undefined}
+            aria-label="fechar o painel"
+            tabIndex={-1}
+            onClick={() => {
+              if (ferrVisivel && flutua(1180)) {
+                ajustar({ ferramentasAbertas: false });
+                setFerrVisivel(false);
+              }
+              if (chatAberto && flutua(1023)) {
+                ajustar({ chatAberto: false });
+                setChatAberto(false);
+              }
+            }}
+          />
+        )}
         <Rail
           sala={sala}
           nome={nome}
@@ -439,20 +464,20 @@ export default function Sala({ sala }: { sala: string }) {
             estado={estado}
             rail={ferrVisivel}
             pedidos={estadoF?.pedidos.length ?? 0}
-            onRail={() =>
-              setFerrVisivel((v) => {
-                ajustar({ ferramentasAbertas: !v });
-                return !v;
-              })
-            }
+            onRail={() => {
+              const abrir = !ferrVisivel;
+              ajustar({ ferramentasAbertas: abrir });
+              setFerrVisivel(abrir);
+              if (abrir && gavetasSobrepostas()) setChatAberto(false);
+            }}
             chat={chatAberto}
             naoLidas={naoLidas}
-            onChat={() =>
-              setChatAberto((v) => {
-                ajustar({ chatAberto: !v });
-                return !v;
-              })
-            }
+            onChat={() => {
+              const abrir = !chatAberto;
+              ajustar({ chatAberto: abrir });
+              setChatAberto(abrir);
+              if (abrir && gavetasSobrepostas()) setFerrVisivel(false);
+            }}
           />
 
           {estado.erro && <div className="nv-erro">{estado.erro}</div>}
@@ -537,6 +562,22 @@ export default function Sala({ sala }: { sala: string }) {
       </div>
     </div>
   );
+}
+
+/** A janela está abaixo desta largura — onde as gavetas deixam de ser colunas. */
+function flutua(px: number) {
+  return window.matchMedia(`(max-width: ${px}px)`).matches;
+}
+
+/**
+ * Lateral e chat, abertos juntos, cairiam um por cima do outro.
+ *
+ * Abaixo de 1024 px os dois boiam sobre o palco, e no celular cada um ocupa a
+ * tela inteira: abrir um fecha o outro. Acima disso eles dividem a largura, e
+ * cada um fica como a pessoa deixou.
+ */
+function gavetasSobrepostas() {
+  return flutua(1023);
 }
 
 // ------------------------------------------------------- barra lateral --
@@ -1346,14 +1387,43 @@ function Pessoas({
   );
 
   /**
-   * Quanta gente há, para o CSS poder dimensionar os cartões.
+   * Quanta gente há, e quanto espaço o palco tem para ela.
    *
-   * Cartão de tamanho fixo deixa três pessoas boiando no meio de uma tela de
-   * 1440 px e espreme oito na mesma largura. Com o número aqui, a largura vira
-   * uma conta: divide o espaço, com um piso e um teto para não virar selo nem
-   * outdoor.
+   * O CSS sozinho não sabe escolher colunas: ele só conhece a janela, e a
+   * janela mente — a lateral e o chat abrem e fecham sem ela mudar. Então o
+   * palco é medido aqui, e `arrumarGrade` experimenta as colunas possíveis e
+   * fica com a que deixa o cartão maior.
    */
   const quantos = estado.participantes.length + 1;
+  const palco = useRef<HTMLElement>(null);
+  const [arranjo, setArranjo] = useState<{ colunas: number; lado: number } | null>(null);
+  useEffect(() => {
+    const el = palco.current;
+    if (!el) return;
+    const medir = () => {
+      const cs = getComputedStyle(el);
+      const lista = el.querySelector(".nv-gente");
+      const nota = el.querySelector<HTMLElement>(".nv-vazio");
+      const vao = lista ? parseFloat(getComputedStyle(lista).columnGap) || 0 : 0;
+      const e = parseFloat(cs.getPropertyValue("--e")) || 1;
+      const a = arrumarGrade({
+        largura: el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+        altura:
+          el.clientHeight -
+          parseFloat(cs.paddingTop) -
+          parseFloat(cs.paddingBottom) -
+          (nota ? nota.offsetHeight + (parseFloat(cs.rowGap) || 0) : 0),
+        n: quantos,
+        vao,
+        teto: 440 * e,
+      });
+      setArranjo((v) => (v && v.colunas === a.colunas && v.lado === a.lado ? v : a));
+    };
+    medir();
+    const obs = new ResizeObserver(medir);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [quantos, grade]);
 
   if (!grade) {
     /**
@@ -1375,8 +1445,16 @@ function Pessoas({
   }
 
   return (
-    <section className="nv-pessoas-grade">
-      <ul className="nv-gente" style={{ "--n": quantos } as React.CSSProperties}>
+    <section className="nv-pessoas-grade" ref={palco}>
+      <ul
+        className={`nv-gente${arranjo && arranjo.lado < 190 ? " miuda" : ""}`}
+        style={
+          {
+            "--colunas": arranjo?.colunas ?? quantos,
+            "--lado": arranjo ? `${arranjo.lado}px` : undefined,
+          } as React.CSSProperties
+        }
+      >
         {gente}
       </ul>
       {estado.participantes.length === 0 && (
