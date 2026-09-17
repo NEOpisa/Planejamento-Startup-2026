@@ -3830,11 +3830,23 @@ button.nv-aviso:hover {
   .nv-sala .nv-pessoa.grande { min-height: 175px; }
   .nv-sala .nv-pilula { padding: 6px; }
 }
-.nv-sala[data-tema="lima"] {
-  --bg: #10120f; --surface: #1b1f19; --raised: #252b21;
-  --accent: #485e2b; --accent-hover: #5e773a; --accent-light: #d5f78b;
-  --hairline-hi: #d5f78b66; --txt: #f1f3eb; --txt-2: #bdc6b1; --txt-3: #a5b296;
-}
-.nv-sala[data-tema="lima"][data-fundo="brilho"] {
-  background: radial-gradient(ellipse at 50% 45%, #d5f78b09, transparent 60%), var(--bg);
+
+/* Primeira etapa do layout da sala: menos moldura e convite sempre acessível. */
+.nv-sala .nv-canal { min-height: 60px; padding-inline: 18px; }
+.nv-sala .nv-canal-nome { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; }
+.nv-sala .nv-canal-nome > span { margin-right: 8px; }
+.nv-sala .nv-canal-gente, .nv-sala .nv-canal-acoes { flex-shrink: 0; }
+.nv-convite-topo { position: relative; }
+.nv-sala .nv-convidar { width: auto; display: flex; gap: 8px; padding-inline: 12px; background: var(--nv-blue); color: var(--tx); }
+.nv-convite-link { position: absolute; top: calc(100% + 8px); right: 0; width: min(280px, calc(100vw - 24px)); padding: 12px; background: var(--surface); color: var(--txt); border: 1px solid var(--accent-light); border-radius: 8px; z-index: 40; }
+.nv-sala .nv-area-telas { padding-block: 8px; }
+.nv-sala .nv-area-telas > ul { scrollbar-width: thin; scrollbar-color: var(--hairline-hi) transparent; }
+.nv-sala .nv-chat h2 { min-height: 60px; padding-block: 16px; }
+.nv-sala .nv-controles { bottom: max(16px, env(safe-area-inset-bottom)); }
+@media (max-width: 720px) {
+  .nv-sala .nv-canal { min-height: 56px; padding-inline: 10px; gap: 8px; }
+  .nv-sala .nv-convidar { width: 38px; padding: 0; justify-content: center; }
+  .nv-convidar > span { display: none; }
+  .nv-sala .nv-canal-gente { font-size: 9px; }
+  .nv-sala .nv-telas-vazio { display: none; }
 }

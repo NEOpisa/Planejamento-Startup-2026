@@ -56,7 +56,7 @@ export default function Porta() {
           nvdisc<span className="porta-marca-ponto">®</span>
         </a>
         <nav aria-label="Navegação principal">
-          <a href="#possibilidades">O que rola aqui</a>
+          <a href="#possibilidades">Recursos</a>
           <a
             href="https://neovanguard.com.br"
             target="_blank"
@@ -72,23 +72,12 @@ export default function Porta() {
       <main id="main">
         <section className="porta-hero" aria-labelledby="titulo">
           <div className="porta-editorial">
-            <p className="porta-kicker">
-              <span /> UM LUGAR PARA ESTAR JUNTO
-            </p>
             <h1 id="titulo">
-              Boa conversa.
+              Sua sala.
               <br />
-              Zero <span>distância.</span>
+              <span>Sua conversa.</span>
             </h1>
-            <p className="porta-descricao">
-              Seu grupo, suas ideias, seu espaço. Entre na voz, compartilhe a
-              tela e deixe a conversa acontecer.
-            </p>
-            <div className="porta-promessas">
-              <span>Sem cadastro</span>
-              <span>Até 8 pessoas</span>
-              <span>Sem gravação</span>
-            </div>
+            <p className="porta-descricao">Voz, tela e chat. Sem cadastro.</p>
             <div className="porta-arte" aria-hidden="true">
               <div className="porta-orbita porta-orbita--a" />
               <div className="porta-orbita porta-orbita--b" />
@@ -103,21 +92,18 @@ export default function Porta() {
                   />
                 ))}
               </div>
-              <span className="porta-arte-label">
-                MENOS DISTÂNCIA. MAIS PRESENÇA.
-              </span>
               <span className="porta-arte-numero">01 / ∞</span>
             </div>
           </div>
           <div className="porta-entrada" id="entrar">
             <div className="porta-entrada-topo">
-              <span className="porta-kicker">A CONVERSA COMEÇA AQUI</span>
+              <span className="porta-kicker">NVDISC</span>
               <MicIcon />
             </div>
-            <h2>Puxa uma cadeira.</h2>
-            <p>Um nome e um código. O resto é com vocês.</p>
+            <h2>Entrar na sala</h2>
+
             <form onSubmit={entrar}>
-              <label htmlFor="nome">Como podemos te chamar?</label>
+              <label htmlFor="nome">Seu nome</label>
               <input
                 id="nome"
                 value={nome}
@@ -146,7 +132,7 @@ export default function Porta() {
                 aria-describedby="codigo-ajuda"
               />
               <p id="codigo-ajuda" className="porta-ajuda">
-                Recebeu um convite? Use o código do seu grupo.
+                Use o mesmo código do seu grupo.
               </p>
               <button
                 className="porta-entrar"
@@ -156,41 +142,15 @@ export default function Porta() {
                 Entrar na sala <ArrowUpRight />
               </button>
             </form>
-            <div className="porta-entrada-rodape">
-              <span className="porta-mini-onda" aria-hidden="true">
-                ▂▅▇▃▆
-              </span>
-              <span>
-                Mesma sala. Mesmo momento.
-                <br />
-                <small>Compartilhe o código e encontre sua turma.</small>
-              </span>
-            </div>
           </div>
         </section>
-        <div className="porta-faixa">
-          <span>CONVERSAS QUE VIRAM IDEIAS</span>
-          <span aria-hidden="true">✳</span>
-          <span>IDEIAS QUE JUNTAM GENTE</span>
-          <span aria-hidden="true">✳</span>
-          <span>DO SEU JEITO</span>
-        </div>
         <section
           id="possibilidades"
           className="porta-recursos"
           aria-labelledby="recursos-titulo"
         >
           <div className="porta-sec-cab">
-            <p className="porta-kicker">MUITO ALÉM DO “TÁ ME OUVINDO?”</p>
-            <h2 id="recursos-titulo">
-              Um espaço.
-              <br />
-              <span>Mil possibilidades.</span>
-            </h2>
-            <p>
-              Para uma partida, um projeto ou só colocar o papo em dia. Tudo
-              fica perto, sem sair da conversa.
-            </p>
+            <h2 id="recursos-titulo">Na mesma sala.</h2>
           </div>
           <div className="porta-feature-grid">
             <article className="porta-feature porta-feature--voz">
@@ -199,12 +159,8 @@ export default function Porta() {
                 <span>oi.</span>
                 <span>fala!</span>
               </div>
-              <h3>A voz aproxima.</h3>
-              <p>
-                Áudio com controle de ruído e volume individual. Cada pessoa
-                encontra seu jeito de ouvir.
-              </p>
-              <span className="porta-tag">VOZ EM TEMPO REAL</span>
+              <h3>Voz</h3>
+              <p>Controle de ruído e volume individual.</p>
             </article>
             <article className="porta-feature porta-feature--tela">
               <span className="porta-feature-num">02 / COMPARTILHAR</span>
@@ -219,12 +175,8 @@ export default function Porta() {
                   <ArrowUpRight />
                 </span>
               </div>
-              <h3>Mostra. Explica. Cria.</h3>
-              <p>
-                Sua tela vira o ponto de encontro. Compartilhe uma janela, uma
-                aba e, quando disponível, o som dela.
-              </p>
-              <span className="porta-tag">TELA + SOM</span>
+              <h3>Compartilhar tela</h3>
+              <p>Compartilhe uma janela ou aba com seu grupo.</p>
             </article>
             <article className="porta-feature">
               <span className="porta-feature-num">03 / FAZER JUNTO</span>
@@ -233,12 +185,8 @@ export default function Porta() {
                 <br />
                 grande ideia <span>↗</span>
               </div>
-              <h3>O papo ganha forma.</h3>
-              <p>
-                Quadro, notas, enquetes e temporizador. Ferramentas que
-                acompanham o ritmo do grupo.
-              </p>
-              <span className="porta-tag">COLABORAÇÃO</span>
+              <h3>Ferramentas</h3>
+              <p>Quadro, notas, enquetes e temporizador.</p>
             </article>
           </div>
           <details className="porta-detalhes">
@@ -255,23 +203,12 @@ export default function Porta() {
             </div>
           </details>
         </section>
-        <section className="porta-final">
-          <p className="porta-kicker">PODE CHEGAR.</p>
-          <h2>
-            A melhor parte
-            <br />é quem está <em>do outro lado.</em>
-          </h2>
-          <a href="#entrar">
-            Encontre sua turma <ArrowUpRight />
-          </a>
-        </section>
       </main>
       <footer className="porta-footer">
         <a className="porta-marca" href={comBase("")}>
           nvdisc®
         </a>
-        <span>Feito para conectar. Por Neovanguard.</span>
-        <span>Mais encontros em breve.</span>
+        <span>Neovanguard</span>
       </footer>
     </div>
   );

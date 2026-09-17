@@ -1,8 +1,8 @@
 .porta {
-  --p-lima: #d5f78b;
-  --p-muted: #a5aaa3;
-  background: #10120f;
-  color: #f1f3eb;
+  --p-accent: var(--nv-corn);
+  --p-muted: var(--tx-2);
+  background: var(--ink);
+  color: var(--tx);
   font-size: 15px;
 }
 .porta a {
@@ -33,8 +33,8 @@
 .porta-simbolo {
   display: grid;
   place-items: center;
-  background: var(--p-lima);
-  color: #151a0f;
+  background: var(--p-accent);
+  color: var(--ink);
   width: 37px;
   height: 37px;
   border-radius: 50%;
@@ -48,7 +48,7 @@
 .porta-nav nav {
   display: flex;
   gap: 34px;
-  color: #bdc1b9;
+  color: var(--tx-2);
   font-size: 13px;
 }
 .porta-nav nav a,
@@ -68,7 +68,7 @@
   font-size: 12px;
 }
 .porta-nav a:hover {
-  color: var(--p-lima);
+  color: var(--p-accent);
 }
 .porta-hero {
   max-width: 1440px;
@@ -90,8 +90,8 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--p-lima);
-  box-shadow: 0 0 16px #d5f74455;
+  background: var(--p-accent);
+  box-shadow: 0 0 16px #6495ed55;
 }
 .porta h1 {
   font: 500 clamp(48px, 5.7vw, 83px)/1.03 var(--ff-display);
@@ -99,7 +99,7 @@
   margin: 28px 0 25px;
 }
 .porta h1 > span {
-  color: var(--p-lima);
+  color: var(--p-accent);
 }
 .porta-descricao {
   color: var(--p-muted);
@@ -113,12 +113,12 @@
   gap: 18px;
   font-size: 11px;
   margin: 26px 0;
-  color: #c4c8bc;
+  color: var(--tx-2);
 }
 .porta-promessas span::before {
   content: "↗";
   margin-right: 7px;
-  color: var(--p-lima);
+  color: var(--p-accent);
 }
 .porta-arte {
   height: 150px;
@@ -139,7 +139,7 @@
 .porta-frequencia i {
   width: 6px;
   border-radius: 8px;
-  background: var(--p-lima);
+  background: var(--p-accent);
   opacity: 0.75;
   animation: porta-onda 3s ease-in-out infinite alternate;
 }
@@ -153,7 +153,7 @@
   position: absolute;
   width: 90%;
   height: 100px;
-  border: 1px solid #d5f78b20;
+  border: 1px solid #6495ed20;
   border-radius: 50%;
   top: 10px;
   left: 5%;
@@ -166,7 +166,7 @@
 .porta-arte-numero {
   position: absolute;
   bottom: 0;
-  color: #909887;
+  color: var(--tx-3);
   font: 9px var(--ff-mono);
   letter-spacing: 0.12em;
 }
@@ -174,7 +174,7 @@
   right: 0;
 }
 .porta-entrada {
-  background: #1b1f19;
+  background: var(--panel);
   border: 1px solid #ffffff1c;
   border-radius: 22px;
   padding: 32px;
@@ -184,7 +184,7 @@
 .porta-entrada-topo {
   display: flex;
   justify-content: space-between;
-  color: var(--p-lima);
+  color: var(--p-accent);
   align-items: center;
 }
 .porta-entrada-topo > svg {
@@ -192,7 +192,7 @@
   height: 34px;
   padding: 8px;
   box-sizing: content-box;
-  border: 1px solid #d5f78b25;
+  border: 1px solid #6495ed25;
   border-radius: 50%;
 }
 .porta-entrada h2 {
@@ -209,7 +209,7 @@
   display: block;
   font-size: 12px;
   margin: 0 0 9px;
-  color: #e0e4d9;
+  color: var(--tx);
 }
 .porta-entrada input {
   display: block;
@@ -217,17 +217,17 @@
   padding: 15px;
   border: 1px solid #ffffff20;
   border-radius: 9px;
-  background: #121610;
-  color: #f3f5ed;
+  background: var(--ink);
+  color: var(--tx);
   outline-offset: 3px;
   font-size: 13px;
 }
 .porta-entrada input:focus {
-  border-color: var(--p-lima);
-  outline-color: var(--p-lima);
+  border-color: var(--p-accent);
+  outline-color: var(--p-accent);
 }
 .porta-entrada input::placeholder {
-  color: #929a8b;
+  color: var(--tx-3);
 }
 .porta-label-linha {
   display: flex;
@@ -243,7 +243,7 @@
   align-items: center;
   background: none;
   border: none;
-  color: var(--p-lima);
+  color: var(--p-accent);
   font-size: 10px;
   cursor: pointer;
 }
@@ -262,8 +262,8 @@
   justify-content: space-between;
   width: 100%;
   padding: 16px 20px;
-  color: #1c2414;
-  background: var(--p-lima);
+  color: var(--ink);
+  background: var(--p-accent);
   border: 0;
   border-radius: 9px;
   font-weight: 700 !important;
@@ -273,7 +273,7 @@
     transform 0.2s;
 }
 .porta-entrar:hover:enabled {
-  background: #e4ffb1;
+  background: var(--nv-corn-soft);
   transform: translateY(-2px);
 }
 .porta-entrar:disabled {
@@ -295,7 +295,7 @@
 }
 .porta-mini-onda {
   font-size: 27px;
-  color: var(--p-lima);
+  color: var(--p-accent);
   letter-spacing: 2px;
 }
 .porta-faixa {
@@ -306,13 +306,13 @@
   justify-content: space-evenly;
   align-items: center;
   gap: 22px;
-  color: #b4bca8;
+  color: var(--tx-2);
   font: 10px var(--ff-mono);
   letter-spacing: 0.14em;
 }
 .porta-faixa span:nth-child(even) {
   font-size: 24px;
-  color: var(--p-lima);
+  color: var(--p-accent);
 }
 .porta-recursos {
   max-width: 1440px;
@@ -327,7 +327,7 @@
 }
 .porta-sec-cab .porta-kicker {
   grid-column: 1 / -1;
-  color: var(--p-lima);
+  color: var(--p-accent);
 }
 .porta-sec-cab h2 {
   font: 500 clamp(32px, 4vw, 52px)/1.08 var(--ff-display);
@@ -335,7 +335,7 @@
   margin: 8px 0;
 }
 .porta-sec-cab h2 span {
-  color: #929b88;
+  color: var(--tx-3);
 }
 .porta-sec-cab > p:last-child {
   color: var(--p-muted);
@@ -348,7 +348,7 @@
   gap: 16px;
 }
 .porta-feature {
-  background: #1b1f19;
+  background: var(--panel);
   border: 1px solid #ffffff16;
   padding: 27px;
   border-radius: 14px;
@@ -358,12 +358,12 @@
 }
 .porta-feature:hover {
   transform: translateY(-5px);
-  border-color: #d5f78b60;
+  border-color: #6495ed60;
 }
 .porta-feature-num {
   font: 9px var(--ff-mono);
   letter-spacing: 0.13em;
-  color: #a4af99;
+  color: var(--tx-3);
 }
 .porta-feature h3 {
   font: 500 24px var(--ff-display);
@@ -384,7 +384,7 @@
   border: 1px solid #ffffff22;
   border-radius: 20px;
   padding: 7px 10px;
-  color: #c6cdbf;
+  color: var(--tx-2);
 }
 .porta-dupla {
   height: 145px;
@@ -398,36 +398,36 @@
   width: 88px;
   height: 88px;
   border-radius: 50%;
-  background: #d5f78b;
-  color: #243319;
+  background: var(--nv-corn);
+  color: var(--ink);
   font: 500 27px var(--ff-display);
   transform: rotate(-12deg);
 }
 .porta-dupla span + span {
-  background: #c5b7f1;
+  background: var(--nv-corn-soft);
   margin-left: -10px;
   transform: rotate(12deg);
 }
 .porta-mini-tela {
   height: 114px;
   margin: 19px 15px 12px;
-  border: 1px solid #a8b4db50;
+  border: 1px solid #6495ed50;
   border-radius: 10px;
-  background: #b4c5f0;
-  color: #263754;
+  background: var(--nv-corn-pale);
+  color: #182b50;
   transform: rotate(-4deg);
 }
 .porta-mini-tela > div {
   display: flex;
   gap: 4px;
   padding: 10px;
-  border-bottom: 1px solid #26375430;
+  border-bottom: 1px solid #182b5030;
 }
 .porta-mini-tela i {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #26375488;
+  background: #182b5088;
 }
 .porta-mini-tela > span {
   display: flex;
@@ -440,8 +440,8 @@
   height: 118px;
   margin: 18px 24px 9px;
   padding: 20px;
-  background: #e1c993;
-  color: #4b3e26;
+  background: var(--nv-corn-soft);
+  color: #182b50;
   font: 500 21px/1.2 var(--ff-display);
   transform: rotate(4deg);
   position: relative;
@@ -463,7 +463,7 @@
 }
 .porta-detalhes summary > span {
   float: right;
-  color: var(--p-lima);
+  color: var(--p-accent);
 }
 .porta-detalhes > div {
   display: grid;
@@ -481,8 +481,8 @@
 .porta-final {
   text-align: center;
   padding: 72px 20px 90px;
-  background: #d5f78b;
-  color: #222c17;
+  background: var(--nv-corn);
+  color: var(--ink);
 }
 .porta-final .porta-kicker {
   justify-content: center;
@@ -494,7 +494,7 @@
 }
 .porta-final em {
   font-style: normal;
-  color: #617543;
+  color: var(--nv-blue-mid);
 }
 .porta-final > a {
   display: inline-flex;
@@ -502,8 +502,8 @@
   gap: 25px;
   border-radius: 50px;
   padding: 15px 23px;
-  background: #202b17;
-  color: #f0f5e7;
+  background: var(--nv-blue-deep);
+  color: var(--tx);
   font-size: 12px;
 }
 .porta-footer {
@@ -512,11 +512,11 @@
   align-items: center;
   gap: 20px;
   padding: 35px 5%;
-  color: #a5aaa3;
+  color: var(--tx-2);
   font-size: 10px;
 }
 .porta-footer .porta-marca {
-  color: #f1f3eb;
+  color: var(--tx);
 }
 @media (min-width: 1600px) {
   .porta-hero {
@@ -645,5 +645,31 @@
   min-width: 0;
 }
 .porta-final h2 {
-  color: #222c17;
+  color: var(--ink);
+}
+
+/* Entrada direta: formulário e recursos sem faixas promocionais. */
+.porta-hero {
+  padding-block: 48px;
+  min-height: 0;
+}
+.porta-entrada h2 {
+  margin-bottom: 24px;
+}
+.porta-recursos {
+  padding-block: 40px;
+  border-top: 1px solid var(--line);
+}
+.porta-feature p {
+  min-height: 0;
+}
+.porta-sec-cab {
+  margin-bottom: 24px;
+}
+.porta-entrar {
+  background: var(--nv-blue);
+  color: var(--tx);
+}
+.porta-entrar:hover:enabled {
+  background: var(--nv-blue-mid);
 }

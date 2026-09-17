@@ -114,7 +114,7 @@ export type Preferencias = {
 };
 
 export const PREFERENCIAS_PADRAO: Preferencias = {
-  tema: "lima",
+  tema: "cornflower",
   fundo: "brilho",
   densidade: "confortavel",
   texto: 1,
@@ -132,7 +132,6 @@ export const PREFERENCIAS_PADRAO: Preferencias = {
 
 /** As cores de acento oferecidas. O valor é o `data-tema` que o CSS conhece. */
 export const TEMAS = [
-  { v: "lima", r: "Lima", cor: "#d5f78b" },
   { v: "cornflower", r: "Cornflower", cor: "#6495ed" },
   { v: "ambar", r: "Âmbar", cor: "#f4b74a" },
   { v: "esmeralda", r: "Esmeralda", cor: "#3ef08a" },

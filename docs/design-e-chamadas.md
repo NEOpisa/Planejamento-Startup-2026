@@ -2,7 +2,7 @@
 
 ## Visual
 
-Entrada redesenhada com tipografia editorial, fundo escuro, acento lima, ilustração de ondas em CSS, formulário de convite e apresentação das ferramentas. A sala recebe o tema Lima como padrão; preferências já salvas continuam válidas. As animações respeitam movimento reduzido.
+Entrada redesenhada com tipografia editorial, fundo escuro, acento azul, ilustração de ondas em CSS, formulário de convite e apresentação das ferramentas. A sala usa o tema Cornflower como padrão; preferências válidas já salvas continuam mantidas. A revisão rápida de layout está registrada em `plano-sala.md`. As animações respeitam movimento reduzido.
 
 Referência de direção visual: [seleção de sites escuros do Awwwards](https://www.awwwards.com/websites/black/). O layout e as ilustrações foram construídos para o NVDISC, sem copiar um site específico.
 

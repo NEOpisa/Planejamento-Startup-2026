@@ -38,6 +38,7 @@ import {
   FerramentasIcon,
   QuadroIcon,
   ChatIcon,
+  CopiarIcon,
   ReacaoIcon,
   MaoIcon,
 } from "@/components/icons";
@@ -784,6 +785,23 @@ function CabecalhoCanal({
   onChat: () => void;
 }) {
   const quantos = estado.participantes.length + 1;
+  const [convite, setConvite] = useState<"pronto" | "copiado" | "manual">("pronto");
+  const [linkConvite, setLinkConvite] = useState("");
+  useEffect(() => {
+    if (convite !== "copiado") return;
+    const timer = setTimeout(() => setConvite("pronto"), 1800);
+    return () => clearTimeout(timer);
+  }, [convite]);
+  async function convidar() {
+    const link = `${location.origin}${comBase(`/?sala=${encodeURIComponent(sala)}`)}`;
+    setLinkConvite(link);
+    try {
+      await navigator.clipboard.writeText(link);
+      setConvite("copiado");
+    } catch {
+      setConvite("manual");
+    }
+  }
 
   return (
     <header className="nv-canal">
@@ -808,6 +826,16 @@ function CabecalhoCanal({
       </span>
 
       <div className="nv-canal-acoes">
+        <div className="nv-convite-topo">
+          <button className="nv-canal-botao nv-convidar" onClick={() => void convidar()}
+            aria-label={convite === "copiado" ? "Convite copiado" : "Copiar convite"}
+            title={convite === "copiado" ? "Convite copiado" : "Copiar convite"}>
+            <CopiarIcon size={16} /><span aria-live="polite">{convite === "copiado" ? "Copiado" : "Convidar"}</span>
+          </button>
+          {convite === "manual" && <input className="nv-convite-link" aria-label="Copie o link do convite"
+            value={linkConvite} readOnly autoFocus onFocus={e => e.currentTarget.select()}
+            onKeyDown={e => { if (e.key === "Escape") setConvite("pronto"); }} onBlur={() => setConvite("pronto")} />}
+        </div>
         <button
           className={`nv-canal-botao so-largo${rail ? " ligado" : ""}`}
           onClick={onRail}
@@ -1353,9 +1381,7 @@ function Pessoas({
       </ul>
       {estado.participantes.length === 0 && (
         <p className="nv-nota nv-vazio">
-          Só você por aqui. Mande o link do{" "}
-          <strong style={{ color: "var(--txt-2)" }}>copiar convite</strong> para
-          quem quiser chamar — quem abrir cai direto nesta sala.
+          Convide alguém pelo botão no topo.
         </p>
       )}
     </section>
