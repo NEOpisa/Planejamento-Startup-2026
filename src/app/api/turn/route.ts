@@ -25,8 +25,7 @@ export const runtime = "nodejs";
 /**
  * Nunca em cache.
  *
- * Um TURN de senha fixa não vence, mas a resposta continua fora do cache de
- * propósito: o dia em que voltar a existir credencial com prazo, uma resposta
+ * A credencial do Cloudflare vence: uma resposta
  * guardada pelo CDN entregaria a quem entrasse amanhã uma credencial vencida
  * ontem — e o sintoma seria a sala ficando muda sozinha, para algumas pessoas.
  */
@@ -57,7 +56,7 @@ const STUN: RTCIceServer[] = [
 type Resposta = {
   iceServers: RTCIceServer[];
   /** de onde veio o TURN, para o diagnóstico poder dizer */
-  fonte: "fixo" | "nenhum";
+  fonte: "cloudflare" | "fixo" | "nenhum";
   aviso?: string;
 };
 
@@ -89,22 +88,101 @@ function fixo(): RTCIceServer[] | null {
   ];
 }
 
-function montar(): Resposta {
+/**
+ * As credenciais do Cloudflare Realtime TURN (1 TB/mês grátis).
+ *
+ * A credencial vence, então é pedida a cada sessão com o segredo que fica só
+ * no servidor. Endereços na porta 53 saem da lista: o Chrome e o Firefox os
+ * bloqueiam e o ICE perde tempo esperando um caminho que nunca abre.
+ */
+/**
+ * A credencial vale 24 h e serve para qualquer um: guardada aqui, a entrada na
+ * sala não espera uma ida ao Cloudflare a cada vez — só quando a instância é
+ * nova ou a credencial passou da metade da vida. Metade, e não o fim, porque
+ * quem a recebe agora ainda precisa de horas de chamada com ela.
+ */
+const TTL = 86400;
+let guardada: { servidores: RTCIceServer[]; renovarEm: number } | null = null;
+let pedindo: Promise<RTCIceServer[] | null> | null = null;
+
+async function doCloudflare(): Promise<RTCIceServer[] | null> {
+  if (!process.env.TURN_KEY_ID || !process.env.TURN_KEY_API_TOKEN) return null;
+  if (guardada && Date.now() < guardada.renovarEm) return guardada.servidores;
+  // Várias entradas ao mesmo tempo dividem o mesmo pedido.
+  pedindo ??= pedirAoCloudflare().finally(() => {
+    pedindo = null;
+  });
+  return pedindo;
+}
+
+async function pedirAoCloudflare(): Promise<RTCIceServer[] | null> {
+  const chave = process.env.TURN_KEY_ID!;
+  const token = process.env.TURN_KEY_API_TOKEN!;
+
+  const r = await fetch(
+    `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(chave)}/credentials/generate-ice-servers`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ ttl: TTL }),
+      signal: AbortSignal.timeout(3000),
+      cache: "no-store",
+    },
+  );
+  if (!r.ok) {
+    throw new Error(
+      `o Cloudflare recusou o pedido de credenciais (${r.status}). ` +
+        "Confira TURN_KEY_ID e TURN_KEY_API_TOKEN em Realtime → TURN Server.",
+    );
+  }
+  const corpo = (await r.json()) as { iceServers?: RTCIceServer[] | RTCIceServer };
+  const bruta = corpo.iceServers;
+  if (!bruta) throw new Error("o Cloudflare respondeu sem `iceServers`.");
+  // A documentação mostra um array; versões da API já devolveram um objeto só.
+  const lista = Array.isArray(bruta) ? bruta : [bruta];
+
+  const servidores = lista
+    .map((s) => {
+      const urls = (typeof s.urls === "string" ? [s.urls] : [...s.urls]).filter(
+        (u) => !/:53(\?|$)/.test(u),
+      );
+      return { ...s, urls };
+    })
+    .filter((s) => s.urls.length > 0);
+  guardada = { servidores, renovarEm: Date.now() + (TTL / 2) * 1000 };
+  return servidores;
+}
+
+async function montar(): Promise<Resposta> {
+  let aviso: string | undefined;
+  try {
+    const nuvem = await doCloudflare();
+    if (nuvem && nuvem.length > 0) {
+      return { iceServers: [...STUN, ...nuvem], fonte: "cloudflare" };
+    }
+  } catch (erro) {
+    // Um TURN que não respondeu não pode derrubar a sala: cai para o fixo ou
+    // só STUN, e o motivo vai para o log e para o diagnóstico.
+    aviso = erro instanceof Error ? erro.message : String(erro);
+    console.error("NVDISC/TURN:", aviso);
+  }
+
   const proprio = fixo();
-  if (proprio) return { iceServers: [...STUN, ...proprio], fonte: "fixo" };
+  if (proprio) return { iceServers: [...STUN, ...proprio], fonte: "fixo", aviso };
 
   return {
     iceServers: STUN,
     fonte: "nenhum",
     aviso:
+      aviso ??
       "sem TURN configurado: quem estiver atrás de NAT simétrico (celular, " +
-      "CGNAT, rede de empresa) pode entrar na sala e não ser ouvido. Veja " +
-      '"Antes de chamar a turma" no README.',
+        "CGNAT, rede de empresa) pode entrar na sala e não ser ouvido. Veja " +
+        '"Antes de chamar a turma" no README.',
   };
 }
 
 export async function GET(requisicao: Request) {
-  const resposta = montar();
+  const resposta = await montar();
 
   // `?diagnostico` responde a pergunta que se faz de verdade — **isto vai
   // funcionar?** — sem despejar credenciais boas em qualquer aba aberta por
@@ -119,7 +197,8 @@ export async function GET(requisicao: Request) {
       ...(resposta.aviso ? { aviso: resposta.aviso } : {}),
       comoResolver:
         resposta.fonte === "nenhum"
-          ? "defina TURN_URL, TURN_USER e TURN_SENHA apontando para um coturn próprio."
+          ? "defina TURN_KEY_ID e TURN_KEY_API_TOKEN (Cloudflare Realtime → TURN Server), " +
+            "ou TURN_URL/TURN_USER/TURN_SENHA para um coturn próprio."
           : undefined,
     });
   }

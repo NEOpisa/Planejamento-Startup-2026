@@ -146,6 +146,31 @@ export type MsgFerramenta = {
   em: number;
 };
 
+type RespostaIce = { iceServers?: RTCIceServer[]; aviso?: string };
+let iceAdiantado: { quando: number; resposta: Promise<RespostaIce | null> } | null = null;
+
+/**
+ * A pergunta a `/api/turn`, feita uma vez e reaproveitada.
+ *
+ * Sai assim que este módulo carrega no navegador — enquanto a pessoa ainda
+ * digita o nome —, e quem entra na sala encontra a resposta pronta. Vale por
+ * uma hora: a credencial dura bem mais, e reentrar na sala não paga outra ida
+ * ao servidor. Uma resposta que falhou não fica guardada.
+ */
+function perguntarIce(): Promise<RespostaIce | null> {
+  if (iceAdiantado && Date.now() - iceAdiantado.quando < 3_600_000) return iceAdiantado.resposta;
+  const resposta = fetch("/api/turn", { signal: AbortSignal.timeout(4000), cache: "no-store" })
+    .then((r) => (r.ok ? (r.json() as Promise<RespostaIce>) : null))
+    .catch(() => null)
+    .then((corpo) => {
+      if (!corpo) iceAdiantado = null;
+      return corpo;
+    });
+  iceAdiantado = { quando: Date.now(), resposta };
+  return resposta;
+}
+if (typeof window !== "undefined") void perguntarIce();
+
 /**
  * Servidores de descoberta.
  *
@@ -1504,10 +1529,8 @@ export class Malha {
    */
   private async carregarIce(): Promise<void> {
     try {
-      const corte = AbortSignal.timeout(4000);
-      const r = await fetch("/api/turn", { signal: corte, cache: "no-store" });
-      if (!r.ok) return;
-      const corpo = (await r.json()) as { iceServers?: RTCIceServer[]; aviso?: string };
+      const corpo = await perguntarIce();
+      if (!corpo) return;
       if (Array.isArray(corpo.iceServers) && corpo.iceServers.length > 0) {
         this.ice = corpo.iceServers;
       }
