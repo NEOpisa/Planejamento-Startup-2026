@@ -62,6 +62,7 @@ import {
   type Traco,
 } from "@/lib/ferramentas";
 import "../nvdisc.css";
+import "../sala.css";
 
 /**
  * O foco está num lugar onde teclas viram letras?
@@ -857,8 +858,8 @@ function CabecalhoCanal({
       </button>
 
       <h1 className="nv-canal-nome">
-        <span aria-hidden>#</span>
-        {sala}
+        <span className="nv-canal-rotulo" aria-hidden>sala</span>
+        <span className="nv-canal-titulo">{sala}</span>
       </h1>
 
       <span className={`nv-canal-gente${estado.ligado ? "" : " caiu"}`}>
@@ -1593,23 +1594,21 @@ function Pessoa({
     >
       {/**
         * A cor sai do nome, e por isso é a mesma em todos os navegadores sem
-        * passar pela sinalização. Com os avatares em `neutro`, o `style` não
-        * é escrito e o CSS volta ao gradiente da marca — nenhum dos dois
-        * caminhos depende do outro estar certo.
+        * passar pela sinalização. Ela chega como `--cor` e não como fundo: o
+        * disco é escuro, e a cor tinge só a letra, o filete e o anel de fala —
+        * oito cores chapadas lado a lado gritavam mais que as pessoas. Com os
+        * avatares em `neutro`, `--cor` não existe e vale o acento do tema.
         */}
       <span
         className="nv-avatar"
-        style={colorido ? { background: cor.fundo } : undefined}
+        style={colorido ? ({ "--cor": cor.anel } as React.CSSProperties) : undefined}
       >
         {nome.slice(0, 1).toUpperCase()}
         {falando && (
           <span
             aria-hidden
             className="nv-anel"
-            style={{
-              transform: `scale(${1 + volume * 0.3})`,
-              ...(colorido ? { borderColor: cor.anel } : {}),
-            }}
+            style={{ transform: `scale(${1 + volume * 0.12})` }}
           />
         )}
         {/* A reação nasce sobre o avatar, e não num canto da tela: reação é
