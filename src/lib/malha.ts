@@ -926,6 +926,41 @@ function garantirIsolador(contexto: AudioContext): Promise<boolean> {
   return moduloIsolador;
 }
 
+/**
+ * O som do PC inteiro, para quando a captura da tela veio muda.
+ *
+ * No Linux o Chrome só entrega áudio ao compartilhar uma aba; tela inteira e
+ * janela chegam sem som. O caminho é uma entrada de áudio virtual que repete
+ * o que sai nas caixas — `scripts/som-do-pc.sh` cria a "NVDISC som do PC" no
+ * PipeWire — e pegá-la aqui como se fosse um microfone. Sem ela, devolve nulo
+ * e a tela segue muda como antes.
+ *
+ * O cancelamento de eco fica **ligado** de propósito: o que sai nas caixas
+ * inclui a voz de quem está na sala, e sem ele cada um ouviria a si mesmo de
+ * volta. Supressão de ruído e ganho automático ficam desligados, que é o que
+ * estraga música e filme.
+ */
+async function pegarSomDoPc(): Promise<MediaStream | null> {
+  try {
+    const todos = await navigator.mediaDevices.enumerateDevices();
+    const fonte = todos.find(
+      (d) => d.kind === "audioinput" && /nvdisc som do pc/i.test(d.label),
+    );
+    if (!fonte) return null;
+    return await navigator.mediaDevices.getUserMedia({
+      audio: {
+        deviceId: { exact: fonte.deviceId },
+        echoCancellation: true,
+        noiseSuppression: false,
+        autoGainControl: false,
+        channelCount: 2,
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
 function montarCadeia(
   mic: MediaStream | null,
   extras: (MediaStream | null)[],
@@ -1150,6 +1185,8 @@ export class Malha {
   private pares = new Map<string, Par>();
   private meuFluxo: MediaStream | null = null;
   private fluxoTela: MediaStream | null = null;
+  /** o som do PC quando a captura da tela veio muda — ver `pegarSomDoPc` */
+  private fluxoSomPc: MediaStream | null = null;
   private meuMedidor?: Medidor;
   private cadeia: Cadeia | null = null;
   private filaCadeia: Promise<void> = Promise.resolve();
@@ -1355,7 +1392,7 @@ export class Malha {
     const anterior = this.cadeia;
     this.cadeia = montarCadeia(
       this.meuFluxo,
-      [q.somDaTela ? this.fluxoTela : null],
+      [q.somDaTela ? this.fluxoTela : null, q.somDaTela ? this.fluxoSomPc : null],
       comPorta,
       q.ganho,
       comIsolador,
@@ -2879,16 +2916,22 @@ export class Malha {
             "ver, pare e comece de novo.",
         );
       }
-      // O som da tela entra na mesma faixa da voz.
-      this.estado.telaComSom = fluxo.getAudioTracks().length > 0;
-      await this.refazerCadeia();
+      // Tela inteira e janela chegam mudas no Linux; o som do PC cobre o que
+      // a captura não trouxe.
       if (fluxo.getAudioTracks().length === 0 && this.estado.qualidade.somDaTela) {
+        this.fluxoSomPc = await pegarSomDoPc();
+      }
+      // O som da tela entra na mesma faixa da voz.
+      this.estado.telaComSom = fluxo.getAudioTracks().length > 0 || !!this.fluxoSomPc;
+      await this.refazerCadeia();
+      if (!this.estado.telaComSom && this.estado.qualidade.somDaTela) {
         // Dizer isto na hora poupa a descoberta pelo pior caminho, que é o
         // outro lado avisando que o vídeo está mudo depois de dez minutos.
         this.sistema(
           "esta captura veio sem som. O áudio só acompanha no Chrome, ao " +
             "compartilhar **uma aba** com a caixa de áudio marcada — tela inteira " +
-            "e janela não levam som, e o Firefox não leva em caso nenhum.",
+            "e janela só levam som se o PC tiver a entrada \"NVDISC som do PC\" " +
+            "(scripts/som-do-pc.sh), e o Firefox não leva em caso nenhum.",
         );
       }
       this.estado.tela = true;
@@ -2903,6 +2946,8 @@ export class Malha {
   async pararTela() {
     this.fluxoTela?.getTracks().forEach((f) => f.stop());
     this.fluxoTela = null;
+    this.fluxoSomPc?.getTracks().forEach((f) => f.stop());
+    this.fluxoSomPc = null;
     for (const par of this.pares.values()) {
       await this.mandarTela(par, null);
     }
@@ -3408,6 +3453,7 @@ export class Malha {
     for (const id of [...this.pares.keys()]) this.fecharPar(id);
     this.meuFluxo?.getTracks().forEach((f) => f.stop());
     this.fluxoTela?.getTracks().forEach((f) => f.stop());
+    this.fluxoSomPc?.getTracks().forEach((f) => f.stop());
     navigator.mediaDevices?.removeEventListener?.("devicechange", this.aoTrocarDispositivos);
     try {
       this.ws?.close();
