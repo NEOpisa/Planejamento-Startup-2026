@@ -342,7 +342,7 @@ export type Qualidade = {
 export const QUALIDADE_PADRAO: Qualidade = {
   audio: "voz",
   ruido: "padrao",
-  resolucao: 1080,
+  resolucao: 720,
   fps: 30,
   perfil: "nitidez",
   eco: true,
@@ -958,6 +958,24 @@ async function pegarSomDoPc(): Promise<MediaStream | null> {
     });
   } catch {
     return null;
+  }
+}
+
+/**
+ * Põe o H.264 na frente da lista de codecs de vídeo.
+ *
+ * É o único que o Chrome codifica pela GPU no Linux (VA-API); VP8 e VP9 saem
+ * no processador, e compartilhar tela com eles pesa o PC inteiro. Onde não há
+ * H.264, a lista fica como está e o navegador segue com o que tiver.
+ */
+function preferirH264(tv: RTCRtpTransceiver) {
+  try {
+    const codecs = RTCRtpReceiver.getCapabilities("video")?.codecs ?? [];
+    const h264 = codecs.filter((c) => c.mimeType.toLowerCase() === "video/h264");
+    if (h264.length === 0) return;
+    tv.setCodecPreferences([...h264, ...codecs.filter((c) => !h264.includes(c))]);
+  } catch {
+    /* navegador sem setCodecPreferences: fica a ordem dele */
   }
 }
 
@@ -2045,7 +2063,9 @@ export class Malha {
     try {
       const todos = await navigator.mediaDevices.enumerateDevices();
       this.estado.microfones = todos
-        .filter((d) => d.kind === "audioinput")
+        // A entrada do som do PC não é microfone: escolhê-la mandaria o PC
+        // inteiro no lugar da voz.
+        .filter((d) => d.kind === "audioinput" && !/nvdisc som do pc/i.test(d.label))
         .map((d, i) => ({ id: d.deviceId, nome: d.label || `Microfone ${i + 1}` }));
       this.avisar();
     } catch {
@@ -2447,6 +2467,7 @@ export class Malha {
       // O transceptor de vídeo nasce vazio e fica pronto. Ver a nota no topo:
       // é isto que faz ligar a tela não renegociar nada.
       const tv = pc.addTransceiver("video", { direction: "sendrecv" });
+      preferirH264(tv);
       par.videoSender = tv.sender;
       const faixa = this.fluxoTela?.getVideoTracks()[0];
       if (faixa) await tv.sender.replaceTrack(faixa);
@@ -2708,8 +2729,10 @@ export class Malha {
           // Sem isto o navegador reduz a resolução ao primeiro aperto de
           // banda. Para texto, resolução é a última coisa que se pode perder.
           p.encodings[0].scaleResolutionDownBy = 1;
-          p.degradationPreference =
-            q.perfil === "nitidez" ? "maintain-resolution" : "maintain-framerate";
+          // `balanced` e não `maintain-resolution`: travar a resolução tira do
+          // Chrome o direito de aliviar quando a CPU não dá conta, e quem paga
+          // é o PC inteiro de quem transmite, que passa a engasgar.
+          p.degradationPreference = q.perfil === "nitidez" ? "balanced" : "maintain-framerate";
           if (q.fps === 60) p.encodings[0].maxFramerate = 60;
         } else {
           p.encodings[0].maxBitrate = alvoAudio;
@@ -2862,6 +2885,7 @@ export class Malha {
     if (!tv) tv = pc.getTransceivers().find((t) => t.receiver.track?.kind === "video");
     if (!tv) return false;
     par.videoSender = tv.sender;
+    preferirH264(tv);
 
     await tv.sender.replaceTrack(faixa);
 
